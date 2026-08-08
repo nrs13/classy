@@ -1,0 +1,428 @@
+{
+  "product": "Classy",
+  "tagline": "marketing reimagined",
+  "scope": "N=10 Instagram study-niche reels; TRIBE V2 predicted cortical response.",
+  "caveats": [
+    "N=10 \u2014 exploratory only; do not claim statistical significance.",
+    "TRIBE predicts group-average encoding responses, not individual brains.",
+    "Hemodynamic lag: peaks are delayed relative to stimulus events.",
+    "Activation shown is |response| abs-normalized per video for viz."
+  ],
+  "formulas": {
+    "like_rate": {
+      "expr": "likes / plays",
+      "notes": "Engagement intensity conditional on reach."
+    },
+    "amplification": {
+      "expr": "plays / followers",
+      "notes": "Reach relative to account size; breakouts >> 1."
+    },
+    "hook_slope": {
+      "expr": "slope of mean_|act|(t) for t \u2264 3.0s",
+      "notes": "Positive = rising early response; proxy for hook strength."
+    },
+    "mean_abs_activation": {
+      "expr": "mean(|activation| over vertices and time)",
+      "notes": "Overall response magnitude."
+    },
+    "peak_mean_abs": {
+      "expr": "max_t mean_v |activation(v,t)|",
+      "notes": "Strongest whole-cortex moment."
+    },
+    "sustain_ratio": {
+      "expr": "fraction of post-hook frames with mean_|act| \u2265 0.5 * peak",
+      "notes": "How long activation stays elevated after the open."
+    }
+  },
+  "mesh": {
+    "surface": "fsaverage5 pial (nilearn)",
+    "vertices": 20484,
+    "hemiSplit": 10242,
+    "files": [
+      "brain_pos.bin",
+      "brain_idx.bin"
+    ]
+  },
+  "videos": [
+    {
+      "id": "B_V1",
+      "account": "thelilystudylog",
+      "tier": "breakout",
+      "group": "B",
+      "video": "videos/B_V1.mp4",
+      "duration": 7.166,
+      "frames": 8,
+      "metrics": {
+        "plays": 6546346,
+        "likes": 415566,
+        "comments": 363,
+        "followers": 915,
+        "like_rate": 0.063481,
+        "amplification": 7154.4765
+      },
+      "annotations": {
+        "format": "Reaction, head on camera",
+        "key_elements": "Mild shocked or frustrated reaction, low intensity facial expression, background music is a rap verse, plain background",
+        "relatability_hook": "Minimal, framed as a senior to junior exchange but the situation still reads as something a junior would face"
+      },
+      "features": {
+        "hook_slope": 0.005682,
+        "mean_abs_activation": 0.081316,
+        "peak_mean_abs": 0.088012,
+        "sustain_ratio": 1.0,
+        "time_steps": 8,
+        "duration_sec": 7.0
+      },
+      "url": "https://www.instagram.com/reel/DWNY1iIDJ8o/",
+      "posted_at": "2026-03-23",
+      "source_meta": {
+        "model_id": "facebook/tribev2",
+        "device": "cuda",
+        "vertices": 20484,
+        "time_steps": 8
+      }
+    },
+    {
+      "id": "A_V1",
+      "account": "rosestudydiary",
+      "tier": "strong",
+      "group": "A",
+      "video": "videos/A_V1.mp4",
+      "duration": 73.1,
+      "frames": 74,
+      "metrics": {
+        "plays": 378305,
+        "likes": 30504,
+        "comments": 277,
+        "followers": 12900,
+        "like_rate": 0.080633,
+        "amplification": 29.326
+      },
+      "annotations": {
+        "format": "Creative demonstration + advise",
+        "key_elements": "No background audio, includes a physical or tactile prop/component",
+        "relatability_hook": "Student coded styling (outfit, setting) and dialogue"
+      },
+      "features": {
+        "hook_slope": 0.004696,
+        "mean_abs_activation": 0.120157,
+        "peak_mean_abs": 0.25208,
+        "sustain_ratio": 0.2857,
+        "time_steps": 74,
+        "duration_sec": 73.0
+      },
+      "url": "https://www.instagram.com/reel/DbZCI8dvr3Q/",
+      "posted_at": "2026-07-29",
+      "source_meta": {
+        "model_id": "facebook/tribev2",
+        "device": "cuda",
+        "vertices": 20484,
+        "time_steps": 74
+      }
+    },
+    {
+      "id": "A_V5",
+      "account": "rosestudydiary",
+      "tier": "strong",
+      "group": "A",
+      "video": "videos/A_V5.mp4",
+      "duration": 85.733,
+      "frames": 86,
+      "metrics": {
+        "plays": 94913,
+        "likes": 5442,
+        "comments": 79,
+        "followers": 12900,
+        "like_rate": 0.057337,
+        "amplification": 7.3576
+      },
+      "annotations": {
+        "format": "advice / talking head",
+        "key_elements": "Filmed in car setting, phone or clutch propped in the sun visor, casual at home style clothing rather than styled or dressed up",
+        "relatability_hook": "Everyday, unpolished relatability (setting and wardrobe)"
+      },
+      "features": {
+        "hook_slope": -0.001284,
+        "mean_abs_activation": 0.089727,
+        "peak_mean_abs": 0.173909,
+        "sustain_ratio": 0.2073,
+        "time_steps": 86,
+        "duration_sec": 85.0
+      },
+      "url": "https://www.instagram.com/reel/DbO9qcZvcpI/",
+      "posted_at": "2026-07-26",
+      "source_meta": {
+        "model_id": "facebook/tribev2",
+        "device": "cuda",
+        "vertices": 20484,
+        "time_steps": 86
+      }
+    },
+    {
+      "id": "A_V3",
+      "account": "rosestudydiary",
+      "tier": "mid",
+      "group": "A",
+      "video": "videos/A_V3.mp4",
+      "duration": 44.422,
+      "frames": 45,
+      "metrics": {
+        "plays": 20328,
+        "likes": 438,
+        "comments": 23,
+        "followers": 12900,
+        "like_rate": 0.021547,
+        "amplification": 1.5758
+      },
+      "annotations": {
+        "format": "Product demo",
+        "key_elements": "Genuine on camera reaction shots synced to an on screen response from Knowie (Knowunity's AI chat feature), minimal or plain background",
+        "relatability_hook": "Student coded styling (outfit)"
+      },
+      "features": {
+        "hook_slope": 0.004124,
+        "mean_abs_activation": 0.09367,
+        "peak_mean_abs": 0.182534,
+        "sustain_ratio": 0.2927,
+        "time_steps": 45,
+        "duration_sec": 44.0
+      },
+      "url": "https://www.instagram.com/reel/Dak5bN_x3QN/",
+      "posted_at": "2026-07-09",
+      "source_meta": {
+        "model_id": "facebook/tribev2",
+        "device": "cuda",
+        "vertices": 20484,
+        "time_steps": 45
+      }
+    },
+    {
+      "id": "A_V4",
+      "account": "rosestudydiary",
+      "tier": "mid",
+      "group": "A",
+      "video": "videos/A_V4.mp4",
+      "duration": 27.236,
+      "frames": 28,
+      "metrics": {
+        "plays": 12102,
+        "likes": 83,
+        "comments": 0,
+        "followers": 12900,
+        "like_rate": 0.006858,
+        "amplification": 0.9381
+      },
+      "annotations": {
+        "format": "Product demo",
+        "key_elements": "Genuine on camera reaction shots synced to an on screen response from Knowie (Knowunity's AI chat feature), minimal or plain background",
+        "relatability_hook": "Student coded styling (outfit)"
+      },
+      "features": {
+        "hook_slope": -0.001283,
+        "mean_abs_activation": 0.087868,
+        "peak_mean_abs": 0.130189,
+        "sustain_ratio": 0.9583,
+        "time_steps": 28,
+        "duration_sec": 27.0
+      },
+      "url": "https://www.instagram.com/reel/DaNZKo6h8Yf/",
+      "posted_at": "2026-06-30",
+      "source_meta": {
+        "model_id": "facebook/tribev2",
+        "device": "cuda",
+        "vertices": 20484,
+        "time_steps": 28
+      }
+    },
+    {
+      "id": "B_V5",
+      "account": "thelilystudylog",
+      "tier": "mid",
+      "group": "B",
+      "video": "videos/B_V5.mp4",
+      "duration": 7.2,
+      "frames": 8,
+      "metrics": {
+        "plays": 10211,
+        "likes": 74,
+        "comments": 1,
+        "followers": 915,
+        "like_rate": 0.007247,
+        "amplification": 11.1596
+      },
+      "annotations": {
+        "format": "Reaction, head on camera",
+        "key_elements": "Mild shocked or frustrated reaction, has sound, background appears to be a room but isn't clearly defined, presented as an opinion style video with captions overlaid",
+        "relatability_hook": "Not specified"
+      },
+      "features": {
+        "hook_slope": 0.007095,
+        "mean_abs_activation": 0.107373,
+        "peak_mean_abs": 0.122218,
+        "sustain_ratio": 1.0,
+        "time_steps": 8,
+        "duration_sec": 7.0
+      },
+      "url": "https://www.instagram.com/reel/DXYIe-_DKuX/",
+      "posted_at": "2026-04-21",
+      "source_meta": {
+        "model_id": "facebook/tribev2",
+        "device": "cuda",
+        "vertices": 20484,
+        "time_steps": 8
+      }
+    },
+    {
+      "id": "A_V2",
+      "account": "rosestudydiary",
+      "tier": "tail",
+      "group": "A",
+      "video": "videos/A_V2.mp4",
+      "duration": 84.451,
+      "frames": 85,
+      "metrics": {
+        "plays": 2675,
+        "likes": 32,
+        "comments": 2,
+        "followers": 12900,
+        "like_rate": 0.011963,
+        "amplification": 0.2074
+      },
+      "annotations": {
+        "format": "Product demo",
+        "key_elements": "Authentic on camera reactions paired with an on screen response from Knowie (Knowunity's AI chat feature), minimal or plain background",
+        "relatability_hook": "Student coded styling (outfit)"
+      },
+      "features": {
+        "hook_slope": 0.004253,
+        "mean_abs_activation": 0.079479,
+        "peak_mean_abs": 0.149877,
+        "sustain_ratio": 0.4815,
+        "time_steps": 85,
+        "duration_sec": 84.0
+      },
+      "url": "https://www.instagram.com/reel/DbgmwZHPtka/",
+      "posted_at": "2026-08-01",
+      "source_meta": {
+        "model_id": "facebook/tribev2",
+        "device": "cuda",
+        "vertices": 20484,
+        "time_steps": 85
+      }
+    },
+    {
+      "id": "B_V4",
+      "account": "thelilystudylog",
+      "tier": "tail",
+      "group": "B",
+      "video": "videos/B_V4.mp4",
+      "duration": 11.266,
+      "frames": 12,
+      "metrics": {
+        "plays": 2627,
+        "likes": 23,
+        "comments": 0,
+        "followers": 915,
+        "like_rate": 0.008755,
+        "amplification": 2.871
+      },
+      "annotations": {
+        "format": "Reaction plus product demo",
+        "key_elements": "Mild shocked reaction, unclear whether background audio is present",
+        "relatability_hook": "Student diaspora experience with parents"
+      },
+      "features": {
+        "hook_slope": 0.012306,
+        "mean_abs_activation": 0.104514,
+        "peak_mean_abs": 0.132222,
+        "sustain_ratio": 1.0,
+        "time_steps": 12,
+        "duration_sec": 11.0
+      },
+      "url": "https://www.instagram.com/reel/DXAycihjO7P/",
+      "posted_at": "2026-04-12",
+      "source_meta": {
+        "model_id": "facebook/tribev2",
+        "device": "cuda",
+        "vertices": 20484,
+        "time_steps": 12
+      }
+    },
+    {
+      "id": "B_V2",
+      "account": "thelilystudylog",
+      "tier": "tail",
+      "group": "B",
+      "video": "videos/B_V2.mp4",
+      "duration": 8,
+      "frames": 9,
+      "metrics": {
+        "plays": 1980,
+        "likes": 26,
+        "comments": 0,
+        "followers": 915,
+        "like_rate": 0.013131,
+        "amplification": 2.1639
+      },
+      "annotations": {
+        "format": "Reaction plus product demo",
+        "key_elements": "Mild shocked reaction, unclear whether background audio is present",
+        "relatability_hook": "Student diaspora experience with parents"
+      },
+      "features": {
+        "hook_slope": 0.018573,
+        "mean_abs_activation": 0.119837,
+        "peak_mean_abs": 0.148151,
+        "sustain_ratio": 1.0,
+        "time_steps": 9,
+        "duration_sec": 8.0
+      },
+      "url": "https://www.instagram.com/reel/DX3JsmWsTfE/",
+      "posted_at": "",
+      "source_meta": {
+        "model_id": "facebook/tribev2",
+        "device": "cuda",
+        "vertices": 20484,
+        "time_steps": 9
+      }
+    },
+    {
+      "id": "B_V3",
+      "account": "thelilystudylog",
+      "tier": "tail",
+      "group": "B",
+      "video": "videos/B_V3.mp4",
+      "duration": 8.055,
+      "frames": 9,
+      "metrics": {
+        "plays": 1717,
+        "likes": 13,
+        "comments": 0,
+        "followers": 915,
+        "like_rate": 0.007571,
+        "amplification": 1.8765
+      },
+      "annotations": {
+        "format": "Reaction plus product demo",
+        "key_elements": "Mild shocked reaction, unclear whether background audio is present",
+        "relatability_hook": "Not specified"
+      },
+      "features": {
+        "hook_slope": 0.017978,
+        "mean_abs_activation": 0.116044,
+        "peak_mean_abs": 0.151829,
+        "sustain_ratio": 1.0,
+        "time_steps": 9,
+        "duration_sec": 8.0
+      },
+      "url": "https://www.instagram.com/reel/DXx2_z6s0Oy/",
+      "posted_at": "2026-05-01",
+      "source_meta": {
+        "model_id": "facebook/tribev2",
+        "device": "cuda",
+        "vertices": 20484,
+        "time_steps": 9
+      }
+    }
+  ]
+}

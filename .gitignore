@@ -1,0 +1,37 @@
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+*.sw?
+*.suo
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+tribe_cache/
+
+# Raw TRIBE outputs (regenerate with extract.py)
+outputs/
+
+# Duplicate source videos at repo root (app serves web/public/data/videos/)
+/videos/
+
+# Node
+web/node_modules/
+web/dist/
+web/dist-ssr/
+web/*.local
+web/.env
+web/.env.*
+!web/.env.example
+
+# Firebase / agent clutter
+web/.firebase/
+web/.agents/
+web/skills-lock.json
+
+# Logs
+*.log
+npm-debug.log*
