@@ -5,6 +5,30 @@
   "vertexCount": 20484,
   "hemiSplit": 10242,
   "activationEncoding": "uint8 abs-normalized per video, frame-major (T*V)",
+  "atlas": {
+    "name": "Yeo-7",
+    "scope": "coarse 7-network cortical parcellation",
+    "labels": "atlas_yeo7_labels.bin",
+    "encoding": "uint8; 0=medial wall, 1-7=network id",
+    "vertexCount": 20484,
+    "hemiSplit": 10242,
+    "networkNames": {
+      "1": "Visual",
+      "2": "Somatomotor",
+      "3": "Dorsal Attention",
+      "4": "Ventral Attention",
+      "5": "Limbic",
+      "6": "Frontoparietal",
+      "7": "Default Mode Network"
+    },
+    "medialWall": {
+      "label": 0,
+      "vertexCount": 1769,
+      "excludedFromNetworkMeans": true
+    },
+    "requiresRealMesh": true,
+    "syntheticMeshCompatible": false
+  },
   "videos": [
     {
       "id": "B_V1",

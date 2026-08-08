@@ -1,9 +1,9 @@
 # Classy web
 
-React app for Classy. See the [root README](../README.md) for setup, data export, and deploy.
-
 ```bash
-cp .env.example .env   # Firebase keys
+cp .env.example .env
 npm install
 npm run dev
 ```
+
+Put Firebase keys in `.env`. Full setup is in the root README.

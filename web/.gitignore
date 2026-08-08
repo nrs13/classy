@@ -8,5 +8,7 @@ dist-ssr
 .firebase
 .agents
 skills-lock.json
+.cursor
+AGENTS.md
 .DS_Store
 *.log

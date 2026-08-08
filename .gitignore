@@ -15,7 +15,7 @@ tribe_cache/
 # Raw TRIBE outputs (regenerate with extract.py)
 outputs/
 
-# Duplicate source videos at repo root (app serves web/public/data/videos/)
+# Source videos at repo root (app uses web/public/data/videos/)
 /videos/
 
 # Node
@@ -27,10 +27,11 @@ web/.env
 web/.env.*
 !web/.env.example
 
-# Firebase / agent clutter
 web/.firebase/
 web/.agents/
 web/skills-lock.json
+.cursor/
+**/AGENTS.md
 
 # Logs
 *.log

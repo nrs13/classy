@@ -5,13 +5,11 @@ const DATA = '/data';
 async function fetchArrayBuffer(url) {
   const res = await fetch(url);
   if (!res.ok) throw new Error(`${url}: ${res.status}`);
-  // Vite's dev server returns index.html (200) for missing files; reject that.
   const ct = res.headers.get('content-type') || '';
   if (ct.includes('text/html')) throw new Error(`${url}: not found (html fallback)`);
   return res.arrayBuffer();
 }
 
-// ---- Manifest ------------------------------------------------------------
 export async function loadManifest() {
   try {
     const res = await fetch(`${DATA}/manifest.json`);
@@ -60,8 +58,31 @@ function syntheticManifest() {
   return { videos, vertexCount: null, hemiSplit: null, synthetic: true };
 }
 
-// ---- Brain geometry ------------------------------------------------------
-export async function loadBrain() {
+async function loadAtlas(manifest, vertexCount) {
+  const atlas = manifest?.atlas;
+  if (
+    manifest?.synthetic ||
+    !atlas?.requiresRealMesh ||
+    atlas?.syntheticMeshCompatible !== false ||
+    !atlas?.labels
+  ) {
+    return null;
+  }
+  try {
+    const labels = new Uint8Array(await fetchArrayBuffer(`${DATA}/${atlas.labels}`));
+    if (labels.length !== vertexCount || atlas.vertexCount !== vertexCount) return null;
+    return {
+      labels,
+      name: atlas.name,
+      scope: atlas.scope,
+      networkNames: atlas.networkNames || {},
+    };
+  } catch {
+    return null;
+  }
+}
+
+export async function loadBrain(manifest) {
   try {
     const [posBuf, idxBuf] = await Promise.all([
       fetchArrayBuffer(`${DATA}/brain_pos.bin`),
@@ -69,28 +90,25 @@ export async function loadBrain() {
     ]);
     const positions = new Float32Array(posBuf);
     const indices = new Uint32Array(idxBuf);
-    return { positions, indices, vertexCount: positions.length / 3, synthetic: false };
+    const vertexCount = positions.length / 3;
+    const atlas = await loadAtlas(manifest, vertexCount);
+    return { positions, indices, vertexCount, atlas, synthetic: false };
   } catch {
-    // Indexed icosahedron (detail 4) → clear ellipsoid. Must KEEP indices;
-    // positions alone are unique verts and won't triangulate correctly.
     const geo = new IcosahedronGeometry(1.25, 4);
     const positions = Float32Array.from(geo.attributes.position.array);
     for (let i = 0; i < positions.length; i += 3) {
-      positions[i] *= 1.4; // x — wider
-      positions[i + 1] *= 0.88; // y — flatter
-      positions[i + 2] *= 1.12; // z — deeper
+      positions[i] *= 1.4;
+      positions[i + 1] *= 0.88;
+      positions[i + 2] *= 1.12;
     }
     const indices = geo.index ? Uint32Array.from(geo.index.array) : null;
     const vertexCount = positions.length / 3;
     geo.dispose();
-    return { positions, indices, vertexCount, synthetic: true };
+    return { positions, indices, vertexCount, atlas: null, synthetic: true };
   }
 }
 
-// ---- Activation ----------------------------------------------------------
 export async function loadActivation(video, brain) {
-  // Real brain → try real activation first. Only synthesize when the file is
-  // missing/malformed — never after a successful decode.
   if (!brain.synthetic) {
     try {
       const buf = await fetchArrayBuffer(`${DATA}/act/${video.id}.bin`);
@@ -107,7 +125,6 @@ export async function loadActivation(video, brain) {
   return syntheticActivation(video, brain);
 }
 
-/** Travelling turbo wave so the placeholder mesh feels alive. */
 function syntheticActivation(video, brain) {
   const frames = video.frames || 60;
   const n = brain.vertexCount;

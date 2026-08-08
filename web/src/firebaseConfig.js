@@ -1,4 +1,3 @@
-// Filled from web/.env (see .env.example). Client keys are domain-restricted in Firebase.
 export const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || '',
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || '',

@@ -1,4 +1,3 @@
-// Turbo colormap samples → 256-entry RGB LUT.
 const TURBO = [
   [0.18995, 0.07176, 0.23217], [0.19483, 0.08339, 0.26149], [0.19956, 0.09498, 0.29024],
   [0.20415, 0.10652, 0.31844], [0.2086, 0.11802, 0.34607], [0.21291, 0.12947, 0.37314],
@@ -81,7 +80,6 @@ const TURBO = [
   [0.96451, 0.29142, 0], [0.97455, 0.2869, 0], [0.98499, 0.28224, 0], [0.99583, 0.27743, 0],
 ];
 
-// Flatten to a Uint8 LUT [256*3] once.
 const LUT = new Uint8Array(256 * 3);
 for (let i = 0; i < 256; i++) {
   const idx = Math.min(TURBO.length - 1, Math.round((i / 255) * (TURBO.length - 1)));
@@ -92,20 +90,4 @@ for (let i = 0; i < 256; i++) {
 }
 
 export const turboLUT = LUT;
-
-// Sample turbo at t in [0,1] as #rrggbb.
-export function turboHex(t) {
-  const i = Math.min(255, Math.max(0, Math.round(t * 255)));
-  const r = LUT[i * 3];
-  const g = LUT[i * 3 + 1];
-  const b = LUT[i * 3 + 2];
-  return (
-    '#' +
-    [r, g, b]
-      .map((x) => x.toString(16).padStart(2, '0'))
-      .join('')
-  );
-}
-
-// Accents in index.css: cool = turboHex(0.15), warm = turboHex(0.85).
 

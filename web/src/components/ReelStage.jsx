@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import BrainViewer from './BrainViewer';
 import { loadActivation } from '../lib/data';
+import { YEO7_ROLES } from '../lib/yeo7';
 
 const TIER_CLASS = {
   breakout: 'tier-breakout',
@@ -24,14 +25,11 @@ function fmtTime(sec) {
   return `${m}:${String(r).padStart(2, '0')}`;
 }
 
-/** Mean activation per frame → 0..1 curve for the timeline strip. */
 function meanCurve(activation, bins = 48) {
   if (!activation?.data || !activation.frames) return null;
   const { data, frames, vertexCount: n } = activation;
   if (!n) return null;
   const means = new Float32Array(frames);
-  // Normalize by the actual peak mean — sparse real activations sit well
-  // below 1.0, so seeding globalMax at 1 crushed every bar to ~flat cool blue.
   let globalMax = 0;
   for (let f = 0; f < frames; f++) {
     let sum = 0;
@@ -50,7 +48,6 @@ function meanCurve(activation, bins = 48) {
   return out;
 }
 
-/** Muted loading placeholder — not a fake "correct" curve. */
 function loadingCurve(bins = 48) {
   return Array.from({ length: bins }, () => 0.22);
 }
@@ -58,35 +55,53 @@ function loadingCurve(bins = 48) {
 function MuteGlyph({ muted }) {
   return (
     <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
-      <path d="M2.5 5.5h2L7.5 3v8L4.5 8.5h-2v-3z" stroke="#fff" strokeWidth="1.2" />
+      <path
+        d="M2.5 5.5h2L7.5 3v8L4.5 8.5h-2v-3z"
+        stroke="currentColor"
+        strokeWidth="1.2"
+      />
       {muted ? (
-        <path d="M9 5l3 3M12 5l-3 3" stroke="#fff" strokeWidth="1.2" />
+        <path d="M9 5l3 3M12 5l-3 3" stroke="currentColor" strokeWidth="1.2" />
       ) : (
         <>
-          <path d="M9 5.2c.9.7.9 2.9 0 3.6" stroke="#fff" strokeWidth="1.2" />
-          <path d="M10.6 3.8c1.6 1.2 1.6 5.2 0 6.4" stroke="#fff" strokeWidth="1.2" />
+          <path d="M9 5.2c.9.7.9 2.9 0 3.6" stroke="currentColor" strokeWidth="1.2" />
+          <path d="M10.6 3.8c1.6 1.2 1.6 5.2 0 6.4" stroke="currentColor" strokeWidth="1.2" />
         </>
       )}
     </svg>
   );
 }
 
-/**
- * @param {'split'|'stack'} layout — explore uses split (video|brain); compare uses stack
- * @param {boolean} compact — legacy alias for layout="stack"
- */
+function PlayGlyph({ playing }) {
+  const stroke = {
+    stroke: 'rgba(0,0,0,0.88)',
+    strokeWidth: 1.35,
+    strokeLinejoin: 'round',
+    paintOrder: 'stroke fill',
+  };
+  return playing ? (
+    <svg width="28" height="28" viewBox="0 0 14 14" fill="none" aria-hidden>
+      <path d="M4 3h2.2v8H4V3zm3.8 0H10v8H7.8V3z" fill="currentColor" {...stroke} />
+    </svg>
+  ) : (
+    <svg width="28" height="28" viewBox="0 0 14 14" fill="none" aria-hidden>
+      <path d="M4.2 2.8v8.4L11.4 7 4.2 2.8z" fill="currentColor" {...stroke} />
+    </svg>
+  );
+}
+
 export default function ReelStage({
   video,
   brain,
-  compact = false,
+  networks,
   layout,
   syncPlayback = false,
   syncedPlaying = false,
   onSyncPlayChange,
+  onViewMoment,
 }) {
-  const stack = layout === 'stack' || compact;
+  const stack = layout === 'stack';
   const videoRef = useRef(null);
-  /** Single source of truth for scrubber, chart playhead, and brain paint. */
   const progressRef = useRef(0);
   const scrubberRef = useRef(null);
   const playheadRef = useRef(null);
@@ -94,9 +109,12 @@ export default function ReelStage({
   const [activation, setActivation] = useState(null);
   const [playing, setPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [hasVideo, setHasVideo] = useState(true);
+  const [hasVideo, setHasVideo] = useState(false);
+  const [videoFailed, setVideoFailed] = useState(false);
   const [muted, setMuted] = useState(true);
   const [hovered, setHovered] = useState(false);
+  const [hoverNetwork, setHoverNetwork] = useState(null);
+  const [selectedNetwork, setSelectedNetwork] = useState(null);
   const [duration, setDuration] = useState(video.duration || 0);
   const clockRef = useRef(0);
   const applyingSync = useRef(false);
@@ -104,6 +122,15 @@ export default function ReelStage({
   const playingRef = useRef(playing);
   const hasVideoRef = useRef(hasVideo);
   const lastStateProgress = useRef(0);
+  const handleNetworkChange = useCallback((next) => {
+    if (next == null || typeof next === 'string') {
+      setHoverNetwork(typeof next === 'string' ? next : null);
+      setSelectedNetwork(null);
+      return;
+    }
+    setHoverNetwork(next.hover ?? null);
+    setSelectedNetwork(next.selected ?? null);
+  }, []);
 
   useEffect(() => {
     durationRef.current = duration;
@@ -116,14 +143,19 @@ export default function ReelStage({
   }, [hasVideo]);
 
   useEffect(() => {
+    setHasVideo(false);
+    setVideoFailed(false);
+    setPlaying(false);
+    setProgress(0);
+    clockRef.current = 0;
+    progressRef.current = 0;
+  }, [video.id]);
+
+  useEffect(() => {
     let alive = true;
-    // Clear only while loading this reel — never leave a stale curve painted
-    // as if it belonged to the new selection.
     setActivation(null);
     loadActivation(video, brain).then((a) => {
       if (!alive) return;
-      // Prefer real (or synthetic-from-loader) data; never overwrite a prior
-      // real load with a later stale response (Strict Mode / fast reel flips).
       setActivation(a);
     });
     return () => {
@@ -131,7 +163,6 @@ export default function ReelStage({
     };
   }, [video.id, brain]);
 
-  /** Push the same progress value to scrubber fill, playhead, timestamp, and React state. */
   function applyProgress(p, { forceState = false } = {}) {
     const clamped = Math.max(0, Math.min(1, p));
     progressRef.current = clamped;
@@ -139,7 +170,6 @@ export default function ReelStage({
     const scrub = scrubberRef.current;
     if (scrub) {
       scrub.style.setProperty('--progress', pct);
-      // Keep native range thumb in lockstep without waiting on React.
       if (document.activeElement !== scrub) {
         scrub.value = String(clamped);
       }
@@ -151,12 +181,22 @@ export default function ReelStage({
     if (timeLabelRef.current) {
       timeLabelRef.current.textContent = `${fmtTime(clamped * total)} / ${fmtTime(total)}`;
     }
-    // Coalesce React state updates so controlled input stays honest without thrashing.
     if (forceState || Math.abs(clamped - lastStateProgress.current) > 0.012) {
       lastStateProgress.current = clamped;
       setProgress(clamped);
     }
   }
+
+  function reportViewMoment() {
+    if (!onViewMoment) return;
+    const total = durationRef.current || video.duration || 0;
+    onViewMoment({ videoId: video.id, timeSec: progressRef.current * total });
+  }
+
+  useEffect(() => {
+    reportViewMoment();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [video.id]);
 
   useEffect(() => {
     let raf;
@@ -182,7 +222,6 @@ export default function ReelStage({
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-    // Stable loop: read latest flags via refs so we don't tear down rAF on play/pause.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [video.id]);
 
@@ -191,7 +230,6 @@ export default function ReelStage({
     if (vid) vid.muted = muted;
   }, [muted]);
 
-  // Apply synced play/pause from parent when sync is on.
   useEffect(() => {
     if (!syncPlayback) return;
     const vid = videoRef.current;
@@ -201,6 +239,7 @@ export default function ReelStage({
         vid.play().catch(() => {});
       } else {
         vid.pause();
+        reportViewMoment();
       }
     }
     setPlaying(syncedPlaying);
@@ -217,6 +256,7 @@ export default function ReelStage({
       else vid.pause();
     }
     setPlaying(next);
+    if (!next) reportViewMoment();
   }
 
   function togglePlay() {
@@ -237,11 +277,11 @@ export default function ReelStage({
       clockRef.current = f;
     }
     applyProgress(f, { forceState: true });
+    reportViewMoment();
   }
 
   const bins = stack ? 32 : 56;
   const curve = useMemo(() => meanCurve(activation, bins), [activation, bins]);
-  // Placeholder only before real data arrives — never after.
   const barCurve = curve || loadingCurve(bins);
   const barsReady = Boolean(curve);
 
@@ -260,32 +300,44 @@ export default function ReelStage({
       <video
         ref={videoRef}
         src={`/data/${video.video}`}
-        className="w-full h-full object-contain"
+        className={`w-full h-full object-contain stage-video-el${hasVideo ? ' is-ready' : ''}`}
         playsInline
         muted={muted}
         loop
         onLoadedData={(e) => {
           setHasVideo(true);
-          if (e.currentTarget.duration) setDuration(e.currentTarget.duration);
+          setVideoFailed(false);
+          const vid = e.currentTarget;
+          if (vid.duration) setDuration(vid.duration);
+          if (vid.currentTime < 0.05 && vid.duration > 0.25) {
+            try {
+              vid.currentTime = 0.08;
+            } catch {
+              /* ignore seek failures before enough data */
+            }
+          }
         }}
-        onError={() => setHasVideo(false)}
+        onError={() => {
+          setHasVideo(false);
+          setVideoFailed(true);
+        }}
       />
       {!hasVideo && (
         <div
-          className="absolute inset-0 grid place-items-center text-[11px] text-center px-4 tracking-[0.04em]"
-          style={{ color: 'var(--text-secondary)' }}
+          className="stage-video-loading"
+          aria-live="polite"
+          aria-busy={!videoFailed}
         >
-          waiting for video
-          <br />
-          <span style={{ color: 'var(--text-tertiary)' }}>public/data/videos/{video.id}.mp4</span>
+          {videoFailed ? 'unavailable' : 'loading'}
         </div>
       )}
       {!stack && (
         <span
-          className="absolute top-2 left-2 text-[11px] font-semibold px-2 py-0.5 tracking-[0.04em]"
+          className="absolute top-2 left-2 text-[11px] px-2 py-0.5 tracking-[0.04em]"
           style={{
             background: 'var(--bg)',
             color: 'var(--text-primary)',
+            fontWeight: 'var(--weight-body)',
             borderRadius: 'var(--radius)',
             border: '1px solid var(--border)',
           }}
@@ -297,20 +349,21 @@ export default function ReelStage({
       <button
         type="button"
         onClick={togglePlay}
-        className={`btn-overlay absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2${
+        className={`btn-media btn-media-play absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2${
           showOverlay ? ' is-visible' : ''
         }`}
         aria-label={playing ? 'Pause' : 'Play'}
         title={playing ? 'Pause' : 'Play'}
       >
-        {playing ? '‖' : '▶'}
+        <span className="btn-media-play-glyph">
+          <PlayGlyph playing={playing} />
+        </span>
       </button>
 
       <button
         type="button"
         onClick={() => setMuted((v) => !v)}
-        className="btn-mute absolute bottom-2 right-2"
-        style={{ opacity: showOverlay ? 1 : 0 }}
+        className={`btn-media btn-media-mute${showOverlay ? ' is-visible' : ''}`}
         aria-label={muted ? 'Unmute' : 'Mute'}
         title={muted ? 'Unmute' : 'Mute'}
       >
@@ -333,7 +386,16 @@ export default function ReelStage({
         </div>
       )}
       {brainReady && (
-        <BrainViewer brain={brain} activation={activation} progressRef={progressRef} />
+        <BrainViewer
+          brain={brain}
+          activation={activation}
+          networks={networks}
+          progressRef={progressRef}
+          videoId={video.id}
+          timeSec={progress * (duration || video.duration || 0)}
+          onNetworkChange={handleNetworkChange}
+          compact={stack}
+        />
       )}
     </div>
   );
@@ -355,8 +417,8 @@ export default function ReelStage({
       <div className="flex items-center gap-2 min-w-0">
         <span
           ref={timeLabelRef}
-          className="text-[11px] tabular-nums shrink-0 tracking-[0.04em]"
-          style={{ color: 'var(--text-secondary)', minWidth: '5.5rem' }}
+          className="time-readout text-[11px] tabular-nums shrink-0 tracking-[0.04em]"
+          style={{ minWidth: '5.5rem' }}
         >
           {fmtTime(progress * (duration || video.duration || 0))} /{' '}
           {fmtTime(duration || video.duration || 0)}
@@ -398,8 +460,14 @@ export default function ReelStage({
         <div ref={playheadRef} className="act-playhead" />
       </div>
 
-      {!stack && (
-        <div className="stats-cq">
+      <div className="stats-cq">
+        {stack ? (
+          <NetworkStat
+            networks={networks}
+            hoverNetwork={hoverNetwork}
+            selectedNetwork={selectedNetwork}
+          />
+        ) : (
           <div className="stats-grid text-sm">
             <Stat label="Plays" value={fmt(m.plays)} />
             <Stat
@@ -415,9 +483,14 @@ export default function ReelStage({
               value={video.tier ? `[${video.tier}]` : '-'}
               cls={TIER_CLASS[video.tier] || ''}
             />
+            <NetworkStat
+              networks={networks}
+              hoverNetwork={hoverNetwork}
+              selectedNetwork={selectedNetwork}
+            />
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
@@ -427,8 +500,89 @@ function Stat({ label, value, cls = '' }) {
   return (
     <div className="stat-tile px-3 py-2 min-w-0">
       <div className="section-label stat-tile-label mb-1">{label}</div>
-      <div className={`stat-tile-value font-semibold tracking-[0.03em] ${cls}`} title={full}>
+      <div className={`stat-tile-value tracking-[0.03em] ${cls}`} title={full}>
         {full}
+      </div>
+    </div>
+  );
+}
+
+function NetworkStat({ networks, hoverNetwork, selectedNetwork }) {
+  const means = networks?.means || {};
+  const topNetworks = networks?.top || [];
+  const rankedAll = Object.keys(means).sort(
+    (a, b) => (Number(means[b]) || 0) - (Number(means[a]) || 0),
+  );
+  const rankOf = (name) => {
+    const index = rankedAll.indexOf(name);
+    return index >= 0 ? index + 1 : null;
+  };
+
+  const rows = topNetworks.map((name, index) => ({
+    name,
+    rank: index + 1,
+    mean: Number(means[name]) || 0,
+    selected: false,
+  }));
+
+  const selectedRow =
+    selectedNetwork && !topNetworks.includes(selectedNetwork)
+      ? {
+          name: selectedNetwork,
+          rank: rankOf(selectedNetwork),
+          mean: Number(means[selectedNetwork]) || 0,
+          selected: true,
+        }
+      : null;
+
+  const maxMean = Math.max(
+    0,
+    ...Object.values(means).map((v) => Number(v) || 0),
+  );
+  const highlightName = hoverNetwork || selectedNetwork;
+
+  const renderRow = (network) => {
+    const active = highlightName === network.name;
+    const level = maxMean > 0 ? network.mean / maxMean : 0;
+    const role = YEO7_ROLES[network.name];
+    return (
+      <div
+        key={network.name}
+        className={`brain-network-row${active ? ' is-active' : ''}${
+          network.selected ? ' is-selected' : ''
+        }`}
+        data-network={network.name}
+        data-active={active ? 'true' : 'false'}
+      >
+        <div className="brain-network-label">
+          <span>{network.rank ?? '—'}</span>
+          <span>
+            {network.name}
+            {network.selected ? (
+              <span className="brain-network-selected-tag"> selected</span>
+            ) : null}
+          </span>
+          <span title="Mean absolute predicted activation, in unitless model output">
+            {network.mean.toFixed(3)}
+          </span>
+        </div>
+        {role && <div className="brain-network-role">{role}</div>}
+        <div className="brain-network-track">
+          <div
+            className="brain-network-bar"
+            style={{ '--network-level': String(level) }}
+          />
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="stat-tile network-stat-tile px-3 py-2 min-w-0">
+      <div className="section-label stat-tile-label mb-1">Top 3 networks</div>
+      <div className="brain-network-list" aria-label="Top Yeo-7 networks">
+        {rows.map(renderRow)}
+        {selectedRow ? renderRow(selectedRow) : null}
       </div>
     </div>
   );

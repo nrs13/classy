@@ -13,6 +13,15 @@ import numpy as np
 N_VERTICES = 20484  # fsaverage5 both hemispheres (TRIBE V2)
 MAX_FRAMES = 90
 HOOK_SEC = 3.0
+YEO7_NAMES = {
+    1: "Visual",
+    2: "Somatomotor",
+    3: "Dorsal Attention",
+    4: "Ventral Attention",
+    5: "Limbic",
+    6: "Frontoparietal",
+    7: "Default Mode Network",
+}
 
 
 def load_fsaverage5_mesh():
@@ -43,6 +52,86 @@ def load_fsaverage5_mesh():
                 "Need nilearn (or nibabel+nilearn) to export fsaverage5 mesh. "
                 f"nilearn={e_nilearn}; nibabel={e_nib}"
             )
+
+
+def load_yeo7_labels(atlas_dir: Path, hemi_split: int) -> np.ndarray:
+    """Load uint8 Yeo-7 labels in left-then-right fsaverage5 vertex order."""
+    import nibabel as nib
+
+    hemispheres = []
+    for hemi in ("lh", "rh"):
+        path = atlas_dir / f"{hemi}.Yeo2011_7Networks_N1000.annot"
+        if not path.exists():
+            raise RuntimeError(f"Missing official Yeo-7 annotation: {path}")
+        labels, _, names_raw = nib.freesurfer.read_annot(path)
+        if labels.shape != (hemi_split,):
+            raise RuntimeError(
+                f"{path.name}: expected {hemi_split} labels, got {labels.shape}"
+            )
+        if np.any(labels < 0):
+            raise RuntimeError(f"{path.name}: contains unmapped annotation labels")
+
+        names = [name.decode("utf-8") for name in names_raw]
+        expected = ["FreeSurfer_Defined_Medial_Wall"] + [
+            f"7Networks_{i}" for i in range(1, 8)
+        ]
+        if names != expected:
+            raise RuntimeError(f"{path.name}: unexpected label table {names}")
+
+        canonical = np.zeros(labels.shape, dtype=np.uint8)
+        for annotation_id, name in enumerate(names):
+            if annotation_id == 0:
+                continue
+            network_id = int(name.rsplit("_", 1)[1])
+            canonical[labels == annotation_id] = network_id
+        hemispheres.append(canonical)
+
+    combined = np.concatenate(hemispheres)
+    if combined.shape != (N_VERTICES,):
+        raise RuntimeError(
+            f"Yeo-7: expected {N_VERTICES} combined labels, got {combined.shape}"
+        )
+    if set(np.unique(combined)) != set(range(8)):
+        raise RuntimeError("Yeo-7: expected medial wall 0 and network labels 1 through 7")
+    return combined
+
+
+def network_features(
+    act: np.ndarray,
+    timestamps: np.ndarray | None,
+    labels: np.ndarray,
+) -> dict:
+    """Summarize predicted activation by coarse Yeo-7 cortical network."""
+    if act.shape[0] != labels.size:
+        raise RuntimeError(
+            f"Activation vertices {act.shape[0]} do not match atlas {labels.size}"
+        )
+    if timestamps is None or timestamps.size != act.shape[1]:
+        timestamps = np.arange(act.shape[1], dtype=np.float32)
+
+    abs_act = np.abs(act)
+    means = {}
+    peak_t_sec = {}
+    for network_id, name in YEO7_NAMES.items():
+        mask = labels == network_id
+        if not mask.any():
+            raise RuntimeError(f"Yeo-7 network has no vertices: {name}")
+        mean_t = abs_act[mask].mean(axis=0)
+        means[name] = round(float(mean_t.mean()), 6)
+        peak_index = int(mean_t.argmax()) if mean_t.size else 0
+        peak_t_sec[name] = (
+            round(float(timestamps[peak_index]), 3) if mean_t.size else 0.0
+        )
+
+    top = sorted(means, key=means.get, reverse=True)[:3]
+    return {
+        "atlas": "Yeo-7",
+        "scope": "cortical parcellation",
+        "medial_wall_excluded": True,
+        "means": means,
+        "top": top,
+        "peak_t_sec": peak_t_sec,
+    }
 
 
 def tier_for(plays: int | None) -> str:
@@ -105,6 +194,26 @@ def neural_features(act: np.ndarray, timestamps: np.ndarray | None) -> dict:
     else:
         sustain = 0.0
 
+    peak_i = int(mean_t.argmax()) if mean_t.size else 0
+    timeline = {
+        "description": (
+            "Per-frame whole-cortex mean |activation| from TRIBE "
+            "(same series underlying the Explore timeline chart). "
+            "Not ROI/region-specific."
+        ),
+        "n_frames": int(mean_t.size),
+        "peak_frame_index": peak_i,
+        "peak_t_sec": round(float(timestamps[peak_i]), 3) if timestamps.size else 0.0,
+        "peak_mean_abs": round(float(mean_t[peak_i]), 6) if mean_t.size else 0.0,
+        "series": [
+            {
+                "t_sec": round(float(timestamps[i]), 3),
+                "mean_abs": round(float(mean_t[i]), 6),
+            }
+            for i in range(int(mean_t.size))
+        ],
+    }
+
     return {
         "hook_slope": round(slope, 6),
         "mean_abs_activation": round(mean_abs, 6),
@@ -112,7 +221,33 @@ def neural_features(act: np.ndarray, timestamps: np.ndarray | None) -> dict:
         "sustain_ratio": round(sustain, 4),
         "time_steps": int(mean_t.size),
         "duration_sec": float(timestamps[-1]) if timestamps.size else 0.0,
+        "activation_timeline": timeline,
     }
+
+
+def build_story(timeline: dict, content_events: list[dict]) -> list[dict]:
+    series = timeline.get("series", [])
+    story = [
+        {
+            "t_sec": point["t_sec"],
+            "activation": point["mean_abs"],
+            "events": [],
+        }
+        for point in series
+    ]
+    if not story:
+        return story
+
+    grid = np.asarray([point["t_sec"] for point in story], dtype=np.float64)
+    for event in content_events:
+        if not isinstance(event, dict) or "t_sec" not in event:
+            raise RuntimeError("Each content event must be an object with t_sec")
+        event_time = float(event["t_sec"])
+        index = int(np.abs(grid - event_time).argmin())
+        story[index]["events"].append(
+            {key: value for key, value in event.items() if key != "t_sec"}
+        )
+    return story
 
 
 def quantize_activation(act: np.ndarray, max_frames: int) -> tuple[np.ndarray, int]:
@@ -130,7 +265,13 @@ def quantize_activation(act: np.ndarray, max_frames: int) -> tuple[np.ndarray, i
     return u8.T.reshape(-1), t
 
 
-def export(outputs: Path, metadata_csv: Path, out: Path, max_frames: int = MAX_FRAMES):
+def export(
+    outputs: Path,
+    metadata_csv: Path,
+    out: Path,
+    atlas_dir: Path,
+    max_frames: int = MAX_FRAMES,
+):
     out.mkdir(parents=True, exist_ok=True)
     act_dir = out / "act"
     act_dir.mkdir(exist_ok=True)
@@ -140,8 +281,10 @@ def export(outputs: Path, metadata_csv: Path, out: Path, max_frames: int = MAX_F
     if positions.shape[0] != N_VERTICES:
         print(f"warn: expected {N_VERTICES} verts, got {positions.shape[0]}", flush=True)
 
+    atlas_labels = load_yeo7_labels(atlas_dir, hemi_split)
     (out / "brain_pos.bin").write_bytes(positions.astype(np.float32).tobytes())
     (out / "brain_idx.bin").write_bytes(faces.astype(np.uint32).ravel().tobytes())
+    (out / "atlas_yeo7_labels.bin").write_bytes(atlas_labels.tobytes())
 
     meta_rows = read_metadata(metadata_csv)
     vid_dirs = sorted(
@@ -190,6 +333,8 @@ def export(outputs: Path, metadata_csv: Path, out: Path, max_frames: int = MAX_F
         )
 
         feats = neural_features(act, timestamps)
+        timeline = feats.pop("activation_timeline")
+        networks = network_features(act, timestamps, atlas_labels)
         u8, frames = quantize_activation(act, max_frames)
         (act_dir / f"{vid}.bin").write_bytes(u8.tobytes())
 
@@ -201,6 +346,16 @@ def export(outputs: Path, metadata_csv: Path, out: Path, max_frames: int = MAX_F
             "relatability_hook": row.get("relatability_hook")
             or (meta_json.get("annotations") or {}).get("relatability_hook", ""),
         }
+
+        content_events_path = vd / "content_events.json"
+        content_events = (
+            json.loads(content_events_path.read_text())
+            if content_events_path.exists()
+            else []
+        )
+        if not isinstance(content_events, list):
+            raise RuntimeError(f"{vid}: content_events.json must contain a list")
+        story = build_story(timeline, content_events)
 
         entry = {
             "id": vid,
@@ -225,6 +380,10 @@ def export(outputs: Path, metadata_csv: Path, out: Path, max_frames: int = MAX_F
         knowledge_videos.append(
             {
                 **entry,
+                "activation_timeline": timeline,
+                "content_events": content_events,
+                "story": story,
+                "networks": networks,
                 "url": row.get("url") or meta_json.get("url", ""),
                 "posted_at": row.get("posted_at") or meta_json.get("posted_at", ""),
                 "source_meta": {
@@ -247,6 +406,22 @@ def export(outputs: Path, metadata_csv: Path, out: Path, max_frames: int = MAX_F
         "vertexCount": int(positions.shape[0]),
         "hemiSplit": int(hemi_split),
         "activationEncoding": "uint8 abs-normalized per video, frame-major (T*V)",
+        "atlas": {
+            "name": "Yeo-7",
+            "scope": "coarse 7-network cortical parcellation",
+            "labels": "atlas_yeo7_labels.bin",
+            "encoding": "uint8; 0=medial wall, 1-7=network id",
+            "vertexCount": int(atlas_labels.size),
+            "hemiSplit": int(hemi_split),
+            "networkNames": {str(k): v for k, v in YEO7_NAMES.items()},
+            "medialWall": {
+                "label": 0,
+                "vertexCount": int((atlas_labels == 0).sum()),
+                "excludedFromNetworkMeans": True,
+            },
+            "requiresRealMesh": True,
+            "syntheticMeshCompatible": False,
+        },
         "videos": videos,
     }
     (out / "manifest.json").write_text(json.dumps(manifest, indent=2))
@@ -286,12 +461,32 @@ def export(outputs: Path, metadata_csv: Path, out: Path, max_frames: int = MAX_F
                 "expr": "fraction of post-hook frames with mean_|act| ≥ 0.5 * peak",
                 "notes": "How long activation stays elevated after the open.",
             },
+            "activation_timeline": {
+                "expr": "for each frame t: mean over vertices of |activation(v,t)|",
+                "notes": (
+                    "Whole-cortex time series used by the Explore activation timeline. "
+                    "No per-region/ROI breakdown is available."
+                ),
+            },
         },
         "mesh": {
             "surface": "fsaverage5 pial (nilearn)",
             "vertices": int(positions.shape[0]),
             "hemiSplit": int(hemi_split),
             "files": ["brain_pos.bin", "brain_idx.bin"],
+        },
+        "atlas": {
+            "name": "Yeo-7",
+            "scope": "coarse 7-network cortical parcellation",
+            "source": "Thomas Yeo Lab CBIG fsaverage5 annotations",
+            "labels": "atlas_yeo7_labels.bin",
+            "encoding": "uint8; 0=medial wall, 1-7=network id",
+            "networkNames": {str(k): v for k, v in YEO7_NAMES.items()},
+            "medialWall": {
+                "label": 0,
+                "vertexCount": int((atlas_labels == 0).sum()),
+                "excludedFromNetworkMeans": True,
+            },
         },
         "videos": knowledge_videos,
     }
@@ -310,9 +505,16 @@ def main():
     p.add_argument("--outputs", type=Path, default=root / "outputs")
     p.add_argument("--metadata", type=Path, default=root / "metadata.csv")
     p.add_argument("--out", type=Path, default=root / "web" / "public" / "data")
+    p.add_argument("--yeo-atlas", type=Path, default=root / "reference" / "yeo2011")
     p.add_argument("--max-frames", type=int, default=MAX_FRAMES)
     args = p.parse_args()
-    export(args.outputs, args.metadata, args.out, max_frames=args.max_frames)
+    export(
+        args.outputs,
+        args.metadata,
+        args.out,
+        args.yeo_atlas,
+        max_frames=args.max_frames,
+    )
 
 
 if __name__ == "__main__":

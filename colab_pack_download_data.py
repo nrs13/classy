@@ -1,20 +1,14 @@
-# Colab helper: pack Side_Work outputs + metadata into "Download Data.zip" on Drive.
-# Paste into a Colab cell after Drive is mounted, or: %run colab_pack_download_data.py
+#!/usr/bin/env python3
+"""Pack Classy TRIBE outputs and metadata into Download Data.zip on Google Drive."""
 
 from __future__ import annotations
 
-import csv
-import io
-import json
 import shutil
 import sys
 import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 
-# ---------------------------------------------------------------------------
-# Paths
-# ---------------------------------------------------------------------------
 DRIVE_ROOT = Path("/content/drive/MyDrive")
 SIDE_WORK = DRIVE_ROOT / "Side_Work"
 DEST = SIDE_WORK / "Download Data"
@@ -23,13 +17,13 @@ SRC_OUTPUTS = SIDE_WORK / "outputs"
 SRC_META = SIDE_WORK / "metadata.csv"
 SRC_EXPORT = SIDE_WORK / "web_export.py"
 
-# Embedded fallback — same 10-video rows as local Side_Work/metadata.csv
+# Fallback rows matching Classy metadata.csv when Drive copy is missing.
 EMBEDDED_METADATA_CSV = """video_id,account,followers,shortcode,url,posted_at,captured_at,duration_sec,plays,views,likes,comments,format,key_elements,relatability_hook
 A_V1,rosestudydiary,12900,DbZCI8dvr3Q,https://www.instagram.com/reel/DbZCI8dvr3Q/,2026-07-29,2026-08-06,73.1,378305,247593,30504,277,"Creative demonstration + advise","No background audio, includes a physical or tactile prop/component","Student coded styling (outfit, setting) and dialogue"
 A_V2,rosestudydiary,12900,DbgmwZHPtka,https://www.instagram.com/reel/DbgmwZHPtka/,2026-08-01,2026-08-06,84.451,2675,853,32,2,"Product demo","Authentic on camera reactions paired with an on screen response from Knowie (Knowunity's AI chat feature), minimal or plain background","Student coded styling (outfit)"
 A_V3,rosestudydiary,12900,Dak5bN_x3QN,https://www.instagram.com/reel/Dak5bN_x3QN/,2026-07-09,2026-08-06,44.422,20328,297,438,23,"Product demo","Genuine on camera reaction shots synced to an on screen response from Knowie (Knowunity's AI chat feature), minimal or plain background","Student coded styling (outfit)"
 A_V4,rosestudydiary,12900,DaNZKo6h8Yf,https://www.instagram.com/reel/DaNZKo6h8Yf/,2026-06-30,2026-08-06,27.236,12102,828,83,0,"Product demo","Genuine on camera reaction shots synced to an on screen response from Knowie (Knowunity's AI chat feature), minimal or plain background","Student coded styling (outfit)"
-A_V5,rosestudydiary,12900,DbO9qcZvcpI,https://www.instagram.com/reel/DbO9qcZvcpI/,2026-07-26,2026-08-06,85.733,94913,38142,5442,79,"advice / talking head","Filmed in car setting, phone or clutch propped in the sun visor, casual at home style clothing rather than styled or dressed up","Everyday, unpolished relatability (setting and wardrobe)"
+A_V5,rosestudydiary,12900,DbO9qcZvcpI,https://www.instagram.com/reel/DbO9qcZvcpI/,2026-07-26,2026-08-06,85.733,94913,38142,5442,79,"advice / talking head","Filmed in car setting, phone or clutch propped in the sun visor, casual at home style clothing rather than styled or dressed up","Everyday, unpolished relatability (setting andwardrobe)"
 B_V1,thelilystudylog,915,DWNY1iIDJ8o,https://www.instagram.com/reel/DWNY1iIDJ8o/,2026-03-23,2026-08-06,7.166,6546346,2336499,415566,363,"Reaction, head on camera","Mild shocked or frustrated reaction, low intensity facial expression, background music is a rap verse, plain background","Minimal, framed as a senior to junior exchange but the situation still reads as something a junior would face"
 B_V2,thelilystudylog,915,DX3JsmWsTfE,https://www.instagram.com/reel/DX3JsmWsTfE/,,2026-08-06,8,1980,,26,0,"Reaction plus product demo","Mild shocked reaction, unclear whether background audio is present","Student diaspora experience with parents"
 B_V3,thelilystudylog,915,DXx2_z6s0Oy,https://www.instagram.com/reel/DXx2_z6s0Oy/,2026-05-01,2026-08-06,8.055,1717,864,13,0,"Reaction plus product demo","Mild shocked reaction, unclear whether background audio is present","Not specified"
@@ -47,20 +41,18 @@ def mount_drive() -> None:
 
 
 def ensure_metadata(dest_meta: Path) -> str:
-    """Copy Side_Work/metadata.csv, or write embedded rows. Returns source note."""
     if SRC_META.exists():
         shutil.copy2(SRC_META, dest_meta)
         return f"copied from {SRC_META}"
     dest_meta.write_text(EMBEDDED_METADATA_CSV)
-    return "wrote embedded 10-video metadata.csv (Drive copy missing)"
+    return "wrote embedded Classy metadata.csv"
 
 
 def copy_outputs(dest_outputs: Path) -> list[dict]:
-    """Copy each video dir that has activation.npy. Returns per-video inventory."""
     dest_outputs.mkdir(parents=True, exist_ok=True)
     rows: list[dict] = []
     if not SRC_OUTPUTS.is_dir():
-        print(f"WARN: no outputs dir at {SRC_OUTPUTS}")
+        print(f"warn: missing outputs at {SRC_OUTPUTS}")
         return rows
 
     for vd in sorted(p for p in SRC_OUTPUTS.iterdir() if p.is_dir()):
@@ -86,20 +78,15 @@ def copy_web_export(dest: Path) -> str:
     if SRC_EXPORT.exists():
         shutil.copy2(SRC_EXPORT, dest_script)
         return f"copied from {SRC_EXPORT}"
-    # Minimal stub pointing Mac user at Side_Work copy
-    dest_script.write_text(
-        "# web_export.py was missing on Drive.\n"
-        "# Use the copy from your Mac Side_Work/ or re-sync Drive.\n"
-    )
-    return "WARN: web_export.py missing on Drive — wrote placeholder"
+    dest_script.write_text("# Classy web_export.py missing on Drive.\n")
+    return "warn: web_export.py missing"
 
 
 def try_web_export(dest_meta: Path, dest_outputs: Path, export_out: Path) -> tuple[bool, str]:
-    """Run Classy export into Download Data/web_public_data/. Returns (ok, message)."""
     try:
         import subprocess
 
-        print("Installing nilearn / nibabel / numpy (quiet)…", flush=True)
+        print("Installing nilearn, nibabel, numpy…", flush=True)
         subprocess.check_call(
             [sys.executable, "-m", "pip", "install", "-q", "nilearn", "nibabel", "numpy"],
         )
@@ -108,13 +95,12 @@ def try_web_export(dest_meta: Path, dest_outputs: Path, export_out: Path) -> tup
 
     export_script = DEST / "web_export.py"
     if not export_script.exists() or export_script.stat().st_size < 200:
-        # Fall back to Side_Work script
         export_script = SRC_EXPORT
     if not export_script.exists():
-        return False, "web_export.py not found — skipped mesh/act export"
+        return False, "web_export.py not found"
 
     if not any(dest_outputs.glob("*/activation.npy")):
-        return False, "no activation.npy in packed outputs — skipped export"
+        return False, "no activation.npy in packed outputs"
 
     export_out.mkdir(parents=True, exist_ok=True)
     cmd = [
@@ -127,7 +113,7 @@ def try_web_export(dest_meta: Path, dest_outputs: Path, export_out: Path) -> tup
         "--out",
         str(export_out),
     ]
-    print("Running web_export.py →", export_out, flush=True)
+    print("Running Classy web_export.py →", export_out, flush=True)
     try:
         import subprocess
 
@@ -135,7 +121,8 @@ def try_web_export(dest_meta: Path, dest_outputs: Path, export_out: Path) -> tup
         if r.returncode != 0:
             msg = (r.stderr or r.stdout or "export failed")[-2000:]
             return False, f"web_export exit {r.returncode}: {msg}"
-        print(r.stdout[-1500:] if r.stdout else "(no stdout)", flush=True)
+        if r.stdout:
+            print(r.stdout[-1500:], flush=True)
         return True, "export OK"
     except Exception as e:
         return False, f"web_export exception: {e}"
@@ -153,7 +140,7 @@ def zip_folder(folder: Path, zip_path: Path) -> int:
     return n
 
 
-def human_bytes(n: int | float | None) -> str:
+def format_bytes(n: int | float | None) -> str:
     if n is None:
         return "MISSING"
     n = float(n)
@@ -173,22 +160,22 @@ def write_inventory(
     zip_bytes: int,
 ) -> Path:
     lines = [
-        "Classy — Download Data inventory",
+        "Classy Download Data inventory",
         f"packed_at_utc: {datetime.now(timezone.utc).isoformat()}",
         f"dest: {dest}",
-        f"zip: {ZIP_PATH} ({human_bytes(zip_bytes)})",
+        f"zip: {ZIP_PATH} ({format_bytes(zip_bytes)})",
         "",
         f"metadata.csv: {meta_note}",
         f"web_export: {(DEST / 'web_export.py').exists()}",
-        f"web_public_data export: {'OK — ' + export_note if export_ok else 'SKIPPED/FAILED — ' + export_note}",
+        f"web_public_data: {'OK: ' + export_note if export_ok else 'FAILED: ' + export_note}",
         "",
-        f"outputs videos with activation.npy: {len(video_rows)}",
+        f"videos with activation.npy: {len(video_rows)}",
     ]
     for row in video_rows:
         parts = []
         for name in NEEDED_FILES:
             sz = row["files"].get(name)
-            parts.append(f"{name}={human_bytes(sz)}" if sz else f"{name}=MISSING")
+            parts.append(f"{name}={format_bytes(sz)}" if sz else f"{name}=MISSING")
         lines.append(f"  {row['video_id']}: " + ", ".join(parts))
 
     export_dir = dest / "web_public_data"
@@ -198,16 +185,7 @@ def write_inventory(
         for f in sorted(export_dir.rglob("*")):
             if f.is_file():
                 rel = f.relative_to(export_dir)
-                lines.append(f"  {rel}: {human_bytes(f.stat().st_size)}")
-
-    lines.append("")
-    lines.append("Mac next steps:")
-    lines.append('  1. Download "Download Data.zip" from Drive → Side_Work/')
-    lines.append("  2. Unzip; prefer copying web_public_data/* → web/public/data/")
-    lines.append("  3. If export was skipped: pip install nilearn nibabel numpy &&")
-    lines.append("     python web_export.py --outputs \"Download Data/outputs\" \\")
-    lines.append('       --metadata "Download Data/metadata.csv" --out web/public/data')
-    lines.append("  4. Keep MP4s in web/public/data/videos/ (not packed here)")
+                lines.append(f"  {rel}: {format_bytes(f.stat().st_size)}")
 
     inv = dest / "INVENTORY.txt"
     inv.write_text("\n".join(lines) + "\n")
@@ -215,11 +193,8 @@ def write_inventory(
 
 
 def main() -> None:
-    print("=" * 60)
-    print("Classy packer → Drive/Side_Work/Download Data")
-    print("=" * 60)
+    print("Classy packer: Drive/Side_Work/Download Data")
 
-    # 1) Mount
     if not Path("/content/drive/MyDrive").exists():
         print("Mounting Google Drive…")
         mount_drive()
@@ -227,49 +202,38 @@ def main() -> None:
         print("Drive already mounted.")
 
     if not SIDE_WORK.is_dir():
-        raise SystemExit(f"Side_Work not found at {SIDE_WORK}")
+        raise SystemExit(f"Classy Side_Work not found at {SIDE_WORK}")
 
-    # 2) Fresh destination
     if DEST.exists():
-        print(f"Removing previous {DEST} …")
+        print(f"Removing previous {DEST}")
         shutil.rmtree(DEST)
     DEST.mkdir(parents=True)
 
-    # 3) metadata
     dest_meta = DEST / "metadata.csv"
     meta_note = ensure_metadata(dest_meta)
     print(f"metadata.csv: {meta_note}")
 
-    # 4) outputs
     dest_outputs = DEST / "outputs"
     video_rows = copy_outputs(dest_outputs)
-    print(f"Packed {len(video_rows)} video output dirs from {SRC_OUTPUTS}")
+    print(f"Packed {len(video_rows)} video output dirs")
 
-    # 5) web_export.py
     export_copy_note = copy_web_export(DEST)
     print(f"web_export.py: {export_copy_note}")
 
-    # 6) Prefer full Classy export
     export_out = DEST / "web_public_data"
     export_ok, export_note = try_web_export(dest_meta, dest_outputs, export_out)
     print(f"web_public_data: {export_note}")
 
-    # 7) Zip (inventory written after so we can include sizes; rewrite after zip)
-    n_files = zip_folder(DEST, ZIP_PATH)
+    zip_folder(DEST, ZIP_PATH)
     zip_bytes = ZIP_PATH.stat().st_size if ZIP_PATH.exists() else 0
     inv = write_inventory(DEST, video_rows, meta_note, export_note, export_ok, zip_bytes)
-    # Re-zip so INVENTORY.txt is inside the archive
     n_files = zip_folder(DEST, ZIP_PATH)
     zip_bytes = ZIP_PATH.stat().st_size
 
-    # 8) Print inventory
     print()
     print(inv.read_text())
-    print("=" * 60)
-    print(f"DONE. Folder: {DEST}")
-    print(f"ZIP:    {ZIP_PATH}  ({human_bytes(zip_bytes)}, {n_files} files)")
-    print("In Colab: open Drive sidebar → Side_Work → Download Data.zip")
-    print("=" * 60)
+    print(f"Done. Folder: {DEST}")
+    print(f"ZIP: {ZIP_PATH} ({format_bytes(zip_bytes)}, {n_files} files)")
 
 
 if __name__ == "__main__":
