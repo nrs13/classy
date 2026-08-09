@@ -211,7 +211,7 @@ Other rules:
 - Ground every claim in the DATA. If a number is missing, say so plainly.
 - This is N=10, a proof of concept. Never claim statistical significance; frame comparisons as descriptive/exploratory.
 - Be concise and concrete. Prefer real numbers from the DATA over generic advice.
-- Activation_timeline.series is whole-cortex mean |activation| over time. Use it for when peaks/dips occur. Use networks only for the available coarse Yeo-7 cortical parcellation; there is no finer regional or ROI breakdown.
+- Activation_timeline.series is mean cortical activation (|activation|) over time. Use it for when peaks/dips occur. Use networks only for the available coarse Yeo-7 cortical parcellation; there is no finer regional or ROI breakdown.
 
 Story evidence self-check before sending any answer:
 - If a story timestamp has an empty events array, describe it only as having no detected speech, text change, or scene cut. Do not call the visual quiet, static, unchanged, or the point where someone finished reading.

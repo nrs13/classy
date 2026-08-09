@@ -41,7 +41,6 @@ def load_fsaverage5_mesh():
             from nilearn import datasets
 
             fsa = datasets.fetch_surf_fsaverage(mesh="fsaverage5")
-            # FreeSurfer geometry files
             l = nib.freesurfer.read_geometry(fsa["pial_left"])
             r = nib.freesurfer.read_geometry(fsa["pial_right"])
             positions = np.vstack([l[0], r[0]]).astype(np.float32)
@@ -197,7 +196,7 @@ def neural_features(act: np.ndarray, timestamps: np.ndarray | None) -> dict:
     peak_i = int(mean_t.argmax()) if mean_t.size else 0
     timeline = {
         "description": (
-            "Per-frame whole-cortex mean |activation| from TRIBE "
+            "Per-frame mean cortical |activation| from TRIBE "
             "(same series underlying the Explore timeline chart). "
             "Not ROI/region-specific."
         ),
@@ -455,7 +454,7 @@ def export(
             },
             "peak_mean_abs": {
                 "expr": "max_t mean_v |activation(v,t)|",
-                "notes": "Strongest whole-cortex moment.",
+                "notes": "Strongest mean cortical activation moment.",
             },
             "sustain_ratio": {
                 "expr": "fraction of post-hook frames with mean_|act| ≥ 0.5 * peak",

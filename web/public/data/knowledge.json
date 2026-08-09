@@ -27,7 +27,7 @@
     },
     "peak_mean_abs": {
       "expr": "max_t mean_v |activation(v,t)|",
-      "notes": "Strongest whole-cortex moment."
+      "notes": "Strongest mean cortical activation moment."
     },
     "sustain_ratio": {
       "expr": "fraction of post-hook frames with mean_|act| \u2265 0.5 * peak",
@@ -99,7 +99,7 @@
         "duration_sec": 7.0
       },
       "activation_timeline": {
-        "description": "Per-frame whole-cortex mean |activation| from TRIBE (same series underlying the Explore timeline chart). Not ROI/region-specific.",
+        "description": "Per-frame mean cortical |activation| from TRIBE (same series underlying the Explore timeline chart). Not ROI/region-specific.",
         "n_frames": 8,
         "peak_frame_index": 4,
         "peak_t_sec": 4.0,
@@ -269,7 +269,7 @@
         "duration_sec": 73.0
       },
       "activation_timeline": {
-        "description": "Per-frame whole-cortex mean |activation| from TRIBE (same series underlying the Explore timeline chart). Not ROI/region-specific.",
+        "description": "Per-frame mean cortical |activation| from TRIBE (same series underlying the Explore timeline chart). Not ROI/region-specific.",
         "n_frames": 74,
         "peak_frame_index": 52,
         "peak_t_sec": 52.0,
@@ -1714,7 +1714,7 @@
         "duration_sec": 85.0
       },
       "activation_timeline": {
-        "description": "Per-frame whole-cortex mean |activation| from TRIBE (same series underlying the Explore timeline chart). Not ROI/region-specific.",
+        "description": "Per-frame mean cortical |activation| from TRIBE (same series underlying the Explore timeline chart). Not ROI/region-specific.",
         "n_frames": 86,
         "peak_frame_index": 59,
         "peak_t_sec": 59.0,
@@ -3545,7 +3545,7 @@
         "duration_sec": 44.0
       },
       "activation_timeline": {
-        "description": "Per-frame whole-cortex mean |activation| from TRIBE (same series underlying the Explore timeline chart). Not ROI/region-specific.",
+        "description": "Per-frame mean cortical |activation| from TRIBE (same series underlying the Explore timeline chart). Not ROI/region-specific.",
         "n_frames": 45,
         "peak_frame_index": 43,
         "peak_t_sec": 43.0,
@@ -4592,7 +4592,7 @@
         "duration_sec": 27.0
       },
       "activation_timeline": {
-        "description": "Per-frame whole-cortex mean |activation| from TRIBE (same series underlying the Explore timeline chart). Not ROI/region-specific.",
+        "description": "Per-frame mean cortical |activation| from TRIBE (same series underlying the Explore timeline chart). Not ROI/region-specific.",
         "n_frames": 28,
         "peak_frame_index": 14,
         "peak_t_sec": 14.0,
@@ -5335,7 +5335,7 @@
         "duration_sec": 7.0
       },
       "activation_timeline": {
-        "description": "Per-frame whole-cortex mean |activation| from TRIBE (same series underlying the Explore timeline chart). Not ROI/region-specific.",
+        "description": "Per-frame mean cortical |activation| from TRIBE (same series underlying the Explore timeline chart). Not ROI/region-specific.",
         "n_frames": 8,
         "peak_frame_index": 2,
         "peak_t_sec": 2.0,
@@ -5525,7 +5525,7 @@
         "duration_sec": 84.0
       },
       "activation_timeline": {
-        "description": "Per-frame whole-cortex mean |activation| from TRIBE (same series underlying the Explore timeline chart). Not ROI/region-specific.",
+        "description": "Per-frame mean cortical |activation| from TRIBE (same series underlying the Explore timeline chart). Not ROI/region-specific.",
         "n_frames": 85,
         "peak_frame_index": 84,
         "peak_t_sec": 84.0,
@@ -7398,7 +7398,7 @@
         "duration_sec": 11.0
       },
       "activation_timeline": {
-        "description": "Per-frame whole-cortex mean |activation| from TRIBE (same series underlying the Explore timeline chart). Not ROI/region-specific.",
+        "description": "Per-frame mean cortical |activation| from TRIBE (same series underlying the Explore timeline chart). Not ROI/region-specific.",
         "n_frames": 12,
         "peak_frame_index": 5,
         "peak_t_sec": 5.0,
@@ -7736,7 +7736,7 @@
         "duration_sec": 8.0
       },
       "activation_timeline": {
-        "description": "Per-frame whole-cortex mean |activation| from TRIBE (same series underlying the Explore timeline chart). Not ROI/region-specific.",
+        "description": "Per-frame mean cortical |activation| from TRIBE (same series underlying the Explore timeline chart). Not ROI/region-specific.",
         "n_frames": 9,
         "peak_frame_index": 5,
         "peak_t_sec": 5.0,
@@ -7997,7 +7997,7 @@
         "duration_sec": 8.0
       },
       "activation_timeline": {
-        "description": "Per-frame whole-cortex mean |activation| from TRIBE (same series underlying the Explore timeline chart). Not ROI/region-specific.",
+        "description": "Per-frame mean cortical |activation| from TRIBE (same series underlying the Explore timeline chart). Not ROI/region-specific.",
         "n_frames": 9,
         "peak_frame_index": 8,
         "peak_t_sec": 8.0,
