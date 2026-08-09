@@ -13,7 +13,6 @@ const TAP_MAX_MS = 450;
 const LONG_PRESS_MS = 525;
 /** Cancel arming isolate sooner than full touch-tap slop so slow orbits don't isolate. */
 const LONG_PRESS_CANCEL_PX = 6;
-const DOUBLE_TAP_MS = 340;
 const SELECT_DEBOUNCE_MS = 60;
 const DRAG_GUARD_MS = 520;
 const PIN_SUPPRESS_MS = 520;
@@ -174,7 +173,6 @@ function BrainMesh({
   const lastTapPick = useRef(null);
   const longPressTimer = useRef(null);
   const lastSelectAt = useRef(0);
-  const lastTouchTap = useRef({ at: 0, labelId: null });
   const previousIsolation = useRef(null);
   const isolatedRef = useRef(isolatedLabelId);
   const isolatedIndicesRef = useRef(null);
@@ -294,26 +292,11 @@ function BrainMesh({
     longPressTimer.current = null;
   }
 
-  function commitNetworkTap(pick, pointerType) {
+  function commitNetworkTap(pick) {
     if (!pick) return;
     const now = performance.now();
     if (now - lastSelectAt.current < SELECT_DEBOUNCE_MS) return;
     lastSelectAt.current = now;
-
-    if (isTouchPointer(pointerType)) {
-      const prev = lastTouchTap.current;
-      if (
-        prev.labelId != null &&
-        prev.labelId === pick.labelId &&
-        now - prev.at <= DOUBLE_TAP_MS
-      ) {
-        lastTouchTap.current = { at: 0, labelId: null };
-        onIsolate({ ...pick, pinned: true });
-        return;
-      }
-      lastTouchTap.current = { at: now, labelId: pick.labelId };
-    }
-
     onExitIsolate();
     onPick({ ...pick, pinned: true });
   }
@@ -370,7 +353,6 @@ function BrainMesh({
         if (canvasGesture.current.moved) return;
         pointerDown.current.longPressFired = true;
         canvasGesture.current.longPressFired = true;
-        lastTouchTap.current = { at: 0, labelId: null };
         onIsolate({ ...pick, pinned: true });
       }, LONG_PRESS_MS);
     }
@@ -396,7 +378,7 @@ function BrainMesh({
       return;
     }
     if (started.pick) {
-      commitNetworkTap(started.pick, started.pointerType);
+      commitNetworkTap(started.pick);
     }
   }
 
@@ -410,7 +392,7 @@ function BrainMesh({
     if (isDragGesture(canvasGesture, pointerType)) return;
     const pick = getPick(event, true) || lastTapPick.current;
     if (!pick) return;
-    commitNetworkTap(pick, pointerType);
+    commitNetworkTap(pick);
   }
 
   return (
@@ -678,7 +660,7 @@ export default function BrainViewer({
           role="application"
           aria-label={
             touchUi
-              ? 'Brain viewer. Tap to select a network, double-tap or press and hold to isolate, drag to rotate, tap empty to clear.'
+              ? 'Brain viewer. Tap to select a network, press and hold to isolate, drag to rotate, tap empty to clear.'
               : 'Brain viewer. Click to select a network, double-click to isolate, drag to rotate, click empty or press Escape to clear.'
           }
           tabIndex={pickingEnabled ? 0 : -1}
@@ -755,7 +737,7 @@ export default function BrainViewer({
                 {isolateInfo
                   ? 'isolated'
                   : touchUi
-                    ? 'selected · hold or double-tap to isolate'
+                    ? 'selected · hold to isolate'
                     : 'selected · double-click to isolate'}
               </div>
             )}
