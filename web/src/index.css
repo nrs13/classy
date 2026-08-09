@@ -437,10 +437,11 @@ select {
   height: 100%;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 16px;
+  padding: var(--space-3);
+  padding-bottom: var(--space-4);
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--space-3);
 }
 
 .chat-thread-empty {
@@ -452,20 +453,47 @@ select {
   max-width: 100%;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  min-height: 0;
+  gap: var(--space-2);
+  /* Do not shrink in the thread flex column — min-height:0 was crushing
+     padding-bottom so the last chip sat flush on the composer hairline. */
+  flex-shrink: 0;
+  min-height: min-content;
   margin: 0;
-  padding: 0;
+  padding: 0 0 var(--space-4);
+  box-sizing: border-box;
 }
 
+/* Distinct zone after an answer: answer → suggestions → composer. */
 .chat-suggest-list + .chat-suggest-list,
 .chat-row + .chat-suggest-list {
-  margin-top: 8px;
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
+  padding-bottom: var(--space-4);
 }
 
 .chat-suggest-label {
-  margin: 0 0 8px;
+  margin: 0 0 var(--space-2);
   padding: 0;
+}
+
+@media (max-width: 768px) {
+  .chat-thread {
+    padding-bottom: var(--space-3);
+  }
+
+  .chat-suggest-list {
+    padding-bottom: calc(var(--space-4) + var(--space-3));
+  }
+
+  .chat-row + .chat-suggest-list {
+    margin-top: var(--space-4);
+    padding-top: calc(var(--space-4) + var(--space-2));
+    padding-bottom: calc(var(--space-4) + var(--space-3));
+  }
+
+  .chat-composer.is-mobile {
+    padding-top: var(--space-4);
+  }
 }
 
 .chat-row {
@@ -1852,12 +1880,13 @@ select {
 .chat-composer {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 8px;
+  gap: var(--space-2);
   align-items: end;
   width: 100%;
   min-width: 0;
   box-sizing: border-box;
-  padding: 12px;
+  padding: var(--space-3);
+  padding-top: var(--space-4);
   flex-shrink: 0;
 }
 
@@ -1892,8 +1921,8 @@ select {
 }
 
 .chat-composer.is-mobile {
-  padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0px));
-  gap: 10px;
+  padding: var(--space-4) var(--space-3) calc(var(--space-3) + env(safe-area-inset-bottom, 0px));
+  gap: var(--space-2);
 }
 
 .chat-composer.is-mobile .chat-input {
