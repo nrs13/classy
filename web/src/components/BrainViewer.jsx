@@ -96,7 +96,23 @@ function buildNetworkGroups(labels) {
   return { byLabel, cortexVertexCount };
 }
 
-function paintIsolatedFrame(colors, activation, frame, n, networkIndices) {
+/** Live turbo colors for the isolated vertex set only (playback color pass). */
+function paintIsolatedColors(colors, activation, frame, networkIndices) {
+  const base = frame * activation.vertexCount;
+  for (const vertex of networkIndices) {
+    const colorOffset = vertex * 3;
+    const lutOffset = activation.data[base + vertex] * 3;
+    colors[colorOffset] = turboLUT[lutOffset] / 255;
+    colors[colorOffset + 1] = turboLUT[lutOffset + 1] / 255;
+    colors[colorOffset + 2] = turboLUT[lutOffset + 2] / 255;
+  }
+}
+
+/**
+ * Mask pass: dim non-isolated vertices, restore isolated set at `frame`.
+ * Event-driven only (enter / exit / switch network) — not every playback tick.
+ */
+function applyIsolateMask(colors, activation, frame, n, networkIndices) {
   paintFrame(colors, activation.data, frame, n);
   for (let vertex = 0; vertex < n; vertex++) {
     const offset = vertex * 3;
@@ -107,14 +123,7 @@ function paintIsolatedFrame(colors, activation, frame, n, networkIndices) {
     colors[offset + 1] = dimmed;
     colors[offset + 2] = dimmed;
   }
-  const base = frame * n;
-  for (const vertex of networkIndices) {
-    const colorOffset = vertex * 3;
-    const lutOffset = activation.data[base + vertex] * 3;
-    colors[colorOffset] = turboLUT[lutOffset] / 255;
-    colors[colorOffset + 1] = turboLUT[lutOffset + 1] / 255;
-    colors[colorOffset + 2] = turboLUT[lutOffset + 2] / 255;
-  }
+  paintIsolatedColors(colors, activation, frame, networkIndices);
 }
 
 function BrainMesh({
@@ -166,11 +175,19 @@ function BrainMesh({
   const lastTouchTap = useRef({ at: 0, labelId: null });
   const previousIsolation = useRef(null);
   const isolatedRef = useRef(isolatedLabelId);
+  const isolatedIndicesRef = useRef(null);
 
   useEffect(() => {
     actRef.current = activation;
   }, [activation]);
 
+  useEffect(() => {
+    isolatedRef.current = isolatedLabelId;
+    isolatedIndicesRef.current =
+      isolatedLabelId != null ? networkGroups.byLabel.get(isolatedLabelId) || null : null;
+  }, [isolatedLabelId, networkGroups]);
+
+  // Activation load / reel change: paint current frame, preserving isolate mask if active.
   useEffect(() => {
     if (!activation) return;
     const colors = geometry.attributes.color.array;
@@ -178,15 +195,17 @@ function BrainMesh({
       activation.frames - 1,
       Math.max(0, Math.floor((progressRef?.current ?? 0) * activation.frames)),
     );
-    paintFrame(colors, activation.data, frame, activation.vertexCount);
+    const indices = isolatedIndicesRef.current;
+    if (indices) {
+      applyIsolateMask(colors, activation, frame, activation.vertexCount, indices);
+    } else {
+      paintFrame(colors, activation.data, frame, activation.vertexCount);
+    }
     lastFrame.current = frame;
     geometry.attributes.color.needsUpdate = true;
   }, [activation, geometry, progressRef]);
 
-  useEffect(() => {
-    isolatedRef.current = isolatedLabelId;
-  }, [isolatedLabelId]);
-
+  // Mask pass only: enter / exit / switch isolated network — not playback ticks.
   useEffect(() => {
     if (previousIsolation.current === isolatedLabelId) return;
     previousIsolation.current = isolatedLabelId;
@@ -199,20 +218,14 @@ function BrainMesh({
     const colors = geometry.attributes.color.array;
     const isolatedIndices = networkGroups.byLabel.get(isolatedLabelId);
     if (isolatedIndices) {
-      paintIsolatedFrame(colors, act, frame, act.vertexCount, isolatedIndices);
+      applyIsolateMask(colors, act, frame, act.vertexCount, isolatedIndices);
     } else {
       paintFrame(colors, act.data, frame, act.vertexCount);
     }
     lastFrame.current = frame;
     geometry.attributes.color.needsUpdate = true;
     onRecolorPass();
-  }, [
-    geometry,
-    isolatedLabelId,
-    networkGroups,
-    onRecolorPass,
-    progressRef,
-  ]);
+  }, [geometry, isolatedLabelId, networkGroups, onRecolorPass, progressRef]);
 
   useEffect(
     () => () => {
@@ -231,14 +244,21 @@ function BrainMesh({
     };
   }, [canvasGesture]);
 
+  // Color pass: every activation-frame change, scoped to isolated set when isolating.
   useFrame(() => {
     const act = actRef.current;
-    if (!act || isolatedRef.current != null) return;
+    if (!act) return;
     const prog = progressRef?.current ?? 0;
     const frame = Math.min(act.frames - 1, Math.max(0, Math.floor(prog * act.frames)));
     if (frame === lastFrame.current) return;
     lastFrame.current = frame;
-    paintFrame(geometry.attributes.color.array, act.data, frame, act.vertexCount);
+    const colors = geometry.attributes.color.array;
+    const indices = isolatedIndicesRef.current;
+    if (indices) {
+      paintIsolatedColors(colors, act, frame, indices);
+    } else {
+      paintFrame(colors, act.data, frame, act.vertexCount);
+    }
     geometry.attributes.color.needsUpdate = true;
   });
 
