@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   aiConfigured,
   formatChatError,
@@ -6,24 +6,7 @@ import {
   sanitizeAssistantText,
   streamChatReply,
 } from '../lib/ai';
-
-const STATIC_ALWAYS = [
-  'What are the biggest caveats of this analysis at N=10?',
-];
-
-const SUGGESTION_POOL = [
-  "Why did B_V1 go viral when the others didn't?",
-  'How is amplification computed for B_V1? Show the numbers.',
-  'Which brain networks separate the breakouts from the tail?',
-  'What does the hook slope measure, and who has the strongest hook?',
-  'From a UGC/content view, what should the next reel copy?',
-  "Where does A_V5's peak activation rank among the 10?",
-  'Why can a negative hook slope still land in the strong tier?',
-  'Compare amplification for B_V1 vs A_V1 in plain words.',
-  'What does sustain_ratio tell you about retention in this pack?',
-  'Which reel has the weakest hook_slope, and did plays match that?',
-  'If you only optimize for like_rate, which reel looks best and why?',
-];
+import { buildSalientSuggestions } from '../lib/suggestedQuestions';
 
 const OFFLINE_REPLY =
   "classy isn't listening yet. try one of these instead:";
@@ -31,83 +14,11 @@ const OFFLINE_REPLY =
 const NEAR_BOTTOM_PX = 64;
 const TEXTAREA_MAX_LINES = 6;
 
-function pickFromPool(seed, count, exclude = []) {
-  const ban = new Set(exclude);
-  const arr = SUGGESTION_POOL.filter((s) => !ban.has(s));
-  let s = (Number(seed) || 0) * 9973 + 11;
-  for (let i = arr.length - 1; i > 0; i--) {
-    s = (Math.imul(s, 1664525) + 1013904223) >>> 0;
-    const j = s % (i + 1);
-    const tmp = arr[i];
-    arr[i] = arr[j];
-    arr[j] = tmp;
-  }
-  return arr.slice(0, count);
-}
-
-function scrubAwareSuggestions(knowledge, videoId, timeSec) {
-  if (!knowledge || !videoId) return [];
-  const video = (knowledge.videos || []).find((v) => v.id === videoId);
-  const series = video?.activation_timeline?.series;
-  if (!Array.isArray(series) || series.length === 0) return [];
-
-  let nearest = series[0];
-  let nearestDist = Infinity;
-  let peak = series[0];
-  let trough = series[0];
-  for (const pt of series) {
-    const d = Math.abs((pt.t_sec ?? 0) - timeSec);
-    if (d < nearestDist) {
-      nearestDist = d;
-      nearest = pt;
-    }
-    if ((pt.mean_abs ?? 0) > (peak.mean_abs ?? 0)) peak = pt;
-    if ((pt.mean_abs ?? 0) < (trough.mean_abs ?? 0)) trough = pt;
-  }
-
-  const tNear = Math.round(nearest.t_sec ?? 0);
-  const tPeak = Math.round(peak.t_sec ?? 0);
-  const tTrough = Math.round(trough.t_sec ?? 0);
-  const dur = video.duration ?? video.features?.duration_sec ?? series[series.length - 1]?.t_sec ?? 0;
-  const nearPeak = Math.abs((nearest.t_sec ?? 0) - (peak.t_sec ?? 0)) <= 1.25;
-  const nearEnd =
-    dur > 0 && (nearest.t_sec ?? 0) >= dur * 0.7 && (nearest.mean_abs ?? 0) <= (peak.mean_abs ?? 0) * 0.92;
-
-  const chips = [`what's happening around second ${tNear} in ${videoId}?`];
-
-  if (nearPeak) {
-    chips.push(`why does activation peak near second ${tPeak} in ${videoId}?`);
-  } else if (nearEnd) {
-    chips.push(`why does activation dip near the end of ${videoId}?`);
-  } else {
-    chips.push(
-      `how does activation at second ${tNear} compare to ${videoId}'s peak at second ${tPeak}?`,
-    );
-  }
-
-  if (tTrough !== tPeak && tTrough !== tNear && chips.length < 3) {
-    chips.push(`why does activation dip around second ${tTrough} in ${videoId}?`);
-  }
-
-  return chips.slice(0, 3);
-}
-
-function buildVisibleSuggestions(knowledge, viewMoment, seed) {
-  const scrub = scrubAwareSuggestions(
-    knowledge,
-    viewMoment?.videoId,
-    Number(viewMoment?.timeSec) || 0,
-  );
-  if (scrub.length === 0) {
-    return [...STATIC_ALWAYS, ...pickFromPool(seed, 2, STATIC_ALWAYS)].slice(0, 3);
-  }
-  const staticExtra = pickFromPool(seed, 1, STATIC_ALWAYS);
-  return [...scrub.slice(0, 2), ...STATIC_ALWAYS, ...staticExtra].slice(0, 4);
-}
-
 export default function ChatPanel({
   knowledge,
   viewMoment = null,
+  /** Focus reel ids for salience chips (Explore: selected; Compare: selection). */
+  suggestionVideoIds = null,
   collapsed = false,
   focused = false,
   mobile = false,
@@ -125,7 +36,24 @@ export default function ChatPanel({
   const scrollRef = useRef(null);
   const textareaRef = useRef(null);
   const stickRef = useRef(true);
-  const visibleSuggestions = buildVisibleSuggestions(knowledge, viewMoment, suggestSeed);
+  const focusIds = useMemo(() => {
+    if (Array.isArray(suggestionVideoIds) && suggestionVideoIds.length) {
+      return suggestionVideoIds;
+    }
+    return viewMoment?.videoId ? [viewMoment.videoId] : [];
+  }, [suggestionVideoIds, viewMoment?.videoId]);
+  const focusKey = focusIds.join('|');
+
+  useEffect(() => {
+    setSuggestSeed(0);
+  }, [focusKey]);
+
+  const visibleSuggestions = useMemo(
+    () => buildSalientSuggestions(knowledge, focusIds, { seed: suggestSeed, count: 4 }),
+    // focusKey is stable for the same reel ids; array identity changes every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [knowledge, focusKey, suggestSeed],
+  );
   const chatReady = Boolean(knowledge && aiConfigured);
 
   const resizeTextarea = useCallback(() => {

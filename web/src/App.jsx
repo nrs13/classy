@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { loadManifest, loadBrain } from './lib/data';
 import ReelStage from './components/ReelStage';
 import ChatPanel from './components/ChatPanel';
+import { suggestionFocusIds } from './lib/suggestedQuestions';
 
 const TIER_CLASS = {
   breakout: 'tier-breakout',
@@ -389,9 +390,18 @@ export default function App() {
             : `${chatW}px`,
       };
 
+  // Explore uses the selected reel; Compare merges salience across the selection.
+  const suggestionVideoIds = suggestionFocusIds({
+    mode,
+    selId,
+    compareIds,
+    viewMoment,
+  });
+
   const chatPanelProps = {
     knowledge,
     viewMoment,
+    suggestionVideoIds,
     collapsed: chatCollapsed && !chatFocused,
     focused: chatFocused,
     onToggleCollapse: toggleCollapse,
@@ -657,6 +667,7 @@ export default function App() {
               <ChatPanel
                 knowledge={knowledge}
                 viewMoment={viewMoment}
+                suggestionVideoIds={suggestionVideoIds}
                 mobile
                 onCloseMobile={() => setMobileChatOpen(false)}
               />
