@@ -389,7 +389,6 @@ export default function ReelStage({
         <BrainViewer
           brain={brain}
           activation={activation}
-          networks={networks}
           progressRef={progressRef}
           videoId={video.id}
           timeSec={progress * (duration || video.duration || 0)}
