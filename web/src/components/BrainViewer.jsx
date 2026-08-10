@@ -1,10 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Canvas, useFrame } from '@react-three/fiber';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
 import { turboLUT } from '../lib/colormap';
 
 const FIT_RADIUS = 2.4;
+const VIEW_DISTANCE = 5.8;
+const VIEW_PRESETS = {
+  front: [0, 0.35, VIEW_DISTANCE],
+  left: [-VIEW_DISTANCE, 0.35, 0],
+  right: [VIEW_DISTANCE, 0.35, 0],
+  back: [0, 0.35, -VIEW_DISTANCE],
+};
+const VIEW_ORDER = ['front', 'left', 'right', 'back'];
 const HOVER_INTERVAL_MS = 80;
 const HOVER_MOVE_PX = 6;
 const TAP_MOVE_PX = 8;
@@ -125,6 +133,23 @@ function applyIsolateMask(colors, activation, frame, n, networkIndices) {
     colors[offset + 2] = dimmed;
   }
   paintIsolatedColors(colors, activation, frame, networkIndices);
+}
+
+function CameraPresetRig({ controlsRef, command }) {
+  const { camera } = useThree();
+  useEffect(() => {
+    const pos = command?.preset ? VIEW_PRESETS[command.preset] : null;
+    if (!pos) return;
+    camera.position.set(pos[0], pos[1], pos[2]);
+    const controls = controlsRef.current;
+    if (controls) {
+      controls.target.set(0, 0, 0);
+      controls.update();
+    } else {
+      camera.lookAt(0, 0, 0);
+    }
+  }, [command, camera, controlsRef]);
+  return null;
 }
 
 function BrainMesh({
@@ -435,6 +460,7 @@ export default function BrainViewer({
   timeSec = 0,
   onNetworkChange,
   compact = false,
+  externalView = null,
 }) {
   const [hover, setHover] = useState(null);
   const [selected, setSelected] = useState(null);
@@ -442,6 +468,10 @@ export default function BrainViewer({
   const [recolorPasses, setRecolorPasses] = useState(0);
   const [spinEnabled, setSpinEnabled] = useState(false);
   const [touchUi, setTouchUi] = useState(false);
+  const [viewCommand, setViewCommand] = useState(null);
+  const [activePreset, setActivePreset] = useState(null);
+  const controlsRef = useRef(null);
+  const viewNonce = useRef(0);
   const canvasGesture = useRef({
     active: false,
     moved: false,
@@ -478,6 +508,23 @@ export default function BrainViewer({
     setSelected(null);
     setIsolatedLabelId(null);
   }, [videoId]);
+
+  function applyPreset(name) {
+    if (!VIEW_PRESETS[name]) return;
+    setSpinEnabled(false);
+    setActivePreset(name);
+    viewNonce.current += 1;
+    setViewCommand({ preset: name, nonce: viewNonce.current });
+  }
+
+  // Compare mode broadcasts one angle to every card so brains stay aligned.
+  useEffect(() => {
+    if (!externalView?.preset || !VIEW_PRESETS[externalView.preset]) return;
+    setSpinEnabled(false);
+    setActivePreset(externalView.preset);
+    viewNonce.current += 1;
+    setViewCommand({ preset: externalView.preset, nonce: viewNonce.current });
+  }, [externalView]);
 
   useEffect(() => {
     function handleKeyDown(event) {
@@ -590,6 +637,24 @@ export default function BrainViewer({
         </div>
         <div className="brain-viewer-header-side is-end">
           <div className="brain-viewer-header-actions">
+            <div
+              className="brain-view-group"
+              role="group"
+              aria-label="Lock camera to a fixed angle"
+            >
+              {VIEW_ORDER.map((name) => (
+                <button
+                  key={name}
+                  type="button"
+                  className={`brain-view-btn${activePreset === name ? ' is-active' : ''}`}
+                  aria-pressed={activePreset === name}
+                  title={`Lock view: ${name}`}
+                  onClick={() => applyPreset(name)}
+                >
+                  {name[0]}
+                </button>
+              ))}
+            </div>
             <button
               type="button"
               className={`brain-spin-toggle${spinEnabled ? ' is-active' : ''}`}
@@ -599,7 +664,12 @@ export default function BrainViewer({
                   ? 'Spinning. Drag to turn; spin resumes after you release.'
                   : 'Turn on slow auto-spin. Drag anytime to steer the view.'
               }
-              onClick={() => setSpinEnabled((on) => !on)}
+              onClick={() =>
+                setSpinEnabled((on) => {
+                  if (!on) setActivePreset(null);
+                  return !on;
+                })
+              }
             >
               spin
             </button>
@@ -685,12 +755,15 @@ export default function BrainViewer({
             onExitIsolate={exitIsolate}
             onRecolorPass={handleRecolorPass}
           />
+          <CameraPresetRig controlsRef={controlsRef} command={viewCommand} />
           <OrbitControls
+            ref={controlsRef}
             enablePan={false}
             enableZoom
             minDistance={3}
             maxDistance={9}
             target={[0, 0, 0]}
+            onStart={() => setActivePreset(null)}
             autoRotate={spinEnabled}
             autoRotateSpeed={0.7}
             enableDamping

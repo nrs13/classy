@@ -221,16 +221,19 @@ export default function ChatPanel({
 
   if (collapsed && !mobile && !focused) {
     return (
-      <div className="chat-rail h-full flex flex-col items-center py-3 gap-3">
+      <div className="chat-rail h-full flex items-center gap-3 px-4">
         <button
           type="button"
-          className="chat-icon-btn"
+          className="chat-rail-expand"
           onClick={onToggleCollapse}
           title="Expand ask classy"
           aria-label="Expand ask classy"
           aria-expanded={false}
         >
-          [»
+          <span className="chat-rail-label" aria-hidden>
+            ask classy
+          </span>
+          <span aria-hidden>«]</span>
         </button>
         <button
           type="button"
@@ -241,9 +244,6 @@ export default function ChatPanel({
         >
           ▣
         </button>
-        <div className="chat-rail-label" aria-hidden>
-          ask
-        </div>
       </div>
     );
   }

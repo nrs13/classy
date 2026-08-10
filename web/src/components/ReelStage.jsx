@@ -99,6 +99,7 @@ export default function ReelStage({
   syncedPlaying = false,
   onSyncPlayChange,
   onViewMoment,
+  externalView = null,
 }) {
   const stack = layout === 'stack';
   const videoRef = useRef(null);
@@ -394,6 +395,7 @@ export default function ReelStage({
           timeSec={progress * (duration || video.duration || 0)}
           onNetworkChange={handleNetworkChange}
           compact={stack}
+          externalView={externalView}
         />
       )}
     </div>
@@ -490,6 +492,38 @@ export default function ReelStage({
           </div>
         )}
       </div>
+
+      {!stack && video.annotations && (
+        <div className="reel-notes">
+          <div className="section-label stat-tile-label">About this reel</div>
+          <dl className="reel-notes-grid">
+            {video.account && (
+              <>
+                <dt>Account</dt>
+                <dd>@{video.account}</dd>
+              </>
+            )}
+            {video.annotations.format && (
+              <>
+                <dt>Format</dt>
+                <dd>{video.annotations.format}</dd>
+              </>
+            )}
+            {video.annotations.key_elements && (
+              <>
+                <dt>Key elements</dt>
+                <dd>{video.annotations.key_elements}</dd>
+              </>
+            )}
+            {video.annotations.relatability_hook && (
+              <>
+                <dt>Relatability hook</dt>
+                <dd>{video.annotations.relatability_hook}</dd>
+              </>
+            )}
+          </dl>
+        </div>
+      )}
     </div>
   );
 }
