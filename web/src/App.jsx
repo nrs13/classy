@@ -19,11 +19,11 @@ function tierClass(tier) {
 
 const COMPARE_CAP = 4;
 const COMPARE_VIEWS = ['front', 'left', 'right', 'back'];
-const CHAT_H_KEY = 'classy-chat-h';
+const CHAT_W_KEY = 'classy-chat-w';
 const CHAT_COLLAPSED_KEY = 'classy-chat-collapsed';
-const CHAT_H_DEFAULT = 300;
-const CHAT_H_MIN = 220;
-const CHAT_RAIL_H = 44;
+const CHAT_W_DEFAULT = 340;
+const CHAT_W_MIN = 320;
+const CHAT_RAIL_W = 44;
 const RESIZE_STEP = 16;
 
 function fmtPlays(n) {
@@ -33,15 +33,15 @@ function fmtPlays(n) {
   return String(n);
 }
 
-function readStoredHeight() {
+function readStoredWidth() {
   try {
-    const raw = localStorage.getItem(CHAT_H_KEY);
+    const raw = localStorage.getItem(CHAT_W_KEY);
     const n = Number(raw);
-    if (Number.isFinite(n) && n >= CHAT_H_MIN) return n;
+    if (Number.isFinite(n) && n >= CHAT_W_MIN) return n;
   } catch {
     /* ignore */
   }
-  return CHAT_H_DEFAULT;
+  return CHAT_W_DEFAULT;
 }
 
 function readStoredCollapsed() {
@@ -52,14 +52,15 @@ function readStoredCollapsed() {
   }
 }
 
-function clampChatH(px) {
-  const MAIN_MIN = 320;
-  const avail = window.innerHeight - MAIN_MIN;
+function clampChatW(px) {
+  const SIDEBAR_RESERVE = 200;
+  const MAIN_MIN = 300;
+  const avail = window.innerWidth - SIDEBAR_RESERVE - MAIN_MIN;
   const max = Math.max(
-    200,
-    Math.min(Math.floor(window.innerHeight * 0.6), Math.floor(avail)),
+    240,
+    Math.min(Math.floor(window.innerWidth * 0.5), Math.floor(avail)),
   );
-  return Math.max(Math.min(CHAT_H_MIN, max), Math.min(max, Math.round(px)));
+  return Math.max(Math.min(CHAT_W_MIN, max), Math.min(max, Math.round(px)));
 }
 
 export default function App() {
@@ -79,7 +80,7 @@ export default function App() {
   const itemRefs = useRef([]);
   const [listOverflow, setListOverflow] = useState(false);
 
-  const [chatH, setChatH] = useState(readStoredHeight);
+  const [chatW, setChatW] = useState(readStoredWidth);
   const [chatCollapsed, setChatCollapsed] = useState(readStoredCollapsed);
   const [chatFocused, setChatFocused] = useState(false);
   const [mobileChatOpen, setMobileChatOpen] = useState(false);
@@ -154,11 +155,11 @@ export default function App() {
 
   useEffect(() => {
     try {
-      localStorage.setItem(CHAT_H_KEY, String(chatH));
+      localStorage.setItem(CHAT_W_KEY, String(chatW));
     } catch {
       /* ignore */
     }
-  }, [chatH]);
+  }, [chatW]);
 
   useEffect(() => {
     try {
@@ -170,23 +171,23 @@ export default function App() {
 
   useEffect(() => {
     function onResize() {
-      setChatH((h) => clampChatH(h));
+      setChatW((w) => clampChatW(w));
     }
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
 
-  const setChatHeightLive = useCallback((px) => {
-    setChatH(clampChatH(px));
+  const setChatWidthLive = useCallback((px) => {
+    setChatW(clampChatW(px));
   }, []);
 
   const beginResize = useCallback(
-    (clientY) => {
+    (clientX) => {
       if (isMobile || chatCollapsed || chatFocused) return;
-      dragRef.current = { startY: clientY, startH: chatH };
+      dragRef.current = { startX: clientX, startW: chatW };
       setResizing(true);
     },
-    [isMobile, chatCollapsed, chatFocused, chatH],
+    [isMobile, chatCollapsed, chatFocused, chatW],
   );
 
   useEffect(() => {
@@ -194,9 +195,9 @@ export default function App() {
     function onMove(e) {
       const d = dragRef.current;
       if (!d) return;
-      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-      const next = d.startH + (d.startY - clientY);
-      setChatHeightLive(next);
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      const next = d.startW + (d.startX - clientX);
+      setChatWidthLive(next);
     }
     function onUp() {
       setResizing(false);
@@ -206,7 +207,7 @@ export default function App() {
     window.addEventListener('pointerup', onUp);
     window.addEventListener('touchmove', onMove, { passive: true });
     window.addEventListener('touchend', onUp);
-    document.body.style.cursor = 'row-resize';
+    document.body.style.cursor = 'col-resize';
     document.body.style.userSelect = 'none';
     return () => {
       window.removeEventListener('pointermove', onMove);
@@ -216,26 +217,26 @@ export default function App() {
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
     };
-  }, [resizing, setChatHeightLive]);
+  }, [resizing, setChatWidthLive]);
 
   const onResizeKeyDown = useCallback(
     (e) => {
       if (chatCollapsed || chatFocused || isMobile) return;
-      if (e.key === 'ArrowUp') {
+      if (e.key === 'ArrowLeft') {
         e.preventDefault();
-        setChatHeightLive(chatH + RESIZE_STEP);
-      } else if (e.key === 'ArrowDown') {
+        setChatWidthLive(chatW + RESIZE_STEP);
+      } else if (e.key === 'ArrowRight') {
         e.preventDefault();
-        setChatHeightLive(chatH - RESIZE_STEP);
+        setChatWidthLive(chatW - RESIZE_STEP);
       } else if (e.key === 'Home') {
         e.preventDefault();
-        setChatHeightLive(CHAT_H_MIN);
+        setChatWidthLive(CHAT_W_MIN);
       } else if (e.key === 'End') {
         e.preventDefault();
-        setChatHeightLive(window.innerHeight * 0.6);
+        setChatWidthLive(window.innerWidth * 0.5);
       }
     },
-    [chatCollapsed, chatFocused, isMobile, chatH, setChatHeightLive],
+    [chatCollapsed, chatFocused, isMobile, chatW, setChatWidthLive],
   );
 
   const toggleCollapse = useCallback(() => {
@@ -383,14 +384,14 @@ export default function App() {
   const sel = byId[selId];
   const compareVideos = compareIds.map((id) => byId[id]).filter(Boolean);
 
-  const chatDockStyle = isMobile
+  const layoutStyle = isMobile
     ? undefined
     : {
-        height: chatFocused
-          ? 'min(72vh, calc(100vh - 200px))'
+        '--chat-w': chatFocused
+          ? 'min(76vw, calc(100vw - 160px - 300px))'
           : chatCollapsed
-            ? `${CHAT_RAIL_H}px`
-            : `${chatH}px`,
+            ? `${CHAT_RAIL_W}px`
+            : `${chatW}px`,
       };
 
   // Explore uses the selected reel; Compare merges salience across the selection.
@@ -442,7 +443,8 @@ export default function App() {
       </header>
 
       <div
-        className={`layout-grid ${isMobile ? 'layout-grid-mobile' : ''} ${chatFocused ? 'layout-grid-focus' : ''}`}
+        className={`layout-grid ${isMobile ? 'layout-grid-mobile' : ''} ${chatFocused ? 'layout-grid-focus' : ''} ${chatCollapsed && !chatFocused ? 'layout-grid-collapsed' : ''}`}
+        style={layoutStyle}
       >
         {!isMobile && (
         <aside className="border-r hairline flex flex-col min-h-0" style={{ background: 'var(--bg)' }}>
@@ -655,34 +657,33 @@ export default function App() {
           )}
         </main>
 
+        {!isMobile && (
+          <aside
+            className={`chat-column border-l hairline min-h-0 min-w-0 relative ${resizing ? 'is-resizing' : ''}`}
+            style={{ background: 'var(--bg)' }}
+          >
+            {!chatCollapsed && !chatFocused && (
+              <div
+                className="chat-resize-handle"
+                role="separator"
+                aria-orientation="vertical"
+                aria-label="Resize ask classy panel"
+                aria-valuemin={CHAT_W_MIN}
+                aria-valuemax={Math.floor(typeof window !== 'undefined' ? window.innerWidth * 0.5 : 800)}
+                aria-valuenow={chatW}
+                tabIndex={0}
+                onPointerDown={(e) => {
+                  e.preventDefault();
+                  beginResize(e.clientX);
+                }}
+                onKeyDown={onResizeKeyDown}
+                title="Drag to resize"
+              />
+            )}
+            <ChatPanel {...chatPanelProps} mobile={false} />
+          </aside>
+        )}
         </div>
-
-      {!isMobile && (
-        <section
-          className={`chat-dock border-t hairline min-h-0 relative ${resizing ? 'is-resizing' : ''}`}
-          style={chatDockStyle}
-        >
-          {!chatCollapsed && !chatFocused && (
-            <div
-              className="chat-resize-handle"
-              role="separator"
-              aria-orientation="horizontal"
-              aria-label="Resize ask classy panel"
-              aria-valuemin={CHAT_H_MIN}
-              aria-valuemax={Math.floor(typeof window !== 'undefined' ? window.innerHeight * 0.6 : 500)}
-              aria-valuenow={chatH}
-              tabIndex={0}
-              onPointerDown={(e) => {
-                e.preventDefault();
-                beginResize(e.clientY);
-              }}
-              onKeyDown={onResizeKeyDown}
-              title="Drag to resize"
-            />
-          )}
-          <ChatPanel {...chatPanelProps} mobile={false} />
-        </section>
-      )}
 
       {isMobile && (
         <>

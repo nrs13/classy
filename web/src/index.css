@@ -956,6 +956,7 @@ select {
   justify-content: flex-end;
   gap: 8px;
   min-width: 0;
+  flex-wrap: wrap;
 }
 
 .brain-viewer-time {
@@ -1487,8 +1488,9 @@ select {
 }
 
 .layout-grid {
+  --chat-w: 340px;
   display: grid;
-  grid-template-columns: minmax(180px, 220px) minmax(0, 1fr);
+  grid-template-columns: minmax(180px, 220px) minmax(0, 1fr) minmax(0, var(--chat-w));
   min-height: 0;
   flex: 1;
   width: 100%;
@@ -1502,7 +1504,11 @@ select {
 }
 
 .layout-grid-focus {
-  grid-template-columns: minmax(140px, 160px) minmax(0, 1fr);
+  grid-template-columns: minmax(140px, 160px) minmax(0, 1fr) minmax(0, var(--chat-w));
+}
+
+.layout-grid-collapsed {
+  grid-template-columns: minmax(180px, 220px) minmax(0, 1fr) minmax(0, var(--chat-w));
 }
 
 .layout-grid-mobile {
@@ -1633,30 +1639,21 @@ select {
   padding: 6px 12px 12px;
 }
 
-.chat-dock {
+.chat-column {
   position: relative;
   overflow: hidden;
   width: 100%;
   max-width: 100%;
-  flex-shrink: 0;
-  background: var(--bg);
-}
-
-/* Full-width dock: keep reading measure sane for the thread. */
-.chat-dock .chat-thread {
-  width: 100%;
-  max-width: 880px;
-  margin-inline: auto;
 }
 
 .chat-resize-handle {
   position: absolute;
   left: 0;
-  right: 0;
   top: 0;
-  height: 4px;
+  bottom: 0;
+  width: 4px;
   z-index: 5;
-  cursor: row-resize;
+  cursor: col-resize;
   background: transparent;
   touch-action: none;
   transition: background var(--dur) var(--ease);
@@ -1664,7 +1661,7 @@ select {
 
 .chat-resize-handle:hover,
 .chat-resize-handle:focus-visible,
-.chat-dock.is-resizing .chat-resize-handle {
+.chat-column.is-resizing .chat-resize-handle {
   background: var(--accent-cool);
 }
 
@@ -1750,34 +1747,17 @@ select {
   background: var(--bg-subtle);
 }
 
-.chat-rail-expand {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex: 1;
-  min-width: 0;
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: 2px;
-  padding: 4px 6px;
-  color: var(--text-secondary);
-  font-family: var(--font-ui);
-  font-size: 12px;
-  cursor: pointer;
-  text-align: left;
-  transition: color var(--dur) var(--ease);
-}
-
-.chat-rail-expand:hover {
-  color: var(--accent-cool);
-}
-
 .chat-rail-label {
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  transform: rotate(180deg);
   font-size: 10px;
   font-weight: var(--weight-heading);
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--text-secondary);
+  margin-top: auto;
+  padding-bottom: 8px;
 }
 
 .chat-title {
@@ -2191,7 +2171,7 @@ select {
 
 @media (max-width: 1100px) {
   .layout-grid:not(.layout-grid-mobile):not(.layout-grid-focus) {
-    grid-template-columns: minmax(160px, 200px) minmax(0, 1fr);
+    grid-template-columns: minmax(160px, 200px) minmax(0, 1fr) minmax(0, var(--chat-w));
   }
 }
 
