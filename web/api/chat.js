@@ -83,6 +83,9 @@ export default async function handler(req, res) {
       const stream = client.messages.stream({
         model,
         max_tokens: 4096,
+        // Chat is latency-sensitive; the dataset is fully in context, so deep
+        // reasoning adds seconds without changing 3-6 sentence answers much.
+        output_config: { effort: process.env.CLASSY_EFFORT || 'low' },
         system: [
           {
             type: 'text',
