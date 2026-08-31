@@ -4,50 +4,27 @@ marketing reimagined
 
 Watch a reel next to its predicted TRIBE V2 brain response. Compare reels. Ask Classy about the numbers.
 
-**Demo:** https://tribev2-brain-activity-predictor.vercel.app  
-**Repo:** https://github.com/alem-hodzic-knowunity/tribev2-brain-activity-predictor
+Demo: https://tribev2-brain-activity-predictor.vercel.app
 
 ## Stack
 
 App: React, Vite, Tailwind, Three.js  
 Brain: Meta TRIBE V2 on fsaverage5  
-Chat: Anthropic (Claude) via Vercel serverless `/api/chat` with `knowledge.json`
+Chat: Anthropic on Vercel with knowledge.json
 
 ## Run the app
 
-Frontend only (chat needs Vercel for the API):
-
 ```bash
 cd web
 npm install
-npm run dev
-```
-
-Full stack locally (chat works):
-
-```bash
-cd web
-npm install
-vercel env pull .env.local   # needs Vercel team access
 vercel dev
 ```
 
-`ANTHROPIC_API_KEY` is server-side only — set on Vercel, never commit it. See `web/.env.example`.
-
-Optional server env: `CLASSY_MODEL`, `CLASSY_EFFORT`.
+`ANTHROPIC_API_KEY` lives on Vercel — see `web/.env.example`.
 
 ## Deploy
 
-Push to `main` — Vercel auto-deploys from GitHub.
-
-Manual preview:
-
-```bash
-cd web
-vercel
-```
-
-Production URL: https://tribev2-brain-activity-predictor.vercel.app
+Push to `main`. Vercel auto-deploys.
 
 ## Data pipeline
 
@@ -71,7 +48,7 @@ web_export.py              pack data for the web app
 colab_pack_download_data.py
 metadata.csv
 reference/yeo2011/         Yeo 7 atlas files
-web/                       frontend + public/data + api/chat.js
+web/                       frontend + public/data
 ```
 
 ## Metrics
