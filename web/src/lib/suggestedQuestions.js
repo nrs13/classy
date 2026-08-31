@@ -211,7 +211,6 @@ function reelCandidates(video, pack) {
   return out;
 }
 
-/** Cross-reel compare candidates when 2+ reels are selected. */
 function compareCandidates(videos) {
   if (!videos || videos.length < 2) return [];
   const [a, b] = videos;

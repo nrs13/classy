@@ -3,6 +3,7 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
 import { turboLUT } from '../lib/colormap';
+import ReelId from './ReelId';
 
 const FIT_RADIUS = 2.4;
 const VIEW_DISTANCE = 5.8;
@@ -460,7 +461,7 @@ export default function BrainViewer({
   timeSec = 0,
   onNetworkChange,
   compact = false,
-  externalView = null,
+  masterCamera = null,
 }) {
   const [hover, setHover] = useState(null);
   const [selected, setSelected] = useState(null);
@@ -517,14 +518,15 @@ export default function BrainViewer({
     setViewCommand({ preset: name, nonce: viewNonce.current });
   }
 
-  // Compare mode broadcasts one angle to every card so brains stay aligned.
   useEffect(() => {
-    if (!externalView?.preset || !VIEW_PRESETS[externalView.preset]) return;
-    setSpinEnabled(false);
-    setActivePreset(externalView.preset);
-    viewNonce.current += 1;
-    setViewCommand({ preset: externalView.preset, nonce: viewNonce.current });
-  }, [externalView]);
+    if (!masterCamera?.seq) return;
+    if (masterCamera.spin) {
+      setSpinEnabled(true);
+      setActivePreset(null);
+      return;
+    }
+    if (masterCamera.preset) applyPreset(masterCamera.preset);
+  }, [masterCamera]);
 
   useEffect(() => {
     function handleKeyDown(event) {
@@ -619,14 +621,54 @@ export default function BrainViewer({
     );
   }
 
+  const viewControls = (
+    <>
+      <div
+        className="brain-view-group"
+        role="group"
+        aria-label="Lock camera to a fixed angle"
+      >
+        {VIEW_ORDER.map((name) => (
+          <button
+            key={name}
+            type="button"
+            className={`brain-view-btn${activePreset === name ? ' is-active' : ''}`}
+            aria-pressed={activePreset === name}
+            title={`Lock view: ${name}`}
+            onClick={() => applyPreset(name)}
+          >
+            {name[0]}
+          </button>
+        ))}
+      </div>
+      <button
+        type="button"
+        className={`brain-spin-toggle${spinEnabled ? ' is-active' : ''}`}
+        aria-pressed={spinEnabled}
+        title={
+          spinEnabled
+            ? 'Spinning. Drag to turn; spin resumes after you release.'
+            : 'Turn on slow auto-spin. Drag anytime to steer the view.'
+        }
+        onClick={() =>
+          setSpinEnabled((on) => {
+            if (!on) setActivePreset(null);
+            return !on;
+          })
+        }
+      >
+        spin
+      </button>
+      <span className="brain-viewer-time">t≈{currentTime.toFixed(1)}s</span>
+    </>
+  );
+
   return (
     <div className={`brain-viewer-shell${compact ? ' is-compact' : ''}`}>
       <div className="brain-viewer-header">
-        <div className="brain-viewer-header-side is-start">
-          <span className="brain-viewer-reel" aria-hidden={compact || undefined}>
-            {compact ? '' : videoId}
-          </span>
-        </div>
+        {!compact && (
+          <ReelId id={videoId} variant="stage" className="brain-viewer-reel" />
+        )}
         <div className="brain-header-legend" aria-label="Predicted activation low to high">
           <span className="brain-legend-low">low</span>
           <span
@@ -634,47 +676,6 @@ export default function BrainViewer({
             style={{ background: TURBO_LEGEND_BACKGROUND }}
           />
           <span className="brain-legend-high">high</span>
-        </div>
-        <div className="brain-viewer-header-side is-end">
-          <div className="brain-viewer-header-actions">
-            <div
-              className="brain-view-group"
-              role="group"
-              aria-label="Lock camera to a fixed angle"
-            >
-              {VIEW_ORDER.map((name) => (
-                <button
-                  key={name}
-                  type="button"
-                  className={`brain-view-btn${activePreset === name ? ' is-active' : ''}`}
-                  aria-pressed={activePreset === name}
-                  title={`Lock view: ${name}`}
-                  onClick={() => applyPreset(name)}
-                >
-                  {name[0]}
-                </button>
-              ))}
-            </div>
-            <button
-              type="button"
-              className={`brain-spin-toggle${spinEnabled ? ' is-active' : ''}`}
-              aria-pressed={spinEnabled}
-              title={
-                spinEnabled
-                  ? 'Spinning. Drag to turn; spin resumes after you release.'
-                  : 'Turn on slow auto-spin. Drag anytime to steer the view.'
-              }
-              onClick={() =>
-                setSpinEnabled((on) => {
-                  if (!on) setActivePreset(null);
-                  return !on;
-                })
-              }
-            >
-              spin
-            </button>
-            <span className="brain-viewer-time">t≈{currentTime.toFixed(1)}s</span>
-          </div>
         </div>
       </div>
       <div
@@ -826,6 +827,7 @@ export default function BrainViewer({
           </div>
         )}
       </div>
+      <div className="brain-view-toolbar">{viewControls}</div>
     </div>
   );
 }

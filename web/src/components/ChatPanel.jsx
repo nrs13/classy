@@ -17,7 +17,6 @@ const TEXTAREA_MAX_LINES = 6;
 export default function ChatPanel({
   knowledge,
   viewMoment = null,
-  /** Focus reel ids for salience chips (Explore: selected; Compare: selection). */
   suggestionVideoIds = null,
   collapsed = false,
   focused = false,
@@ -50,7 +49,6 @@ export default function ChatPanel({
 
   const visibleSuggestions = useMemo(
     () => buildSalientSuggestions(knowledge, focusIds, { seed: suggestSeed, count: 4 }),
-    // focusKey is stable for the same reel ids; array identity changes every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [knowledge, focusKey, suggestSeed],
   );
@@ -448,9 +446,7 @@ export default function ChatPanel({
           onKeyDown={onKeyDown}
           rows={1}
           enterKeyHint={mobile ? 'enter' : 'send'}
-          placeholder={
-            mobile ? 'ask me something…' : 'ask me something… ↵ send · ⇧↵ newline'
-          }
+          placeholder="ask classy…"
           className="w-full input-field text-[13px] chat-input"
           aria-label={
             mobile

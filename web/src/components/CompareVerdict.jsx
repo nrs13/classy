@@ -1,42 +1,73 @@
+import { useState } from 'react';
+import ReelId from './ReelId';
+
 const pct = (x, digits = 0) => `${(x * 100).toFixed(digits)}%`;
 
 const SIGNALS = [
   {
     key: 'hook',
     label: 'hook',
+    kind: 'predicted',
     get: (v) => v.features?.hook_slope,
     fmt: (x) => x.toFixed(4),
-    sentence: (id) => `${id} grabs attention fastest in the first seconds`,
+    sentence: (id) => (
+      <>
+        <ReelId id={id} variant="inline" /> grabs attention fastest in the first seconds
+      </>
+    ),
   },
   {
     key: 'peak',
     label: 'peak',
+    kind: 'predicted',
     get: (v) => v.features?.peak_mean_abs,
     fmt: (x) => x.toFixed(3),
-    sentence: (id) => `${id} hits the highest predicted engagement peak`,
+    sentence: (id) => (
+      <>
+        <ReelId id={id} variant="inline" /> hits the highest predicted engagement peak
+      </>
+    ),
   },
   {
     key: 'sustain',
     label: 'hold',
+    kind: 'predicted',
     get: (v) => v.features?.sustain_ratio,
     fmt: (x) => pct(x),
-    sentence: (id) => `${id} holds attention best after the hook`,
+    sentence: (id) => (
+      <>
+        <ReelId id={id} variant="inline" /> holds attention best after the hook
+      </>
+    ),
   },
   {
     key: 'like_rate',
     label: 'like-rate',
+    kind: 'observed',
     get: (v) => v.metrics?.like_rate,
     fmt: (x) => pct(x, 2),
-    sentence: (id) => `${id} converts plays to likes best`,
+    sentence: (id) => (
+      <>
+        <ReelId id={id} variant="inline" /> converts plays to likes best
+      </>
+    ),
   },
   {
     key: 'amplification',
     label: 'reach',
+    kind: 'observed',
     get: (v) => v.metrics?.amplification,
     fmt: (x) => `${Math.round(x).toLocaleString()}×`,
-    sentence: (id) => `${id} travels furthest beyond its followers`,
+    sentence: (id) => (
+      <>
+        <ReelId id={id} variant="inline" /> travels furthest beyond its followers
+      </>
+    ),
   },
 ];
+
+const FOOTNOTE =
+  'hook, peak and hold are predicted brain response (TRIBE V2) · like-rate and reach are observed · n=10 pilot, descriptive only';
 
 function signalRows(videos) {
   const rows = [];
@@ -48,58 +79,98 @@ function signalRows(videos) {
     const valid = values.filter((entry) => entry.value != null);
     if (valid.length < 2) continue;
     const best = Math.max(...valid.map((entry) => entry.value));
-    const worst = Math.min(...valid.map((entry) => entry.value));
-    if (best === worst) continue;
+    if (valid.every((entry) => entry.value === best)) continue;
     const winner = valid.find((entry) => entry.value === best);
     rows.push({ signal, values, winner });
   }
   return rows;
 }
 
-/**
- * Proactive plain-language comparison so a first-time viewer gets the verdict
- * without asking chat. Winner per signal, values for every compared reel.
- */
+function leaderStats(rows) {
+  const wins = {};
+  for (const row of rows) {
+    wins[row.winner.id] = (wins[row.winner.id] || 0) + 1;
+  }
+  let leaderId = rows[0].winner.id;
+  let leaderWins = 0;
+  for (const [id, count] of Object.entries(wins)) {
+    if (count > leaderWins) {
+      leaderId = id;
+      leaderWins = count;
+    }
+  }
+  return { leaderId, leaderWins };
+}
+
 export default function CompareVerdict({ videos }) {
   const rows = signalRows(videos);
+  const [open, setOpen] = useState(true);
+  const [footnoteOpen, setFootnoteOpen] = useState(false);
+
   if (!rows.length) return null;
 
-  const wins = new Map();
-  for (const row of rows) {
-    wins.set(row.winner.id, (wins.get(row.winner.id) || 0) + 1);
-  }
-  const [leaderId, leaderWins] = [...wins.entries()].sort((a, b) => b[1] - a[1])[0];
+  const { leaderId, leaderWins } = leaderStats(rows);
 
   return (
-    <section className="compare-verdict" aria-label="Automatic comparison verdict">
-      <div className="compare-verdict-headline">
-        <span className="compare-verdict-leader">{leaderId}</span> leads on {leaderWins} of{' '}
-        {rows.length} signals
-      </div>
-      <div className="compare-verdict-rows">
-        {rows.map(({ signal, values, winner }) => (
-          <div key={signal.key} className="compare-verdict-row">
-            <span className="compare-verdict-tag">{signal.label}</span>
-            <span className="compare-verdict-sentence">{signal.sentence(winner.id)}</span>
-            <span className="compare-verdict-values">
-              {values.map((entry) => (
-                <span
-                  key={entry.id}
-                  className={`compare-verdict-value${
-                    entry.id === winner.id ? ' is-winner' : ''
-                  }`}
-                >
-                  {entry.id} {entry.value == null ? '–' : signal.fmt(entry.value)}
-                </span>
-              ))}
-            </span>
+    <section className="compare-verdict" aria-label="Compare signals">
+      <button
+        type="button"
+        className="compare-verdict-toggle"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+      >
+        <span className="compare-verdict-headline">
+          <ReelId id={leaderId} variant="inline" /> leads on {leaderWins} of {rows.length} signals
+        </span>
+        <span className="compare-verdict-chevron" aria-hidden />
+      </button>
+
+      {open && (
+        <div className="compare-verdict-body">
+          <div className="compare-verdict-grid">
+            {rows.map(({ signal, values, winner }) => (
+              <article key={signal.key} className="compare-signal-card" data-kind={signal.kind}>
+                <div className="compare-signal-head">
+                  <span className="compare-signal-label">{signal.label}</span>
+                  <span className="compare-signal-kind">{signal.kind}</span>
+                </div>
+                <p className="compare-signal-sentence">{signal.sentence(winner.id)}</p>
+                <div className="compare-signal-rows">
+                  {values.map((entry) => (
+                    <div
+                      key={entry.id}
+                      className={`compare-signal-row${
+                        entry.id === winner.id ? ' is-winner' : ''
+                      }`}
+                    >
+                      <ReelId
+                        id={entry.id}
+                        variant="stage"
+                        winner={entry.id === winner.id}
+                      />
+                      <span className="compare-signal-val">
+                        {entry.value == null ? '–' : signal.fmt(entry.value)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </article>
+            ))}
           </div>
-        ))}
-      </div>
-      <div className="compare-verdict-footnote">
-        hook, peak and hold are predicted brain response (TRIBE V2) · like-rate and reach are
-        observed · n=10 pilot, descriptive only
-      </div>
+
+          <div className="compare-verdict-footnote-row">
+            <button
+              type="button"
+              className="compare-verdict-footnote-toggle"
+              aria-expanded={footnoteOpen}
+              onClick={() => setFootnoteOpen((v) => !v)}
+            >
+              ⓘ methodology
+            </button>
+            {footnoteOpen && <p className="compare-verdict-footnote">{FOOTNOTE}</p>}
+          </div>
+        </div>
+      )}
     </section>
   );
 }

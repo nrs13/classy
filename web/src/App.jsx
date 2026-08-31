@@ -3,6 +3,7 @@ import { loadManifest, loadBrain } from './lib/data';
 import ReelStage from './components/ReelStage';
 import ChatPanel from './components/ChatPanel';
 import CompareVerdict from './components/CompareVerdict';
+import ReelId from './components/ReelId';
 import { suggestionFocusIds } from './lib/suggestedQuestions';
 
 const TIER_CLASS = {
@@ -52,9 +53,9 @@ function readStoredCollapsed() {
   }
 }
 
-function clampChatW(px) {
-  const SIDEBAR_RESERVE = 200;
-  const MAIN_MIN = 300;
+function clampChatW(px, { focused = false } = {}) {
+  const SIDEBAR_RESERVE = focused ? 160 : 200;
+  const MAIN_MIN = focused ? 400 : 360;
   const avail = window.innerWidth - SIDEBAR_RESERVE - MAIN_MIN;
   const max = Math.max(
     240,
@@ -73,8 +74,7 @@ export default function App() {
   const [compareCapMsg, setCompareCapMsg] = useState(false);
   const [syncPlayback, setSyncPlayback] = useState(false);
   const [syncedPlaying, setSyncedPlaying] = useState(false);
-  const [compareView, setCompareView] = useState(null);
-  const compareViewNonce = useRef(0);
+  const [compareCamera, setCompareCamera] = useState(null);
   const [focusIdx, setFocusIdx] = useState(0);
   const listRef = useRef(null);
   const itemRefs = useRef([]);
@@ -171,15 +171,18 @@ export default function App() {
 
   useEffect(() => {
     function onResize() {
-      setChatW((w) => clampChatW(w));
+      setChatW((w) => clampChatW(w, { focused: chatFocused }));
     }
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
-  }, []);
+  }, [chatFocused]);
 
-  const setChatWidthLive = useCallback((px) => {
-    setChatW(clampChatW(px));
-  }, []);
+  const setChatWidthLive = useCallback(
+    (px) => {
+      setChatW(clampChatW(px, { focused: chatFocused }));
+    },
+    [chatFocused],
+  );
 
   const beginResize = useCallback(
     (clientX) => {
@@ -365,11 +368,37 @@ export default function App() {
     if (compareIds.length < 2) {
       setSyncPlayback(false);
       setSyncedPlaying(false);
+      setCompareCamera(null);
+      return;
     }
+    setCompareCamera((prev) => ({
+      preset: prev?.preset || 'front',
+      spin: false,
+      seq: (prev?.seq ?? 0) + 1,
+    }));
   }, [compareIds.length]);
 
+  function setCompareAngle(name) {
+    setCompareCamera((prev) => ({
+      preset: name,
+      spin: false,
+      seq: (prev?.seq ?? 0) + 1,
+    }));
+  }
+
+  function toggleCompareSpin() {
+    setCompareCamera((prev) => {
+      const spin = !prev?.spin;
+      return {
+        preset: spin ? null : prev?.preset,
+        spin,
+        seq: (prev?.seq ?? 0) + 1,
+      };
+    });
+  }
+
   if (!manifest || !brain) {
-  return (
+    return (
       <div className="h-full grid place-items-center app-shell" style={{ color: 'var(--text-tertiary)' }}>
         <div className="text-center">
           <div className="brand-mark text-2xl tracking-[0.08em]">classy</div>
@@ -388,13 +417,12 @@ export default function App() {
     ? undefined
     : {
         '--chat-w': chatFocused
-          ? 'min(76vw, calc(100vw - 160px - 300px))'
+          ? 'min(50vw, calc(100vw - 160px - 400px))'
           : chatCollapsed
             ? `${CHAT_RAIL_W}px`
             : `${chatW}px`,
       };
 
-  // Explore uses the selected reel; Compare merges salience across the selection.
   const suggestionVideoIds = suggestionFocusIds({
     mode,
     selId,
@@ -424,9 +452,9 @@ export default function App() {
         </div>
         <div className="flex gap-1 mode-toggle p-1 text-[12px]">
           {['explore', 'compare'].map((mo) => (
-        <button
+            <button
               key={mo}
-          type="button"
+              type="button"
               onClick={() => {
                 setMode(mo);
                 if (mo === 'compare' && compareIds.length === 0 && selId) {
@@ -437,7 +465,7 @@ export default function App() {
               className={`mode-tab px-3.5 py-1.5 capitalize ${mode === mo ? 'active' : ''}`}
             >
               {mo}
-        </button>
+            </button>
           ))}
         </div>
       </header>
@@ -496,7 +524,7 @@ export default function App() {
                         />
                       )}
                       <div className="min-w-0 flex-1">
-                        <div className="reel-item-id text-[13px] tracking-[0.03em]">{v.id}</div>
+                        <div className="reel-id">{v.id}</div>
                         <div className="reel-item-meta text-[11px] tracking-[0.03em] mt-0.5">
                           <span className="reel-item-meta-plays">
                             {fmtPlays(v.metrics?.plays)} plays ·{' '}
@@ -517,7 +545,7 @@ export default function App() {
         </aside>
         )}
 
-        <main className="overflow-y-auto overflow-x-hidden p-4 min-w-0" style={{ background: 'var(--bg)' }}>
+        <main className="main-stage overflow-y-auto overflow-x-hidden p-4 min-w-0" style={{ background: 'var(--bg)' }}>
           {isMobile && (
             <div className="mobile-reel-bar">
               <button
@@ -562,48 +590,54 @@ export default function App() {
           ) : (
             <div className="flex flex-col gap-3">
               {compareVideos.length >= 2 && (
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                  <label className="sync-toggle self-start">
-                    <input
-                      type="checkbox"
-                      checked={syncPlayback}
-                      onChange={(e) => setSyncPlayback(e.target.checked)}
-                    />
-                    <span className="sync-toggle-box" aria-hidden />
-                    <span>sync playback</span>
-                  </label>
-                  <div
-                    className="compare-view-group"
-                    role="group"
-                    aria-label="Lock every brain to the same angle"
-                  >
-                    <span className="compare-view-label">lock angle</span>
-                    {COMPARE_VIEWS.map((name) => (
+                <div className="compare-sticky-head">
+                  <div className="compare-controls">
+                    <label className="sync-toggle">
+                      <input
+                        type="checkbox"
+                        checked={syncPlayback}
+                        onChange={(e) => setSyncPlayback(e.target.checked)}
+                      />
+                      <span className="sync-toggle-box" aria-hidden />
+                      <span>sync playback</span>
+                    </label>
+                    <div className="compare-controls-angle" role="group" aria-label="Angle">
+                      <span className="compare-view-label">angle</span>
+                      <div className="brain-view-group">
+                        {COMPARE_VIEWS.map((name) => {
+                          const active =
+                            compareCamera?.preset === name && !compareCamera?.spin;
+                          return (
+                            <button
+                              key={name}
+                              type="button"
+                              className={`brain-view-btn${active ? ' is-active' : ''}`}
+                              aria-pressed={active}
+                              title={`Point every brain ${name}`}
+                              onClick={() => setCompareAngle(name)}
+                            >
+                              {name[0]}
+                            </button>
+                          );
+                        })}
+                      </div>
                       <button
-                        key={name}
                         type="button"
-                        className={`brain-view-btn${
-                          compareView?.preset === name ? ' is-active' : ''
+                        className={`brain-spin-toggle${
+                          compareCamera?.spin ? ' is-active' : ''
                         }`}
-                        aria-pressed={compareView?.preset === name}
-                        title={`Point every brain ${name}`}
-                        onClick={() => {
-                          compareViewNonce.current += 1;
-                          setCompareView({ preset: name, nonce: compareViewNonce.current });
-                        }}
+                        aria-pressed={compareCamera?.spin}
+                        title={compareCamera?.spin ? 'Spinning every brain' : 'Auto-spin every brain'}
+                        onClick={toggleCompareSpin}
                       >
-                        {name}
+                        spin
                       </button>
-                    ))}
+                    </div>
+                    {isMobile && (
+                      <span className="compare-controls-hint">swipe for next reel</span>
+                    )}
                   </div>
-                  {isMobile && (
-                    <span
-                      className="text-[11px] tracking-[0.03em]"
-                      style={{ color: 'var(--text-tertiary)' }}
-                    >
-                      swipe for next reel
-                    </span>
-                  )}
+                  <CompareVerdict videos={compareVideos} />
                 </div>
               )}
 
@@ -615,8 +649,6 @@ export default function App() {
                   select up to {COMPARE_CAP} reels from the list
                 </div>
               ) : (
-                <>
-                {compareVideos.length >= 2 && <CompareVerdict videos={compareVideos} />}
                 <div className={`compare-grid${isMobile ? ' compare-grid-mobile' : ''}`}>
                   {compareVideos.map((v) => (
                     <div key={v.id} className="compare-card">
@@ -629,15 +661,13 @@ export default function App() {
                       >
                         ×
                       </button>
-                      <div className="type-heading text-[13px] tracking-[0.01em] pr-6">
-                        {v.id}
+                      <div className="compare-card-head">
+                        <ReelId id={v.id} variant="stage" />
                       </div>
                       <div className="compare-card-desc">
-                        {[v.account, v.annotations?.format].filter(Boolean).join(' · ') ||
-                          ' '}
+                        {[v.account, v.annotations?.format].filter(Boolean).join(' · ')}
                       </div>
                       <ReelStage
-                        key={'c-' + v.id}
                         video={v}
                         brain={brain}
                         networks={networksById[v.id]}
@@ -646,12 +676,11 @@ export default function App() {
                         syncedPlaying={syncedPlaying}
                         onSyncPlayChange={setSyncedPlaying}
                         onViewMoment={onViewMoment}
-                        externalView={compareView}
+                        masterCamera={compareCamera}
                       />
                     </div>
                   ))}
                 </div>
-                </>
               )}
             </div>
           )}
@@ -773,7 +802,7 @@ export default function App() {
                             />
                           )}
                           <div className="min-w-0 flex-1">
-                            <div className="reel-item-id text-[13px] tracking-[0.03em]">{v.id}</div>
+                            <div className="reel-id">{v.id}</div>
                             <div className="reel-item-meta text-[11px] tracking-[0.03em] mt-0.5">
                               <span className="reel-item-meta-plays">
                                 {fmtPlays(v.metrics?.plays)} plays ·{' '}
