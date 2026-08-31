@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import BrainViewer from './BrainViewer';
+import ReelId from './ReelId';
 import { loadActivation } from '../lib/data';
 import { YEO7_ROLES } from '../lib/yeo7';
 
@@ -99,7 +100,7 @@ export default function ReelStage({
   syncedPlaying = false,
   onSyncPlayChange,
   onViewMoment,
-  externalView = null,
+  masterCamera = null,
 }) {
   const stack = layout === 'stack';
   const videoRef = useRef(null);
@@ -333,18 +334,12 @@ export default function ReelStage({
         </div>
       )}
       {!stack && (
-        <span
-          className="absolute top-2 left-2 text-[11px] px-2 py-0.5 tracking-[0.04em]"
-          style={{
-            background: 'var(--bg)',
-            color: 'var(--text-primary)',
-            fontWeight: 'var(--weight-body)',
-            borderRadius: 'var(--radius)',
-            border: '1px solid var(--border)',
-          }}
-        >
-          {video.id}
-        </span>
+        <ReelId
+          id={video.id}
+          variant="stage"
+          onDark
+          className="absolute top-2 left-2 z-[2]"
+        />
       )}
 
       <button
@@ -395,7 +390,7 @@ export default function ReelStage({
           timeSec={progress * (duration || video.duration || 0)}
           onNetworkChange={handleNetworkChange}
           compact={stack}
-          externalView={externalView}
+          masterCamera={masterCamera}
         />
       )}
     </div>
