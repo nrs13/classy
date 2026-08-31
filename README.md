@@ -4,32 +4,50 @@ marketing reimagined
 
 Watch a reel next to its predicted TRIBE V2 brain response. Compare reels. Ask Classy about the numbers.
 
-Demo: https://classy-poc-260807.web.app
+**Demo:** https://tribev2-brain-activity-predictor.vercel.app  
+**Repo:** https://github.com/alem-hodzic-knowunity/tribev2-brain-activity-predictor
 
 ## Stack
 
 App: React, Vite, Tailwind, Three.js  
 Brain: Meta TRIBE V2 on fsaverage5  
-Chat: Firebase AI Logic (Gemini) with knowledge.json
+Chat: Anthropic (Claude) via Vercel serverless `/api/chat` with `knowledge.json`
 
 ## Run the app
 
+Frontend only (chat needs Vercel for the API):
+
 ```bash
 cd web
-cp .env.example .env
 npm install
 npm run dev
 ```
 
-Add Firebase web keys to `web/.env`. Never commit `.env`.
-
-## Deploy
+Full stack locally (chat works):
 
 ```bash
 cd web
-npm run build
-npx firebase-tools@latest deploy --only hosting
+npm install
+vercel env pull .env.local   # needs Vercel team access
+vercel dev
 ```
+
+`ANTHROPIC_API_KEY` is server-side only — set on Vercel, never commit it. See `web/.env.example`.
+
+Optional server env: `CLASSY_MODEL`, `CLASSY_EFFORT`.
+
+## Deploy
+
+Push to `main` — Vercel auto-deploys from GitHub.
+
+Manual preview:
+
+```bash
+cd web
+vercel
+```
+
+Production URL: https://tribev2-brain-activity-predictor.vercel.app
 
 ## Data pipeline
 
@@ -53,7 +71,7 @@ web_export.py              pack data for the web app
 colab_pack_download_data.py
 metadata.csv
 reference/yeo2011/         Yeo 7 atlas files
-web/                       frontend + public/data
+web/                       frontend + public/data + api/chat.js
 ```
 
 ## Metrics
@@ -68,5 +86,4 @@ N=10. Descriptive only.
 
 ## Notes
 
-Gemini free tier is limited. Prefer billing or wait if quota hits.  
 App data lives in `web/public/data/`. Root `videos/` and `outputs/` stay local.
