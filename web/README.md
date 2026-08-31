@@ -1,9 +1,9 @@
 # Classy web
 
-```bash
-cp .env.example .env
-npm install
-npm run dev
-```
+Frontend lives here. Full setup is in the root [README](../README.md).
 
-Put Firebase keys in `.env`. Full setup is in the root README.
+```bash
+npm install
+npm run dev          # brain + reels
+vercel dev           # + Ask Classy (needs ANTHROPIC_API_KEY in .env.local)
+```
