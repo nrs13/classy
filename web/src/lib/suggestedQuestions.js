@@ -1,5 +1,3 @@
-/** Suggestion chips ranked from per-reel fields in knowledge.json (no model calls). */
-
 const CAVEAT_TEXT =
   'What are the biggest caveats of this analysis at N=10?';
 
@@ -79,7 +77,6 @@ function byIdMap(knowledge) {
   return map;
 }
 
-/** Per-reel notability candidates (higher score = more notable). */
 function reelCandidates(video, pack) {
   if (!video) return [];
   const id = video.id;
@@ -182,7 +179,6 @@ function reelCandidates(video, pack) {
     }
   }
 
-  // Keep unremarkable reels at 4 chips even when no anomaly fires.
   out.push({
     id: `fallback-amp-${id}`,
     score: 40,
@@ -257,7 +253,6 @@ function caveatCandidate() {
   return { id: 'caveat-n10', score: 50, text: CAVEAT_TEXT };
 }
 
-/** Ranked suggestion strings for focus reel ids (Compare: merge across selection). */
 export function buildSalientSuggestions(knowledge, videoIds = [], { seed = 0, count = 4 } = {}) {
   const map = byIdMap(knowledge);
   const allVideos = knowledge?.videos || [];

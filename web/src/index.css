@@ -508,8 +508,6 @@ select {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  /* Do not shrink in the thread flex column — min-height:0 was crushing
-     padding-bottom so the last chip sat flush on the composer hairline. */
   flex-shrink: 0;
   min-height: min-content;
   margin: 0;
@@ -517,7 +515,6 @@ select {
   box-sizing: border-box;
 }
 
-/* Distinct zone after an answer: answer → suggestions → composer. */
 .chat-suggest-list + .chat-suggest-list,
 .chat-row + .chat-suggest-list {
   margin-top: var(--space-4);
@@ -1550,8 +1547,12 @@ select {
   scroll-padding-bottom: var(--content-end-space);
 }
 
-.layout-grid-focus {
-  grid-template-columns: minmax(140px, 160px) minmax(0, 1fr) minmax(0, var(--chat-w));
+.main-stage-compare {
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding-bottom: 0;
 }
 
 .layout-grid-collapsed {
@@ -1691,6 +1692,9 @@ select {
   overflow: hidden;
   width: 100%;
   max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
 .chat-resize-handle {
@@ -1791,20 +1795,53 @@ select {
 }
 
 .chat-rail {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 6px;
+  box-sizing: border-box;
+  padding: 10px 6px;
   background: var(--bg-subtle);
 }
 
-.chat-rail-label {
-  writing-mode: vertical-rl;
-  text-orientation: mixed;
-  transform: rotate(180deg);
-  font-size: 10px;
-  font-weight: var(--weight-heading);
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--text-secondary);
-  margin-top: auto;
-  padding-bottom: 8px;
+.chat-rail-ask-btn {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  color: var(--text-primary);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition:
+    color var(--dur) var(--ease),
+    border-color var(--dur) var(--ease),
+    background var(--dur) var(--ease);
+}
+
+.chat-rail-ask-btn:hover {
+  color: var(--accent-cool);
+  border-color: var(--accent-cool);
+}
+
+.chat-rail-ask-btn:focus-visible {
+  outline: 1px solid var(--accent-cool);
+  outline-offset: 2px;
+}
+
+.ask-glyph {
+  font-family: var(--font-display);
+  font-size: 15px;
+  line-height: 1;
+}
+
+.chat-fab .ask-glyph {
+  font-size: 18px;
 }
 
 .chat-title {
@@ -2008,11 +2045,8 @@ select {
   z-index: 40;
   width: var(--fab-size);
   height: var(--fab-size);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
+  display: grid;
+  place-items: center;
   background: rgba(10, 10, 10, 0.28);
   color: #fff;
   border: 1px solid rgba(10, 10, 10, 0.22);
@@ -2034,17 +2068,6 @@ select {
 .chat-fab:focus-visible {
   outline: 1px solid var(--accent-cool);
   outline-offset: 2px;
-}
-
-.chat-fab-glyph {
-  font-size: 16px;
-  line-height: 1;
-}
-
-.chat-fab-text {
-  font-size: 9px;
-  letter-spacing: 0.08em;
-  text-transform: lowercase;
 }
 
 .chat-mobile-overlay {
@@ -2077,9 +2100,56 @@ select {
   overflow-x: hidden;
 }
 
-@container main-stage (max-width: 720px) {
-  .compare-grid:not(.compare-grid-mobile) {
-    grid-template-columns: minmax(0, 1fr);
+.compare-shell {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  gap: 12px;
+  min-height: 0;
+}
+
+.compare-grid-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: var(--content-end-space);
+  scroll-padding-bottom: var(--content-end-space);
+}
+
+@container main-stage (max-width: 960px) {
+  .compare-grid {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 12px;
+    align-items: stretch;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-snap-type: x mandatory;
+    scroll-padding-inline: 0;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 4px;
+  }
+
+  .compare-grid .compare-card {
+    flex: 0 0 min(100%, 340px);
+    width: min(100%, 340px);
+    max-width: 100%;
+    scroll-snap-align: start;
+    scroll-snap-stop: always;
+  }
+
+  .compare-grid-scroll {
+    overflow-y: hidden;
+  }
+}
+
+@container main-stage (max-width: 420px) {
+  .compare-grid .compare-card {
+    flex-basis: calc(100% - 4px);
+    width: calc(100% - 4px);
   }
 }
 
@@ -2091,28 +2161,6 @@ select {
   border-radius: var(--radius);
   background: var(--bg);
   padding: 12px;
-}
-
-.compare-grid-mobile {
-  display: flex;
-  flex-direction: row;
-  flex-wrap: nowrap;
-  gap: 12px;
-  align-items: stretch;
-  overflow-x: auto;
-  overflow-y: hidden;
-  scroll-snap-type: x mandatory;
-  scroll-padding-inline: 0;
-  -webkit-overflow-scrolling: touch;
-  padding-bottom: 4px;
-}
-
-.compare-grid-mobile .compare-card {
-  flex: 0 0 min(100%, 320px);
-  width: min(100%, 320px);
-  max-width: 100%;
-  scroll-snap-align: start;
-  scroll-snap-stop: always;
 }
 
 .compare-close {
@@ -2239,7 +2287,7 @@ select {
 }
 
 @media (max-width: 1100px) {
-  .layout-grid:not(.layout-grid-mobile):not(.layout-grid-focus) {
+  .layout-grid:not(.layout-grid-mobile) {
     grid-template-columns: minmax(160px, 200px) minmax(0, 1fr) minmax(0, var(--chat-w));
   }
 }
@@ -2267,11 +2315,6 @@ select {
 
   .stage-video-stack {
     max-height: min(300px, 42vh);
-  }
-
-  .compare-grid-mobile .compare-card {
-    flex-basis: calc(100% - 4px);
-    width: calc(100% - 4px);
   }
 }
 
@@ -2369,15 +2412,15 @@ select {
 }
 
 .compare-sticky-head {
-  position: sticky;
-  top: 0;
-  z-index: 6;
+  position: relative;
+  z-index: 2;
+  flex-shrink: 0;
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding-bottom: 12px;
+  padding-bottom: 4px;
   background: var(--bg);
-  box-shadow: 0 1px 0 var(--border);
+  box-shadow: 0 10px 18px -14px rgba(10, 10, 10, 0.18);
 }
 
 .compare-controls {

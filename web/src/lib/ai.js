@@ -1,11 +1,13 @@
 export { sanitizeAssistantText } from './sanitizeAssistantText.js';
-export { prepareKnowledgeForModel } from './prompt.js';
 
-/**
- * Chat runs through /api/chat (Vercel function); the Anthropic key lives only
- * in the server environment. The endpoint reports 503 until a key is set.
- */
-export const aiConfigured = true;
+export async function checkChatBackend() {
+  try {
+    const res = await fetch('/api/chat', { method: 'GET' });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
 
 export class BothModelsQuotaError extends Error {
   constructor(message = 'model quota reached, try again later') {
@@ -83,12 +85,19 @@ export function localKnowledgeReply(knowledge, question) {
   }
 
   if (q.includes('network') || q.includes('brain')) {
+    const net = mentioned?.networks || top?.networks;
+    const ranks = Array.isArray(net?.top) ? net.top.join(', ') : null;
     return [
-      'local mode: this pack stores cortex-wide |activation| summaries (mean_abs_activation, peak_mean_abs, sustain_ratio), not per-network ROI tables in knowledge.json.',
+      'local mode: each reel has Yeo-7 cortical network means, a top-3 rank, and peak_t_sec in knowledge.json.',
+      mentioned && ranks
+        ? `${mentioned.id} top networks: ${ranks}.`
+        : top && ranks
+          ? `${top.id} top networks: ${ranks}.`
+          : '',
       top
         ? `${top.id} leads amplification at ${top.metrics?.amplification} with sustain_ratio ${top.features?.sustain_ratio}.`
         : '',
-      'for network maps, open the brain viewer on a selected reel. N=10 exploratory only.',
+      'N=10 exploratory only.',
     ]
       .filter(Boolean)
       .join(' ');
@@ -132,10 +141,9 @@ export function localKnowledgeReply(knowledge, question) {
   ].join(' ');
 }
 
-/** Ask Classy stream via /api/chat. The server handles the model fallback chain. */
-export async function* streamChatReply({ priorMessages = [], message }) {
+export async function* streamChatReply({ priorMessages = [], message, focus = null }) {
   const history = priorMessages
-    .filter((m) => m?.text && (m.role === 'user' || m.role === 'model') && !m.error)
+    .filter((m) => m?.text && (m.role === 'user' || m.role === 'assistant') && !m.error)
     .map((m) => ({ role: m.role, text: String(m.text) }));
 
   let response;
@@ -143,7 +151,7 @@ export async function* streamChatReply({ priorMessages = [], message }) {
     response = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message, history }),
+      body: JSON.stringify({ message, history, focus }),
     });
   } catch (err) {
     const wrapped = new Error(`chat request failed: ${err?.message || err}`);
