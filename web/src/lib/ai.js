@@ -1,3 +1,5 @@
+import { datasetSize } from './dataset.js';
+
 export { sanitizeAssistantText } from './sanitizeAssistantText.js';
 
 export async function checkChatBackend() {
@@ -45,6 +47,7 @@ export function localKnowledgeReply(knowledge, question) {
   if (!Array.isArray(videos) || videos.length === 0) {
     return 'local fallback: no knowledge.json videos loaded.';
   }
+  const n = datasetSize(videos);
   const q = String(question || '').toLowerCase();
   const byAmp = [...videos].sort(
     (a, b) => (b.metrics?.amplification ?? 0) - (a.metrics?.amplification ?? 0),
@@ -60,8 +63,8 @@ export function localKnowledgeReply(knowledge, question) {
     const m = v.metrics || {};
     return [
       `local mode (AI unavailable): ${v.id} amplification = plays/followers = ${fmtNum(m.plays)} / ${fmtNum(m.followers)} = ${m.amplification}.`,
-      `that is reach relative to account size; breakouts sit far above the rest of this N=10 set.`,
-      `caveat: exploratory only at N=10.`,
+      `that is reach relative to account size; breakouts sit far above the rest of this N=${n} set.`,
+      `caveat: exploratory only at N=${n}.`,
     ].join(' ');
   }
 
@@ -97,7 +100,7 @@ export function localKnowledgeReply(knowledge, question) {
       top
         ? `${top.id} leads amplification at ${top.metrics?.amplification} with sustain_ratio ${top.features?.sustain_ratio}.`
         : '',
-      'N=10 exploratory only.',
+      `N=${n} exploratory only.`,
     ]
       .filter(Boolean)
       .join(' ');
@@ -135,7 +138,7 @@ export function localKnowledgeReply(knowledge, question) {
     return `${i + 1}) ${v.id}: amp ${m.amplification}, plays ${fmtNum(m.plays)}, sustain ${v.features?.sustain_ratio}`;
   });
   return [
-    'local mode (AI unavailable): top amplification in this N=10 pack:',
+    `local mode (AI unavailable): top amplification in this N=${n} pack:`,
     ...lines,
     'ask about a specific id (e.g. B_V1) for numbers once the AI backend is configured.',
   ].join(' ');

@@ -1,6 +1,3 @@
-const CAVEAT_TEXT =
-  'What are the biggest caveats of this analysis at N=10?';
-
 function fmtNum(n) {
   if (n == null || Number.isNaN(Number(n))) return 'n/a';
   const x = Number(n);
@@ -68,7 +65,7 @@ function packStats(videos) {
   }
   gaps.sort((a, b) => a - b);
   const medianGap = gaps.length ? gaps[Math.floor(gaps.length / 2)] : 0.05;
-  return { medianGap, minPlaysId, minPlays, maxPlays };
+  return { n: videos.length, medianGap, minPlaysId, minPlays, maxPlays };
 }
 
 function byIdMap(knowledge) {
@@ -104,7 +101,7 @@ function reelCandidates(video, pack) {
     out.push({
       id: `hook-pos-weak-${id}`,
       score: 78,
-      text: `${id} has a solid hook slope (${fmtNum(hook)}) but only ${fmtNum(plays)} plays — what else explains the ${tier} tier?`,
+      text: `${id} has a solid hook slope (${fmtNum(hook)}) but only ${fmtNum(plays)} plays. What else explains the ${tier} tier?`,
     });
   }
 
@@ -139,7 +136,7 @@ function reelCandidates(video, pack) {
       out.push({
         id: `net-wide-${id}`,
         score: 74,
-        text: `${id}'s Visual lead over ${n2} is wide (${fmtNum(m1)} vs ${fmtNum(m2)}). What do ranks 2–3 add beyond the baseline?`,
+        text: `${id}'s Visual lead over ${n2} is wide (${fmtNum(m1)} vs ${fmtNum(m2)}). What do ranks 2 and 3 add beyond the baseline?`,
       });
     } else if (gap12 <= pack.medianGap * 0.55) {
       out.push({
@@ -151,7 +148,7 @@ function reelCandidates(video, pack) {
       out.push({
         id: `net-rank23-${id}`,
         score: 58,
-        text: `For ${id}, why do ${n2} and ${n3} land in ranks 2–3 after Visual?`,
+        text: `For ${id}, why do ${n2} and ${n3} land in ranks 2 and 3 after Visual?`,
       });
     }
   }
@@ -200,7 +197,7 @@ function reelCandidates(video, pack) {
     out.push({
       id: `fallback-hook-${id}`,
       score: 34,
-      text: `How does ${id}'s hook slope (${fmtNum(hook)}) compare across this N=10 pack?`,
+      text: `How does ${id}'s hook slope (${fmtNum(hook)}) compare across this N=${pack.n} pack?`,
     });
   }
 
@@ -243,14 +240,18 @@ function compareCandidates(videos) {
     out.push({
       id: `cmp-tier-set`,
       score: 77,
-      text: `Across ${ids}, which tier differences show up in network ranks 2–3 rather than Visual?`,
+      text: `Across ${ids}, which tier differences show up in network ranks 2 and 3 rather than Visual?`,
     });
   }
   return out;
 }
 
-function caveatCandidate() {
-  return { id: 'caveat-n10', score: 50, text: CAVEAT_TEXT };
+function caveatText(n) {
+  return `What are the biggest caveats of this analysis at N=${n}?`;
+}
+
+function caveatCandidate(n) {
+  return { id: 'caveat-n', score: 50, text: caveatText(n) };
 }
 
 export function buildSalientSuggestions(knowledge, videoIds = [], { seed = 0, count = 4 } = {}) {
@@ -260,7 +261,7 @@ export function buildSalientSuggestions(knowledge, videoIds = [], { seed = 0, co
   const ids = [...new Set((videoIds || []).filter((id) => map.has(id)))];
   const focusVideos = ids.map((id) => map.get(id));
 
-  const candidates = [caveatCandidate()];
+  const candidates = [caveatCandidate(pack.n)];
   if (focusVideos.length >= 2) {
     candidates.push(...compareCandidates(focusVideos));
     for (const v of focusVideos) {
@@ -283,7 +284,7 @@ export function buildSalientSuggestions(knowledge, videoIds = [], { seed = 0, co
       {
         id: 'pack-networks',
         score: 55,
-        text: 'Is Visual dominance meaningful across these 10 videos?',
+        text: `Is Visual dominance meaningful across these ${pack.n} videos?`,
       },
       {
         id: 'pack-amp',
@@ -300,8 +301,8 @@ export function buildSalientSuggestions(knowledge, videoIds = [], { seed = 0, co
   }
   const unique = [...best.values()].sort((a, b) => b.score - a.score || a.id.localeCompare(b.id));
 
-  const caveat = unique.find((c) => c.id === 'caveat-n10') || caveatCandidate();
-  const rest = unique.filter((c) => c.id !== 'caveat-n10');
+  const caveat = unique.find((c) => c.id === 'caveat-n') || caveatCandidate(pack.n);
+  const rest = unique.filter((c) => c.id !== 'caveat-n');
   const offset = rest.length ? (Number(seed) || 0) % rest.length : 0;
   const rotated = rest.length ? [...rest.slice(offset), ...rest.slice(0, offset)] : [];
 
@@ -324,7 +325,7 @@ export function buildSalientSuggestions(knowledge, videoIds = [], { seed = 0, co
     picked.push(c.text);
   }
   while (picked.length < count) {
-    picked.push(CAVEAT_TEXT);
+    picked.push(caveat.text);
   }
   return picked.slice(0, count);
 }

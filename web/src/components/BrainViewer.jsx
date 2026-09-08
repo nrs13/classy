@@ -120,7 +120,7 @@ function paintIsolatedColors(colors, activation, frame, networkIndices) {
 
 /**
  * Mask pass: dim non-isolated vertices, restore isolated set at `frame`.
- * Event-driven only (enter / exit / switch network) — not every playback tick.
+ * Event-driven only (enter / exit / switch network), not every playback tick.
  */
 function applyIsolateMask(colors, activation, frame, n, networkIndices) {
   paintFrame(colors, activation.data, frame, n);
@@ -231,7 +231,6 @@ function BrainMesh({
     geometry.attributes.color.needsUpdate = true;
   }, [activation, geometry, progressRef]);
 
-  // Mask pass only: enter / exit / switch isolated network — not playback ticks.
   useEffect(() => {
     if (previousIsolation.current === isolatedLabelId) return;
     previousIsolation.current = isolatedLabelId;

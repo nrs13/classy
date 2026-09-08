@@ -18,6 +18,13 @@ function fmt(n) {
   return String(n);
 }
 
+function fmtAmp(n) {
+  if (n == null || Number.isNaN(Number(n))) return '-';
+  const x = Number(n);
+  if (x >= 100) return `${Math.round(x).toLocaleString('en-US')}×`;
+  return `${x.toFixed(2)}×`;
+}
+
 function fmtTime(sec) {
   if (!isFinite(sec) || sec < 0) sec = 0;
   const s = Math.floor(sec);
@@ -472,7 +479,8 @@ export default function ReelStage({
             />
             <Stat
               label="Amplification"
-              value={m.amplification != null ? m.amplification + '×' : '-'}
+              value={fmtAmp(m.amplification)}
+              full={m.amplification != null ? `${m.amplification}×` : null}
             />
             <Stat
               label="Tier"
@@ -523,13 +531,13 @@ export default function ReelStage({
   );
 }
 
-function Stat({ label, value, cls = '' }) {
-  const full = value == null ? '-' : String(value);
+function Stat({ label, value, cls = '', full = null }) {
+  const shown = value == null ? '-' : String(value);
   return (
     <div className="stat-tile px-3 py-2 min-w-0">
       <div className="section-label stat-tile-label mb-1">{label}</div>
-      <div className={`stat-tile-value tracking-[0.03em] ${cls}`} title={full}>
-        {full}
+      <div className={`stat-tile-value tracking-[0.03em] ${cls}`} title={full ?? shown}>
+        {shown}
       </div>
     </div>
   );
@@ -553,11 +561,15 @@ function NetworkStat({ networks, hoverNetwork, selectedNetwork }) {
     selected: false,
   }));
 
-  const selectedRow =
+  const selectedRank =
     selectedNetwork && !topNetworks.includes(selectedNetwork)
+      ? rankOf(selectedNetwork)
+      : null;
+  const selectedRow =
+    selectedRank != null
       ? {
           name: selectedNetwork,
-          rank: rankOf(selectedNetwork),
+          rank: selectedRank,
           mean: Number(means[selectedNetwork]) || 0,
           selected: true,
         }
@@ -583,7 +595,7 @@ function NetworkStat({ networks, hoverNetwork, selectedNetwork }) {
         data-active={active ? 'true' : 'false'}
       >
         <div className="brain-network-label">
-          <span>{network.rank ?? '—'}</span>
+          <span>{network.rank}</span>
           <span>
             {network.name}
             {network.selected ? (

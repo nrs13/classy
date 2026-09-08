@@ -428,9 +428,9 @@ def export(
     knowledge = {
         "product": "Classy",
         "tagline": "marketing reimagined",
-        "scope": "N=10 Instagram study-niche reels; TRIBE V2 predicted cortical response.",
+        "scope": f"N={len(videos)} Instagram study-niche reels; TRIBE V2 predicted cortical response.",
         "caveats": [
-            "N=10 — exploratory only; do not claim statistical significance.",
+            f"N={len(videos)}. Exploratory only; do not claim statistical significance.",
             "TRIBE predicts group-average encoding responses, not individual brains.",
             "Hemodynamic lag: peaks are delayed relative to stimulus events.",
             "Activation shown is |response| abs-normalized per video for viz.",

@@ -66,8 +66,11 @@ const SIGNALS = [
   },
 ];
 
-const FOOTNOTE =
-  'hook, peak and hold are predicted brain response (TRIBE V2) · like-rate and reach are observed · n=10 pilot, descriptive only';
+function footnote(n) {
+  const predicted = SIGNALS.filter((s) => s.kind === 'predicted').map((s) => s.label).join(', ');
+  const observed = SIGNALS.filter((s) => s.kind === 'observed').map((s) => s.label).join(' and ');
+  return `${predicted} are predicted brain response (TRIBE V2) · ${observed} are observed · n=${n} pilot, descriptive only`;
+}
 
 function signalRows(videos) {
   const rows = [];
@@ -102,75 +105,100 @@ function leaderStats(rows) {
   return { leaderId, leaderWins };
 }
 
-export default function CompareVerdict({ videos }) {
-  const rows = signalRows(videos);
-  const [open, setOpen] = useState(true);
-  const [footnoteOpen, setFootnoteOpen] = useState(false);
-
-  if (!rows.length) return null;
-
-  const { leaderId, leaderWins } = leaderStats(rows);
-
+function CompareVerdictSummary({ leaderId, leaderWins, rowCount, open, onToggle }) {
   return (
-    <section className="compare-verdict" aria-label="Compare signals">
+    <section className="compare-verdict-bar" aria-label="Compare signals">
       <button
         type="button"
         className="compare-verdict-toggle"
         aria-expanded={open}
-        onClick={() => setOpen((v) => !v)}
+        onClick={onToggle}
       >
         <span className="compare-verdict-headline">
-          <ReelId id={leaderId} variant="inline" /> leads on {leaderWins} of {rows.length} signals
+          <ReelId id={leaderId} variant="inline" /> leads on {leaderWins} of {rowCount} signals
         </span>
         <span className="compare-verdict-chevron" aria-hidden />
       </button>
-
-      {open && (
-        <div className="compare-verdict-body">
-          <div className="compare-verdict-grid">
-            {rows.map(({ signal, values, winner }) => (
-              <article key={signal.key} className="compare-signal-card" data-kind={signal.kind}>
-                <div className="compare-signal-head">
-                  <span className="compare-signal-label">{signal.label}</span>
-                  <span className="compare-signal-kind">{signal.kind}</span>
-                </div>
-                <p className="compare-signal-sentence">{signal.sentence(winner.id)}</p>
-                <div className="compare-signal-rows">
-                  {values.map((entry) => (
-                    <div
-                      key={entry.id}
-                      className={`compare-signal-row${
-                        entry.id === winner.id ? ' is-winner' : ''
-                      }`}
-                    >
-                      <ReelId
-                        id={entry.id}
-                        variant="stage"
-                        winner={entry.id === winner.id}
-                      />
-                      <span className="compare-signal-val">
-                        {entry.value == null ? '–' : signal.fmt(entry.value)}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </article>
-            ))}
-          </div>
-
-          <div className="compare-verdict-footnote-row">
-            <button
-              type="button"
-              className="compare-verdict-footnote-toggle"
-              aria-expanded={footnoteOpen}
-              onClick={() => setFootnoteOpen((v) => !v)}
-            >
-              ⓘ methodology
-            </button>
-            {footnoteOpen && <p className="compare-verdict-footnote">{FOOTNOTE}</p>}
-          </div>
-        </div>
-      )}
     </section>
+  );
+}
+
+function CompareVerdictDetails({ rows, n, footnoteOpen, setFootnoteOpen }) {
+  return (
+    <div className="compare-verdict-body">
+      <div className="compare-verdict-grid">
+        {rows.map(({ signal, values, winner }) => (
+          <article key={signal.key} className="compare-signal-card" data-kind={signal.kind}>
+            <div className="compare-signal-head">
+              <span className="compare-signal-label">{signal.label}</span>
+              <span className="compare-signal-kind">{signal.kind}</span>
+            </div>
+            <p className="compare-signal-sentence">{signal.sentence(winner.id)}</p>
+            <div className="compare-signal-rows">
+              {values.map((entry) => (
+                <div
+                  key={entry.id}
+                  className={`compare-signal-row${entry.id === winner.id ? ' is-winner' : ''}`}
+                >
+                  <ReelId id={entry.id} variant="stage" winner={entry.id === winner.id} />
+                  <span className="compare-signal-val">
+                    {entry.value == null ? 'n/a' : signal.fmt(entry.value)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </article>
+        ))}
+      </div>
+
+      <div className="compare-verdict-footnote-row">
+        <button
+          type="button"
+          className="compare-verdict-footnote-toggle"
+          aria-expanded={footnoteOpen}
+          onClick={() => setFootnoteOpen((v) => !v)}
+        >
+          ⓘ methodology
+        </button>
+        {footnoteOpen && <p className="compare-verdict-footnote">{footnote(n)}</p>}
+      </div>
+    </div>
+  );
+}
+
+export function CompareVerdictLayout({ videos, controls, children }) {
+  const rows = signalRows(videos);
+  const [open, setOpen] = useState(true);
+  const [footnoteOpen, setFootnoteOpen] = useState(false);
+
+  const hasVerdict = rows.length > 0;
+  const { leaderId, leaderWins } = hasVerdict ? leaderStats(rows) : {};
+
+  return (
+    <>
+      <div className="compare-head">
+        {controls}
+        {hasVerdict && (
+          <CompareVerdictSummary
+            leaderId={leaderId}
+            leaderWins={leaderWins}
+            rowCount={rows.length}
+            open={open}
+            onToggle={() => setOpen((v) => !v)}
+          />
+        )}
+      </div>
+      <div className="compare-scroll scroll-pane scroll-pane-y">
+        {hasVerdict && open && (
+          <CompareVerdictDetails
+            rows={rows}
+            n={videos.length}
+            footnoteOpen={footnoteOpen}
+            setFootnoteOpen={setFootnoteOpen}
+          />
+        )}
+        {children}
+      </div>
+    </>
   );
 }

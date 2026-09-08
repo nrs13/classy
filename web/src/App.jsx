@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { loadManifest, loadBrain } from './lib/data';
 import ReelStage from './components/ReelStage';
 import ChatPanel from './components/ChatPanel';
-import CompareVerdict from './components/CompareVerdict';
+import { CompareVerdictLayout } from './components/CompareVerdict';
 import ReelId from './components/ReelId';
 import { suggestionFocusIds } from './lib/suggestedQuestions';
 
@@ -19,6 +19,7 @@ function tierClass(tier) {
 }
 
 const COMPARE_CAP = 4;
+const COMPARE_CAP_MSG = 'remove one to add another';
 const COMPARE_VIEWS = ['front', 'left', 'right', 'back'];
 const CHAT_W_KEY = 'classy-chat-w';
 const CHAT_COLLAPSED_KEY = 'classy-chat-collapsed';
@@ -134,6 +135,22 @@ export default function App() {
       },
     });
   }, [manifest, knowledge]);
+
+  useEffect(() => {
+    const timers = new WeakMap();
+    function onScroll(e) {
+      const el = e.target;
+      if (!(el instanceof Element) || !el.classList.contains('scroll-pane')) return;
+      el.classList.add('is-scrolling');
+      clearTimeout(timers.get(el));
+      timers.set(
+        el,
+        setTimeout(() => el.classList.remove('is-scrolling'), 700),
+      );
+    }
+    document.addEventListener('scroll', onScroll, true);
+    return () => document.removeEventListener('scroll', onScroll, true);
+  }, []);
 
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 768px)');
@@ -418,6 +435,85 @@ export default function App() {
     onToggleCollapse: toggleCollapse,
   };
 
+  const compareControls = (
+    <div className="compare-controls">
+      <label className="sync-toggle">
+        <input
+          type="checkbox"
+          checked={syncPlayback}
+          onChange={(e) => setSyncPlayback(e.target.checked)}
+        />
+        <span className="sync-toggle-box" aria-hidden />
+        <span>sync playback</span>
+      </label>
+      <div className="compare-controls-angle" role="group" aria-label="Angle">
+        <span className="compare-view-label">angle</span>
+        <div className="brain-view-group">
+          {COMPARE_VIEWS.map((name) => {
+            const active = compareCamera?.preset === name && !compareCamera?.spin;
+            return (
+              <button
+                key={name}
+                type="button"
+                className={`brain-view-btn${active ? ' is-active' : ''}`}
+                aria-pressed={active}
+                title={`Point every brain ${name}`}
+                onClick={() => setCompareAngle(name)}
+              >
+                {name[0]}
+              </button>
+            );
+          })}
+        </div>
+        <button
+          type="button"
+          className={`brain-spin-toggle${compareCamera?.spin ? ' is-active' : ''}`}
+          aria-pressed={compareCamera?.spin}
+          title={compareCamera?.spin ? 'Spinning every brain' : 'Auto-spin every brain'}
+          onClick={toggleCompareSpin}
+        >
+          spin
+        </button>
+      </div>
+      {isMobile && <span className="compare-controls-hint">swipe for next reel</span>}
+    </div>
+  );
+
+  const compareCards = (
+    <div className="compare-grid scroll-pane">
+      {compareVideos.map((v) => (
+        <div key={v.id} className="compare-card">
+          <button
+            type="button"
+            className="compare-close"
+            onClick={() => removeCompare(v.id)}
+            title="Remove from comparison"
+            aria-label={`Remove ${v.id} from comparison`}
+          >
+            ×
+          </button>
+          <div className="compare-card-head">
+            <ReelId id={v.id} variant="stage" />
+          </div>
+          <div className="compare-card-desc">
+            {[v.account, v.annotations?.format].filter(Boolean).join(' · ')}
+          </div>
+          <ReelStage
+            video={v}
+            brain={brain}
+            networks={networksById[v.id]}
+            layout="stack"
+            syncPlayback={syncPlayback}
+            syncedPlaying={syncedPlaying}
+            onSyncPlayChange={setSyncedPlaying}
+            onViewMoment={onViewMoment}
+            masterCamera={compareCamera}
+          />
+        </div>
+      ))}
+    </div>
+  );
+
   return (
     <div className="h-full flex flex-col app-shell">
       <header
@@ -465,14 +561,14 @@ export default function App() {
 
           {compareCapMsg && mode === 'compare' && (
             <div className="mx-4 mb-2 text-[11px] tracking-[0.03em] leading-snug compare-cap-msg">
-              remove one to add another
+              {COMPARE_CAP_MSG}
             </div>
           )}
 
           <div className="reel-list-wrap flex-1 min-h-0 relative">
             <div
               ref={listRef}
-              className="h-full overflow-y-auto px-4 pb-4 space-y-1"
+              className="h-full overflow-y-auto px-4 pb-4 space-y-1 scroll-pane scroll-pane-y"
               onScroll={checkOverflow}
             >
               {videos.map((v, i) => {
@@ -527,7 +623,7 @@ export default function App() {
           className={`main-stage overflow-x-hidden p-4 min-w-0${
             mode === 'compare' && compareVideos.length >= 2
               ? ' main-stage-compare'
-              : ' overflow-y-auto'
+              : ' overflow-y-auto scroll-pane scroll-pane-y'
           }`}
           style={{ background: 'var(--bg)' }}
         >
@@ -574,58 +670,6 @@ export default function App() {
             )
           ) : (
             <div className={compareVideos.length >= 2 ? 'compare-shell' : 'flex flex-col gap-3'}>
-              {compareVideos.length >= 2 && (
-                <div className="compare-sticky-head">
-                  <div className="compare-controls">
-                    <label className="sync-toggle">
-                      <input
-                        type="checkbox"
-                        checked={syncPlayback}
-                        onChange={(e) => setSyncPlayback(e.target.checked)}
-                      />
-                      <span className="sync-toggle-box" aria-hidden />
-                      <span>sync playback</span>
-                    </label>
-                    <div className="compare-controls-angle" role="group" aria-label="Angle">
-                      <span className="compare-view-label">angle</span>
-                      <div className="brain-view-group">
-                        {COMPARE_VIEWS.map((name) => {
-                          const active =
-                            compareCamera?.preset === name && !compareCamera?.spin;
-                          return (
-                            <button
-                              key={name}
-                              type="button"
-                              className={`brain-view-btn${active ? ' is-active' : ''}`}
-                              aria-pressed={active}
-                              title={`Point every brain ${name}`}
-                              onClick={() => setCompareAngle(name)}
-                            >
-                              {name[0]}
-                            </button>
-                          );
-                        })}
-                      </div>
-                      <button
-                        type="button"
-                        className={`brain-spin-toggle${
-                          compareCamera?.spin ? ' is-active' : ''
-                        }`}
-                        aria-pressed={compareCamera?.spin}
-                        title={compareCamera?.spin ? 'Spinning every brain' : 'Auto-spin every brain'}
-                        onClick={toggleCompareSpin}
-                      >
-                        spin
-                      </button>
-                    </div>
-                    {isMobile && (
-                      <span className="compare-controls-hint">swipe for next reel</span>
-                    )}
-                  </div>
-                  <CompareVerdict videos={compareVideos} />
-                </div>
-              )}
-
               {compareVideos.length === 0 ? (
                 <div
                   className="text-[13px] tracking-[0.03em] py-12 text-center"
@@ -633,41 +677,12 @@ export default function App() {
                 >
                   select up to {COMPARE_CAP} reels from the list
                 </div>
+              ) : compareVideos.length >= 2 ? (
+                <CompareVerdictLayout videos={compareVideos} controls={compareControls}>
+                  {compareCards}
+                </CompareVerdictLayout>
               ) : (
-                <div className={compareVideos.length >= 2 ? 'compare-grid-scroll' : undefined}>
-                  <div className="compare-grid">
-                    {compareVideos.map((v) => (
-                      <div key={v.id} className="compare-card">
-                        <button
-                          type="button"
-                          className="compare-close"
-                          onClick={() => removeCompare(v.id)}
-                          title="Remove from comparison"
-                          aria-label={`Remove ${v.id} from comparison`}
-                        >
-                          ×
-                        </button>
-                        <div className="compare-card-head">
-                          <ReelId id={v.id} variant="stage" />
-                        </div>
-                        <div className="compare-card-desc">
-                          {[v.account, v.annotations?.format].filter(Boolean).join(' · ')}
-                        </div>
-                        <ReelStage
-                          video={v}
-                          brain={brain}
-                          networks={networksById[v.id]}
-                          layout="stack"
-                          syncPlayback={syncPlayback}
-                          syncedPlaying={syncedPlaying}
-                          onSyncPlayChange={setSyncedPlaying}
-                          onViewMoment={onViewMoment}
-                          masterCamera={compareCamera}
-                        />
-                      </div>
-                    ))}
-                  </div>
-                </div>
+                compareCards
               )}
             </div>
           )}
@@ -758,10 +773,10 @@ export default function App() {
                 </div>
                 {compareCapMsg && mode === 'compare' && (
                   <div className="mx-4 mb-2 text-[11px] tracking-[0.03em] leading-snug compare-cap-msg">
-                    remove one to add another
+                    {COMPARE_CAP_MSG}
                   </div>
                 )}
-                <div className="reel-drawer-list">
+                <div className="reel-drawer-list scroll-pane scroll-pane-y">
                   {videos.map((v, i) => {
                     const selected =
                       mode === 'compare' ? compareIds.includes(v.id) : selId === v.id;

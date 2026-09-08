@@ -7,6 +7,13 @@ import {
   streamChatReply,
 } from '../lib/ai';
 import { buildSalientSuggestions } from '../lib/suggestedQuestions';
+import {
+  DEFAULT_REPLY_MODES,
+  replyModePlaceholder,
+  replyModeSummary,
+  toggleReplyMode,
+} from '../lib/replyModes';
+import ReplyModeGroup from './ReplyModeGroup';
 
 const OFFLINE_REPLY =
   "classy isn't listening yet. try one of these instead:";
@@ -31,10 +38,15 @@ export default function ChatPanel({
   const [copiedIdx, setCopiedIdx] = useState(null);
   const [suggestSeed, setSuggestSeed] = useState(0);
   const [backendReady, setBackendReady] = useState(null);
+  const [replyModes, setReplyModes] = useState(DEFAULT_REPLY_MODES);
   const scrollRef = useRef(null);
   const textareaRef = useRef(null);
   const stickRef = useRef(true);
   const suggestionKey = suggestionVideoIds.join('|');
+
+  const toggleMode = useCallback((id) => {
+    setReplyModes((current) => toggleReplyMode(current, id));
+  }, []);
 
   useEffect(() => {
     setSuggestSeed(0);
@@ -152,6 +164,7 @@ export default function ChatPanel({
         focus: {
           ids: suggestionVideoIds,
           timeSec: viewMoment?.timeSec,
+          modes: replyModes,
         },
       })) {
         if (event.type === 'meta') {
@@ -249,6 +262,23 @@ export default function ChatPanel({
   }
 
   const empty = messages.length === 0;
+  const suggestList = (keyPrefix, labelled) => (
+    <div className="chat-suggest-list">
+      {labelled && (
+        <div className="section-label chat-suggest-label">try one of these</div>
+      )}
+      {visibleSuggestions.map((s) => (
+        <button
+          key={keyPrefix + s}
+          type="button"
+          onClick={() => send(s)}
+          className="text-left text-[13px] px-3 py-2.5 suggest-chip leading-snug"
+        >
+          {s}
+        </button>
+      ))}
+    </div>
+  );
 
   return (
     <div className="flex flex-col h-full min-h-0 relative">
@@ -259,7 +289,7 @@ export default function ChatPanel({
         <div className="min-w-0">
           <div className="chat-title tracking-[0.04em]">ask classy</div>
           <div className="chat-subtitle text-[11px] tracking-[0.05em] mt-1">
-            {backendReady ? 'grounded in the reel dataset' : "classy isn't listening yet"}
+            {backendReady ? replyModeSummary(replyModes) : "classy isn't listening yet"}
           </div>
         </div>
         <div className="chat-header-actions shrink-0">
@@ -305,30 +335,10 @@ export default function ChatPanel({
       <div className="relative flex-1 min-h-0">
         <div
           ref={scrollRef}
-          className={`chat-thread${empty ? ' chat-thread-empty' : ''}`}
+          className={`chat-thread scroll-pane scroll-pane-y${empty ? ' chat-thread-empty' : ''}`}
           onScroll={onScroll}
         >
-          {empty && (
-            <div className="chat-suggest-list">
-              <div
-                className="section-label chat-suggest-label"
-                style={{ color: 'var(--text-secondary)' }}
-              >
-                try one of these
-              </div>
-              {visibleSuggestions.map((s) => (
-                <button
-                  key={s}
-                  type="button"
-                  onClick={() => send(s)}
-                  className="text-left text-[13px] px-3 py-2.5 suggest-chip leading-snug"
-                  style={{ color: 'var(--text-primary)' }}
-                >
-                  {s}
-                </button>
-              ))}
-            </div>
-          )}
+          {empty && suggestList('', true)}
           {messages.map((msg, i) => {
             const isModel = msg.role === 'assistant';
             const isStreamingTail = busy && i === messages.length - 1 && isModel;
@@ -372,42 +382,8 @@ export default function ChatPanel({
               </div>
             );
           })}
-          {showOfflineHints && (
-            <div className="chat-suggest-list">
-              {visibleSuggestions.map((s) => (
-                <button
-                  key={'hint-' + s}
-                  type="button"
-                  onClick={() => send(s)}
-                  className="text-left text-[13px] px-3 py-2.5 suggest-chip leading-snug"
-                  style={{ color: 'var(--text-primary)' }}
-                >
-                  {s}
-                </button>
-              ))}
-            </div>
-          )}
-          {!empty && !busy && !showOfflineHints && (
-            <div className="chat-suggest-list">
-              <div
-                className="section-label chat-suggest-label"
-                style={{ color: 'var(--text-secondary)' }}
-              >
-                try one of these
-              </div>
-              {visibleSuggestions.map((s) => (
-                <button
-                  key={'next-' + suggestSeed + '-' + s}
-                  type="button"
-                  onClick={() => send(s)}
-                  className="text-left text-[13px] px-3 py-2.5 suggest-chip leading-snug"
-                  style={{ color: 'var(--text-primary)' }}
-                >
-                  {s}
-                </button>
-              ))}
-            </div>
-          )}
+          {showOfflineHints && suggestList('hint-', false)}
+          {!empty && !busy && !showOfflineHints && suggestList(`next-${suggestSeed}-`, true)}
         </div>
 
         {showJump && (
@@ -427,30 +403,35 @@ export default function ChatPanel({
         className={`chat-composer border-t hairline${mobile ? ' is-mobile' : ''}`}
         style={{ background: 'var(--bg-subtle)' }}
       >
-        <textarea
-          ref={textareaRef}
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={onKeyDown}
-          rows={1}
-          enterKeyHint={mobile ? 'enter' : 'send'}
-          placeholder="ask classy…"
-          className="w-full input-field text-[13px] chat-input"
-          aria-label={
-            mobile
-              ? 'Message ask classy. Return for a new line, Send to submit.'
-              : 'Message ask classy. Enter to send, Shift+Enter for newline'
-          }
-        />
-        <button
-          type="button"
-          onClick={() => send()}
-          disabled={busy || !input.trim()}
-          className="chat-send-btn btn-primary text-[13px]"
-          title="Send message"
-        >
-          Send
-        </button>
+        <div className="composer-shell">
+          <ReplyModeGroup value={replyModes} onChange={toggleMode} disabled={busy} />
+          <div className="composer-entry">
+            <textarea
+              ref={textareaRef}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={onKeyDown}
+              rows={1}
+              enterKeyHint={mobile ? 'enter' : 'send'}
+              placeholder={replyModePlaceholder(replyModes)}
+              className="w-full text-[13px] chat-input"
+              aria-label={
+                mobile
+                  ? 'Message ask classy. Return for a new line, Send to submit.'
+                  : 'Message ask classy. Enter to send, Shift+Enter for newline'
+              }
+            />
+            <button
+              type="button"
+              onClick={() => send()}
+              disabled={busy || !input.trim()}
+              className="chat-send-btn btn-primary text-[13px]"
+              title="Send message"
+            >
+              Send
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );
