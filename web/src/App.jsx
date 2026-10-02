@@ -53,9 +53,9 @@ function readStoredCollapsed() {
   }
 }
 
-function clampChatW(px, { focused = false } = {}) {
-  const SIDEBAR_RESERVE = focused ? 160 : 200;
-  const MAIN_MIN = focused ? 400 : 360;
+function clampChatW(px) {
+  const SIDEBAR_RESERVE = 200;
+  const MAIN_MIN = 360;
   const avail = window.innerWidth - SIDEBAR_RESERVE - MAIN_MIN;
   const max = Math.max(
     240,
@@ -82,7 +82,6 @@ export default function App() {
 
   const [chatW, setChatW] = useState(readStoredWidth);
   const [chatCollapsed, setChatCollapsed] = useState(readStoredCollapsed);
-  const [chatFocused, setChatFocused] = useState(false);
   const [mobileChatOpen, setMobileChatOpen] = useState(false);
   const [reelDrawerOpen, setReelDrawerOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(() =>
@@ -142,7 +141,6 @@ export default function App() {
       const mobile = mq.matches;
       setIsMobile(mobile);
       if (mobile) {
-        setChatFocused(false);
         setResizing(false);
       } else {
         setMobileChatOpen(false);
@@ -171,26 +169,23 @@ export default function App() {
 
   useEffect(() => {
     function onResize() {
-      setChatW((w) => clampChatW(w, { focused: chatFocused }));
+      setChatW((w) => clampChatW(w));
     }
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
-  }, [chatFocused]);
+  }, []);
 
-  const setChatWidthLive = useCallback(
-    (px) => {
-      setChatW(clampChatW(px, { focused: chatFocused }));
-    },
-    [chatFocused],
-  );
+  const setChatWidthLive = useCallback((px) => {
+    setChatW(clampChatW(px));
+  }, []);
 
   const beginResize = useCallback(
     (clientX) => {
-      if (isMobile || chatCollapsed || chatFocused) return;
+      if (isMobile || chatCollapsed) return;
       dragRef.current = { startX: clientX, startW: chatW };
       setResizing(true);
     },
-    [isMobile, chatCollapsed, chatFocused, chatW],
+    [isMobile, chatCollapsed, chatW],
   );
 
   useEffect(() => {
@@ -224,7 +219,7 @@ export default function App() {
 
   const onResizeKeyDown = useCallback(
     (e) => {
-      if (chatCollapsed || chatFocused || isMobile) return;
+      if (chatCollapsed || isMobile) return;
       if (e.key === 'ArrowLeft') {
         e.preventDefault();
         setChatWidthLive(chatW + RESIZE_STEP);
@@ -239,17 +234,11 @@ export default function App() {
         setChatWidthLive(window.innerWidth * 0.5);
       }
     },
-    [chatCollapsed, chatFocused, isMobile, chatW, setChatWidthLive],
+    [chatCollapsed, isMobile, chatW, setChatWidthLive],
   );
 
   const toggleCollapse = useCallback(() => {
-    setChatFocused(false);
     setChatCollapsed((c) => !c);
-  }, []);
-
-  const toggleFocus = useCallback(() => {
-    setChatCollapsed(false);
-    setChatFocused((f) => !f);
   }, []);
 
   const byId = useMemo(() => {
@@ -320,11 +309,6 @@ export default function App() {
   useEffect(() => {
     function onKey(e) {
       if (e.key === 'Escape') {
-        if (chatFocused) {
-          e.preventDefault();
-          setChatFocused(false);
-          return;
-        }
         if (mobileChatOpen) {
           e.preventDefault();
           setMobileChatOpen(false);
@@ -358,7 +342,7 @@ export default function App() {
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [videos, focusIdx, mode, onReelActivate, chatFocused, mobileChatOpen, reelDrawerOpen]);
+  }, [videos, focusIdx, mode, onReelActivate, mobileChatOpen, reelDrawerOpen]);
 
   useEffect(() => {
     if (!syncPlayback) setSyncedPlaying(false);
@@ -416,11 +400,7 @@ export default function App() {
   const layoutStyle = isMobile
     ? undefined
     : {
-        '--chat-w': chatFocused
-          ? 'min(50vw, calc(100vw - 160px - 400px))'
-          : chatCollapsed
-            ? `${CHAT_RAIL_W}px`
-            : `${chatW}px`,
+        '--chat-w': chatCollapsed ? `${CHAT_RAIL_W}px` : `${chatW}px`,
       };
 
   const suggestionVideoIds = suggestionFocusIds({
@@ -434,10 +414,8 @@ export default function App() {
     knowledge,
     viewMoment,
     suggestionVideoIds,
-    collapsed: chatCollapsed && !chatFocused,
-    focused: chatFocused,
+    collapsed: chatCollapsed,
     onToggleCollapse: toggleCollapse,
-    onToggleFocus: toggleFocus,
   };
 
   return (
@@ -471,7 +449,7 @@ export default function App() {
       </header>
 
       <div
-        className={`layout-grid ${isMobile ? 'layout-grid-mobile' : ''} ${chatFocused ? 'layout-grid-focus' : ''} ${chatCollapsed && !chatFocused ? 'layout-grid-collapsed' : ''}`}
+        className={`layout-grid ${isMobile ? 'layout-grid-mobile' : ''} ${chatCollapsed ? 'layout-grid-collapsed' : ''}`}
         style={layoutStyle}
       >
         {!isMobile && (
@@ -545,7 +523,14 @@ export default function App() {
         </aside>
         )}
 
-        <main className="main-stage overflow-y-auto overflow-x-hidden p-4 min-w-0" style={{ background: 'var(--bg)' }}>
+        <main
+          className={`main-stage overflow-x-hidden p-4 min-w-0${
+            mode === 'compare' && compareVideos.length >= 2
+              ? ' main-stage-compare'
+              : ' overflow-y-auto'
+          }`}
+          style={{ background: 'var(--bg)' }}
+        >
           {isMobile && (
             <div className="mobile-reel-bar">
               <button
@@ -588,7 +573,7 @@ export default function App() {
               />
             )
           ) : (
-            <div className="flex flex-col gap-3">
+            <div className={compareVideos.length >= 2 ? 'compare-shell' : 'flex flex-col gap-3'}>
               {compareVideos.length >= 2 && (
                 <div className="compare-sticky-head">
                   <div className="compare-controls">
@@ -649,37 +634,39 @@ export default function App() {
                   select up to {COMPARE_CAP} reels from the list
                 </div>
               ) : (
-                <div className={`compare-grid${isMobile ? ' compare-grid-mobile' : ''}`}>
-                  {compareVideos.map((v) => (
-                    <div key={v.id} className="compare-card">
-                      <button
-                        type="button"
-                        className="compare-close"
-                        onClick={() => removeCompare(v.id)}
-                        title="Remove from comparison"
-                        aria-label={`Remove ${v.id} from comparison`}
-                      >
-                        ×
-                      </button>
-                      <div className="compare-card-head">
-                        <ReelId id={v.id} variant="stage" />
+                <div className={compareVideos.length >= 2 ? 'compare-grid-scroll' : undefined}>
+                  <div className="compare-grid">
+                    {compareVideos.map((v) => (
+                      <div key={v.id} className="compare-card">
+                        <button
+                          type="button"
+                          className="compare-close"
+                          onClick={() => removeCompare(v.id)}
+                          title="Remove from comparison"
+                          aria-label={`Remove ${v.id} from comparison`}
+                        >
+                          ×
+                        </button>
+                        <div className="compare-card-head">
+                          <ReelId id={v.id} variant="stage" />
+                        </div>
+                        <div className="compare-card-desc">
+                          {[v.account, v.annotations?.format].filter(Boolean).join(' · ')}
+                        </div>
+                        <ReelStage
+                          video={v}
+                          brain={brain}
+                          networks={networksById[v.id]}
+                          layout="stack"
+                          syncPlayback={syncPlayback}
+                          syncedPlaying={syncedPlaying}
+                          onSyncPlayChange={setSyncedPlaying}
+                          onViewMoment={onViewMoment}
+                          masterCamera={compareCamera}
+                        />
                       </div>
-                      <div className="compare-card-desc">
-                        {[v.account, v.annotations?.format].filter(Boolean).join(' · ')}
-                      </div>
-                      <ReelStage
-                        video={v}
-                        brain={brain}
-                        networks={networksById[v.id]}
-                        layout="stack"
-                        syncPlayback={syncPlayback}
-                        syncedPlaying={syncedPlaying}
-                        onSyncPlayChange={setSyncedPlaying}
-                        onViewMoment={onViewMoment}
-                        masterCamera={compareCamera}
-                      />
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
@@ -691,7 +678,7 @@ export default function App() {
             className={`chat-column border-l hairline min-h-0 min-w-0 relative ${resizing ? 'is-resizing' : ''}`}
             style={{ background: 'var(--bg)' }}
           >
-            {!chatCollapsed && !chatFocused && (
+            {!chatCollapsed && (
               <div
                 className="chat-resize-handle"
                 role="separator"
@@ -724,10 +711,7 @@ export default function App() {
               title="Ask classy"
               aria-label="Open ask classy"
             >
-              <span className="chat-fab-glyph" aria-hidden>
-                ?
-              </span>
-              <span className="chat-fab-text">ask</span>
+              <span className="ask-glyph" aria-hidden>?</span>
             </button>
           )}
           {mobileChatOpen && (

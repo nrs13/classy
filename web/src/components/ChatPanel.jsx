@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  aiConfigured,
+  checkChatBackend,
   formatChatError,
   localKnowledgeReply,
   sanitizeAssistantText,
@@ -17,12 +17,10 @@ const TEXTAREA_MAX_LINES = 6;
 export default function ChatPanel({
   knowledge,
   viewMoment = null,
-  suggestionVideoIds = null,
+  suggestionVideoIds = [],
   collapsed = false,
-  focused = false,
   mobile = false,
   onToggleCollapse,
-  onToggleFocus,
   onCloseMobile,
 }) {
   const [messages, setMessages] = useState([]);
@@ -32,27 +30,31 @@ export default function ChatPanel({
   const [showJump, setShowJump] = useState(false);
   const [copiedIdx, setCopiedIdx] = useState(null);
   const [suggestSeed, setSuggestSeed] = useState(0);
+  const [backendReady, setBackendReady] = useState(null);
   const scrollRef = useRef(null);
   const textareaRef = useRef(null);
   const stickRef = useRef(true);
-  const focusIds = useMemo(() => {
-    if (Array.isArray(suggestionVideoIds) && suggestionVideoIds.length) {
-      return suggestionVideoIds;
-    }
-    return viewMoment?.videoId ? [viewMoment.videoId] : [];
-  }, [suggestionVideoIds, viewMoment?.videoId]);
-  const focusKey = focusIds.join('|');
+  const suggestionKey = suggestionVideoIds.join('|');
 
   useEffect(() => {
     setSuggestSeed(0);
-  }, [focusKey]);
+  }, [suggestionKey]);
+
+  useEffect(() => {
+    let cancelled = false;
+    checkChatBackend().then((ok) => {
+      if (!cancelled) setBackendReady(ok);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const visibleSuggestions = useMemo(
-    () => buildSalientSuggestions(knowledge, focusIds, { seed: suggestSeed, count: 4 }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [knowledge, focusKey, suggestSeed],
+    () => buildSalientSuggestions(knowledge, suggestionVideoIds, { seed: suggestSeed, count: 4 }),
+    [knowledge, suggestionKey, suggestSeed],
   );
-  const chatReady = Boolean(knowledge && aiConfigured);
+  const chatReady = Boolean(knowledge && backendReady);
 
   const resizeTextarea = useCallback(() => {
     const el = textareaRef.current;
@@ -126,12 +128,12 @@ export default function ChatPanel({
     stickRef.current = true;
     setShowJump(false);
     const priorMessages = messages;
-    setMessages((m) => [...m, { role: 'user', text: q }, { role: 'model', text: '' }]);
+    setMessages((m) => [...m, { role: 'user', text: q }, { role: 'assistant', text: '' }]);
     if (!chatReady) {
       setMessages((m) => {
         const copy = [...m];
         copy[copy.length - 1] = {
-          role: 'model',
+          role: 'assistant',
           text: OFFLINE_REPLY,
         };
         return copy;
@@ -145,16 +147,19 @@ export default function ChatPanel({
       let acc = '';
       let usedModel = null;
       for await (const event of streamChatReply({
-        knowledge,
         priorMessages,
         message: q,
+        focus: {
+          ids: suggestionVideoIds,
+          timeSec: viewMoment?.timeSec,
+        },
       })) {
         if (event.type === 'meta') {
           usedModel = event.model;
           setMessages((m) => {
             const copy = [...m];
             copy[copy.length - 1] = {
-              role: 'model',
+              role: 'assistant',
               text: acc ? sanitizeAssistantText(acc) : '',
               model: usedModel,
             };
@@ -167,7 +172,7 @@ export default function ChatPanel({
         setMessages((m) => {
           const copy = [...m];
           copy[copy.length - 1] = {
-            role: 'model',
+            role: 'assistant',
             text: cleaned,
             model: usedModel,
           };
@@ -178,7 +183,7 @@ export default function ChatPanel({
       setMessages((m) => {
         const copy = [...m];
         copy[copy.length - 1] = {
-          role: 'model',
+          role: 'assistant',
           text: finalText,
           model: usedModel,
         };
@@ -197,7 +202,7 @@ export default function ChatPanel({
       setMessages((m) => {
         const copy = [...m];
         copy[copy.length - 1] = {
-          role: 'model',
+          role: 'assistant',
           text,
           error: true,
         };
@@ -217,9 +222,9 @@ export default function ChatPanel({
     }
   }
 
-  if (collapsed && !mobile && !focused) {
+  if (collapsed && !mobile) {
     return (
-      <div className="chat-rail h-full flex flex-col items-center py-3 gap-3">
+      <div className="chat-rail">
         <button
           type="button"
           className="chat-icon-btn"
@@ -232,16 +237,13 @@ export default function ChatPanel({
         </button>
         <button
           type="button"
-          className="chat-icon-btn"
-          onClick={onToggleFocus}
-          title="Focus ask classy"
-          aria-label="Focus ask classy"
+          className="chat-rail-ask-btn"
+          onClick={onToggleCollapse}
+          title="Ask classy"
+          aria-label="Ask classy"
         >
-          ▣
+          <span className="ask-glyph" aria-hidden>?</span>
         </button>
-        <div className="chat-rail-label" aria-hidden>
-          ask
-        </div>
       </div>
     );
   }
@@ -257,7 +259,7 @@ export default function ChatPanel({
         <div className="min-w-0">
           <div className="chat-title tracking-[0.04em]">ask classy</div>
           <div className="chat-subtitle text-[11px] tracking-[0.05em] mt-1">
-            {aiConfigured ? 'grounded in the reel dataset' : "classy isn't listening yet"}
+            {backendReady ? 'grounded in the reel dataset' : "classy isn't listening yet"}
           </div>
         </div>
         <div className="chat-header-actions shrink-0">
@@ -285,30 +287,16 @@ export default function ChatPanel({
                 ×
               </button>
             ) : (
-              <>
-                <button
-                  type="button"
-                  className="chat-icon-btn"
-                  onClick={onToggleFocus}
-                  title={focused ? 'Exit focus mode' : 'Focus ask classy'}
-                  aria-label={focused ? 'Exit focus mode' : 'Focus ask classy'}
-                  aria-pressed={focused}
-                >
-                  {focused ? '◻' : '▣'}
-                </button>
-                {!focused && (
-                  <button
-                    type="button"
-                    className="chat-icon-btn"
-                    onClick={onToggleCollapse}
-                    title="Collapse ask classy"
-                    aria-label="Collapse ask classy"
-                    aria-expanded={true}
-                  >
-                    «]
-                  </button>
-                )}
-              </>
+              <button
+                type="button"
+                className="chat-icon-btn"
+                onClick={onToggleCollapse}
+                title="Collapse ask classy"
+                aria-label="Collapse ask classy"
+                aria-expanded={true}
+              >
+                «]
+              </button>
             )}
           </div>
         </div>
@@ -342,7 +330,7 @@ export default function ChatPanel({
             </div>
           )}
           {messages.map((msg, i) => {
-            const isModel = msg.role === 'model';
+            const isModel = msg.role === 'assistant';
             const isStreamingTail = busy && i === messages.length - 1 && isModel;
             const showThinking = isStreamingTail && !msg.text;
             const body = msg.text || '…';

@@ -1,4 +1,3 @@
-/** Shared between the browser bundle and the /api/chat serverless function. */
 export function prepareKnowledgeForModel(knowledge) {
   if (!knowledge || typeof knowledge !== 'object') return knowledge;
   const clone = JSON.parse(JSON.stringify(knowledge));
@@ -21,7 +20,25 @@ export function prepareKnowledgeForModel(knowledge) {
   return clone;
 }
 
-export function systemPreamble(knowledge) {
+export function normalizeFocus(raw) {
+  const ids = Array.isArray(raw?.ids)
+    ? [...new Set(raw.ids.filter((id) => typeof id === 'string' && id.trim()))].slice(0, 4)
+    : [];
+  const t = Number(raw?.timeSec);
+  return {
+    ids,
+    timeSec: Number.isFinite(t) && t >= 0 ? t : null,
+  };
+}
+
+function focusLine(focus) {
+  const { ids, timeSec } = normalizeFocus(focus);
+  if (!ids.length) return '';
+  const at = timeSec != null && timeSec > 0 ? ` at t≈${timeSec.toFixed(1)}s` : '';
+  return `User focus (current UI, not extra data): ${ids.join(', ')}${at}. Use the full DATA; lead with these reels when relevant.\n\n`;
+}
+
+export function systemPreamble(knowledge, focus = null) {
   return `You are the analyst assistant embedded in "Classy" (tagline: marketing reimagined), a proof-of-concept that runs 10 Instagram study-niche reels through Meta's TRIBE V2 brain-encoding model and relates the predicted brain response to real engagement.
 
 You answer THREE kinds of questions, always grounded in the DATA below:
@@ -106,6 +123,6 @@ Story evidence self-check before sending any answer:
 - Remove unsupported viewing-behavior or causal claims. Never say story content caused, drove, forced, proved, explains, held attention, produced reading time, or triggered reach. Say it coincided with or is descriptively associated with the activation pattern.
 - Do not guess a corrupted OCR token. Generalize the uncertain detail instead.
 
-DATA (JSON):
+${focusLine(focus)}DATA (JSON):
 ${JSON.stringify(knowledge)}`;
 }

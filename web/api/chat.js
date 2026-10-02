@@ -1,12 +1,15 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { prepareKnowledgeForModel, systemPreamble } from '../src/lib/prompt.js';
+import {
+  normalizeFocus,
+  prepareKnowledgeForModel,
+  systemPreamble,
+} from '../src/lib/prompt.js';
 
 export const PRIMARY_MODEL = process.env.CLASSY_MODEL || 'claude-opus-5';
 export const FALLBACK_MODEL = 'claude-haiku-4-5';
 const MAX_HISTORY_MESSAGES = 40;
 const MAX_MESSAGE_CHARS = 4000;
 
-/** Module-scoped so warm invocations reuse the knowledge pack. */
 let knowledgeCache = null;
 
 async function loadKnowledge(req) {
@@ -25,9 +28,9 @@ function toAnthropicMessages(history, message) {
   for (const msg of recent) {
     const text = typeof msg?.text === 'string' ? msg.text.trim() : '';
     if (!text || msg.error) continue;
-    if (msg.role !== 'user' && msg.role !== 'model') continue;
+    if (msg.role !== 'user' && msg.role !== 'assistant') continue;
     messages.push({
-      role: msg.role === 'model' ? 'assistant' : 'user',
+      role: msg.role,
       content: text.slice(0, MAX_MESSAGE_CHARS),
     });
   }
@@ -42,6 +45,14 @@ function send(res, payload) {
 }
 
 export default async function handler(req, res) {
+  if (req.method === 'GET') {
+    if (!process.env.ANTHROPIC_API_KEY) {
+      res.status(503).json({ error: 'not_configured' });
+      return;
+    }
+    res.status(204).end();
+    return;
+  }
   if (req.method !== 'POST') {
     res.status(405).json({ error: 'method_not_allowed' });
     return;
@@ -50,7 +61,7 @@ export default async function handler(req, res) {
     res.status(503).json({ error: 'not_configured' });
     return;
   }
-  const { message, history } = req.body || {};
+  const { message, history, focus } = req.body || {};
   if (!message || typeof message !== 'string' || !message.trim()) {
     res.status(400).json({ error: 'empty_message' });
     return;
@@ -59,7 +70,7 @@ export default async function handler(req, res) {
   let system;
   try {
     const knowledge = await loadKnowledge(req);
-    system = systemPreamble(prepareKnowledgeForModel(knowledge));
+    system = systemPreamble(prepareKnowledgeForModel(knowledge), normalizeFocus(focus));
   } catch (err) {
     res.status(502).json({ error: 'knowledge_unavailable', detail: String(err?.message || err) });
     return;
@@ -83,9 +94,6 @@ export default async function handler(req, res) {
       const stream = client.messages.stream({
         model,
         max_tokens: 4096,
-        // Chat is latency-sensitive; the dataset is fully in context, so deep
-        // reasoning adds seconds without changing 3-6 sentence answers much.
-        // Haiku rejects the effort parameter.
         ...(model.startsWith('claude-haiku')
           ? {}
           : { output_config: { effort: process.env.CLASSY_EFFORT || 'low' } }),
