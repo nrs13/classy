@@ -66,6 +66,7 @@ export default route('catalog', {}, async (req, res, { requestId }) => {
         peak_mean_abs: row.peak_mean_abs,
         sustain_ratio: row.sustain_ratio,
       },
+      networks: row.networks || null,
       annotations: {},
     })),
   });
