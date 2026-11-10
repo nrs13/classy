@@ -1,6 +1,11 @@
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { route } from '../server/http.js';
 import { currentSnapshot } from '../server/repo/snapshot.js';
 import { listVideos } from '../server/repo/videos.js';
+
+const REPO_ROOT = fileURLToPath(new URL('../..', import.meta.url));
 
 // Same Yeo-7 atlas the mesh pack writes to web/public/data/atlas_yeo7_labels.bin.
 const ATLAS = {
@@ -47,6 +52,84 @@ export function profileUrl(videoUrl, account) {
   return '';
 }
 
+function parseCsv(text) {
+  const rows = [];
+  let row = [];
+  let cell = '';
+  let quoted = false;
+  for (let i = 0; i < text.length; i += 1) {
+    const ch = text[i];
+    if (quoted) {
+      if (ch === '"') {
+        if (text[i + 1] === '"') {
+          cell += '"';
+          i += 1;
+        } else {
+          quoted = false;
+        }
+      } else {
+        cell += ch;
+      }
+    } else if (ch === '"') {
+      quoted = true;
+    } else if (ch === ',') {
+      row.push(cell);
+      cell = '';
+    } else if (ch === '\n') {
+      row.push(cell);
+      rows.push(row);
+      row = [];
+      cell = '';
+    } else if (ch !== '\r') {
+      cell += ch;
+    }
+  }
+  if (cell.length || row.length) {
+    row.push(cell);
+    rows.push(row);
+  }
+  return rows;
+}
+
+let formatById;
+function formatTable() {
+  if (formatById) return formatById;
+  formatById = new Map();
+  const path = join(REPO_ROOT, 'metadata.csv');
+  if (!existsSync(path)) return formatById;
+  const rows = parseCsv(readFileSync(path, 'utf8'));
+  const header = rows.shift() || [];
+  const idCol = header.indexOf('video_id');
+  const formatCol = header.indexOf('format');
+  if (idCol < 0 || formatCol < 0) return formatById;
+  for (const record of rows) {
+    const id = (record[idCol] || '').trim();
+    if (id) formatById.set(id, (record[formatCol] || '').trim());
+  }
+  return formatById;
+}
+
+const metaFormatCache = new Map();
+function metaFormat(videoId) {
+  if (metaFormatCache.has(videoId)) return metaFormatCache.get(videoId);
+  const path = join(REPO_ROOT, 'outputs', videoId, 'meta.json');
+  let format = '';
+  if (existsSync(path)) {
+    try {
+      const body = JSON.parse(readFileSync(path, 'utf8'));
+      format = String(body?.annotations?.format || '').trim();
+    } catch {
+      format = '';
+    }
+  }
+  metaFormatCache.set(videoId, format);
+  return format;
+}
+
+export function formatFor(videoId) {
+  return formatTable().get(videoId) || metaFormat(videoId) || '';
+}
+
 export function tierFor(plays) {
   if (plays == null || plays === '') return null;
   const n = Number(plays);
@@ -63,7 +146,7 @@ export default route('catalog', {}, async (req, res, { requestId }) => {
     res.status(200).json({ requestId, snapshotId: null, quoteFloor: null, atlas: ATLAS, videos: [] });
     return;
   }
-  const etag = `"${snapshot.id}:tier"`;
+  const etag = `"${snapshot.id}:format"`;
   res.setHeader('ETag', etag);
   res.setHeader('Cache-Control', 'private, no-cache');
   if (req.headers?.['if-none-match'] === etag) {
@@ -83,6 +166,7 @@ export default route('catalog', {}, async (req, res, { requestId }) => {
       account: row.account || '',
       profileUrl: profileUrl(row.url, row.account) || undefined,
       tier: tierFor(row.plays) || undefined,
+      annotations: { format: formatFor(row.video_id) || undefined },
       language: row.language || '',
       duration: row.duration,
       frames: row.frames,
