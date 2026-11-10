@@ -177,7 +177,6 @@ def neural_features(act: np.ndarray, timestamps: np.ndarray | None) -> dict:
     if timestamps is None or timestamps.size != mean_t.size:
         timestamps = np.arange(mean_t.size, dtype=np.float32)
 
-    # Hook slope: linear fit of mean |act| over first HOOK_SEC seconds.
     hook_mask = timestamps <= HOOK_SEC
     if hook_mask.sum() >= 2:
         x = timestamps[hook_mask]
@@ -186,7 +185,6 @@ def neural_features(act: np.ndarray, timestamps: np.ndarray | None) -> dict:
     else:
         slope = float(mean_t[-1] - mean_t[0]) if mean_t.size >= 2 else 0.0
 
-    # Sustain: fraction of frames ≥ 50% of peak after the hook window.
     after = ~hook_mask if hook_mask.any() else np.ones_like(mean_t, dtype=bool)
     if after.any() and peak > 0:
         sustain = float((mean_t[after] >= 0.5 * peak).mean())
@@ -300,7 +298,6 @@ def export(
         act = np.load(vd / "activation.npy")
         if act.ndim != 2:
             raise RuntimeError(f"{vid}: activation shape {act.shape}")
-        # Accept (V,T) or (T,V)
         if act.shape[0] != positions.shape[0] and act.shape[1] == positions.shape[0]:
             act = act.T
         if act.shape[0] != positions.shape[0]:
@@ -394,7 +391,6 @@ def export(
         )
         print(f"{vid}: frames={frames} peak={feats['peak_mean_abs']:.4f}", flush=True)
 
-    # Rank by plays for compare defaults
     videos.sort(key=lambda v: (v["metrics"]["plays"] or 0), reverse=True)
     knowledge_videos.sort(key=lambda v: (v["metrics"]["plays"] or 0), reverse=True)
 
