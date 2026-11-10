@@ -133,6 +133,22 @@ CLASSY_MEDIA_SECRET=
 
 Live chat also reads the `x-vercel-ip-country` header. Visitors in the EEA, Switzerland, or the UK, and any request with that header missing, are served canned answers instead of Gemini. The privacy note is shown only for a live visitor outside that list.
 
+## Rebuild the catalog database
+
+The source of a rebuild is the local socket database named `classy`. The target is whatever `DATABASE_URL` is set to in the environment for that command. The script refuses a Neon host when `NEON_BRANCH` is missing or `production`, unless that one command sets `CLASSY_ALLOW_PRODUCTION=1`. It does not print the URL.
+
+```bash
+# Rows and search text. Embedding vectors stay behind.
+NEON_BRANCH=dev scripts/rebuild-catalog.sh
+
+# Same copy, including chunk embeddings, once the target has room for them.
+NEON_BRANCH=dev scripts/rebuild-catalog.sh --with-vectors
+```
+
+Set `DATABASE_URL` in the environment before either command. For local Neon work, use the `dev` branch and put that URL only in gitignored `web/.env.local`, with `NEON_BRANCH=dev`. `npm test` does not read that file. It builds a throwaway local database and overwrites `DATABASE_URL`. `web/scripts/search-cli.mjs`, `web/scripts/search-debug.mjs`, and `catalog/pack_snapshot.py` use the same production refusal.
+
+`scripts/readonly-role.sql` creates `classy_reader`, which can select the tables the app reads and cannot insert, update, delete, or change the schema. Set its password in the Neon console. Do not store the connection string in the repo.
+
 ## Errors and logs
 
 Every response has `X-Request-Id`. Errors return `{requestId, error, message}` with a message safe to show. The detail goes to the server log as one JSON line per event. Search responses send per-stage timing in `Server-Timing`.

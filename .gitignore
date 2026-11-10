@@ -42,3 +42,6 @@ catalog/eval/results/
 # Logs
 *.log
 npm-debug.log*
+.neon
+node_modules/
+.env.local
