@@ -315,14 +315,14 @@ test('route: request id, method check, safe errors', async () => {
   assert.equal(res.statusCode, 405);
 
   const boom = route('t', { fallback: 'search_unavailable' }, async () => {
-    throw new Error('password=hunter2 at db.internal:5432');
+    throw new Error('password=not-a-real-password at db.internal:5432');
   });
   res = fakeRes();
   await boom({ method: 'GET', headers: {} }, res);
   assert.equal(res.statusCode, 503);
   assert.equal(res.body.error, 'search_unavailable');
   assert.equal(res.body.message, 'Search is unavailable. Try again in a moment.');
-  assert.ok(!JSON.stringify(res.body).includes('hunter2'));
+  assert.ok(!JSON.stringify(res.body).includes('not-a-real-password'));
 });
 
 test('rateLimit throws 429 past the window budget', () => {
