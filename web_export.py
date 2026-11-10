@@ -400,7 +400,6 @@ def export(
 
     manifest = {
         "product": "Classy",
-        "tagline": "marketing reimagined",
         "n": len(videos),
         "vertexCount": int(positions.shape[0]),
         "hemiSplit": int(hemi_split),
@@ -427,7 +426,6 @@ def export(
 
     knowledge = {
         "product": "Classy",
-        "tagline": "marketing reimagined",
         "scope": f"N={len(videos)} Instagram study-niche reels; TRIBE V2 predicted cortical response.",
         "caveats": [
             f"N={len(videos)}. Exploratory only; do not claim statistical significance.",

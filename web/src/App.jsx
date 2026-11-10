@@ -672,7 +672,6 @@ export default function App() {
       >
         <div>
           <div className="brand-mark text-[28px] leading-none">classy</div>
-          <div className="brand-tagline text-[12px] mt-1.5">marketing reimagined</div>
         </div>
         <div className="flex gap-1 mode-toggle p-1 text-[12px]">
           {['explore', 'compare', 'search'].map((mo) => (

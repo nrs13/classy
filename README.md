@@ -1,7 +1,5 @@
 # Classy
 
-marketing reimagined
-
 Watch a reel next to its predicted TRIBE V2 brain response. Compare reels. Ask Classy about the numbers.
 
 Demo: https://tribev2-brain-activity-predictor.vercel.app
