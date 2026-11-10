@@ -80,6 +80,8 @@ function initialSearchState() {
 export default function App() {
   const [initialSearch] = useState(initialSearchState);
   const [manifest, setManifest] = useState(null);
+  const [catalogError, setCatalogError] = useState(false);
+  const [catalogAttempt, setCatalogAttempt] = useState(0);
   const [brain, setBrain] = useState(null);
   const [knowledge, setKnowledge] = useState(null);
   const [mode, setMode] = useState(() => (initialSearch.view === 'search' ? 'search' : 'explore'));
@@ -129,23 +131,38 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const catalogRequest = loadCatalog();
-    catalogRequest.then((m) => {
-      setManifest(m);
-      const first = m.videos[0]?.id || null;
-      setSelId(first);
-      setCompareIds(first ? [first] : []);
-      setKnowledge({
-        product: 'Classy',
-        videos: m.videos,
-        formulas: {
-          like_rate: 'likes / plays',
-          amplification: 'plays / followers',
-        },
+    const ctrl = new AbortController();
+    setCatalogError(false);
+    loadCatalog(ctrl.signal)
+      .then((m) => {
+        if (ctrl.signal.aborted) return null;
+        setManifest(m);
+        const first = m.videos[0]?.id || null;
+        setSelId(first);
+        setCompareIds(first ? [first] : []);
+        setKnowledge({
+          product: 'Classy',
+          videos: m.videos,
+          formulas: {
+            like_rate: 'likes / plays',
+            amplification: 'plays / followers',
+          },
+        });
+        return m;
+      })
+      .then((m) => {
+        if (!m || ctrl.signal.aborted) return;
+        return loadBrain(m).then((brain) => {
+          if (!ctrl.signal.aborted) setBrain(brain);
+        });
+      })
+      .catch((err) => {
+        if (ctrl.signal.aborted || err?.name === 'AbortError') return;
+        setCatalogError(true);
+        setManifest({ videos: [] });
       });
-    });
-    catalogRequest.then((m) => loadBrain(m)).then(setBrain);
-  }, []);
+    return () => ctrl.abort();
+  }, [catalogAttempt]);
 
   useEffect(() => {
     const timers = new WeakMap();
@@ -708,6 +725,14 @@ export default function App() {
               </div>
             )}
           </div>
+          {catalogError && (
+            <div className="library-load-error" role="alert">
+              <p>Your Library is unavailable. Try again in a moment.</p>
+              <button type="button" onClick={() => setCatalogAttempt((n) => n + 1)}>
+                Retry
+              </button>
+            </div>
+          )}
           <LibrarySearch
             search={search}
             mode={mode}
@@ -965,6 +990,14 @@ export default function App() {
                     </button>
                   </div>
                 </div>
+                {catalogError && (
+                  <div className="library-load-error" role="alert">
+                    <p>Your Library is unavailable. Try again in a moment.</p>
+                    <button type="button" onClick={() => setCatalogAttempt((n) => n + 1)}>
+                      Retry
+                    </button>
+                  </div>
+                )}
                 <LibrarySearch
                   search={search}
                   mode={mode}

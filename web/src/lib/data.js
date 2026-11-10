@@ -65,10 +65,29 @@ export async function loadBrain(manifest) {
   }
 }
 
-export async function loadCatalog() {
-  const res = await fetch('/api/catalog');
+export async function loadCatalog(signal) {
+  let res;
+  try {
+    res = await fetch('/api/catalog', { signal });
+  } catch (err) {
+    if (err?.name === 'AbortError' || signal?.aborted) {
+      const aborted = new Error('aborted');
+      aborted.name = 'AbortError';
+      throw aborted;
+    }
+    const error = new Error('catalog');
+    error.code = 'catalog_unavailable';
+    throw error;
+  }
+  if (signal?.aborted) {
+    const aborted = new Error('aborted');
+    aborted.name = 'AbortError';
+    throw aborted;
+  }
   if (!res.ok) {
-    return { snapshotId: null, videos: [], quoteFloor: null, atlas: null };
+    const error = new Error('catalog');
+    error.code = 'catalog_unavailable';
+    throw error;
   }
   const body = await res.json();
   return {

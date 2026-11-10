@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { loadActivation } from '../src/lib/data.js';
+import { loadActivation, loadCatalog } from '../src/lib/data.js';
 
 test('loadActivation passes the abort signal and returns nothing when cancelled', async () => {
   const original = globalThis.fetch;
@@ -27,6 +27,16 @@ test('loadActivation passes the abort signal and returns nothing when cancelled'
   assert.equal(await pending, null);
   assert.equal(sawSignal, true);
   globalThis.fetch = original;
+});
+
+test('a failed catalog load is an error the page can retry', async () => {
+  const original = globalThis.fetch;
+  globalThis.fetch = async () => ({ ok: false, status: 500 });
+  try {
+    await assert.rejects(() => loadCatalog(), (err) => err.code === 'catalog_unavailable');
+  } finally {
+    globalThis.fetch = original;
+  }
 });
 
 test('loadActivation does not fetch when the signal is already aborted', async () => {
