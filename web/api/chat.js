@@ -7,13 +7,12 @@ import {
 import { openKnowledge } from '../server/chat/knowledge.js';
 import { assertUnderCap, recordUsage } from '../server/chat/spend.js';
 import { rateLimit } from '../server/http.js';
+import { MAX_HISTORY_MESSAGES, MAX_MESSAGE_CHARS, messageTooLong } from '../src/lib/chatLimits.js';
 import { AppError } from '../server/obs/errors.js';
 import { logEvent, requestIdFrom } from '../server/obs/log.js';
 
 export const PRIMARY_MODEL = process.env.CLASSY_MODEL || 'claude-opus-5';
 export const FALLBACK_MODEL = 'claude-haiku-4-5';
-const MAX_HISTORY_MESSAGES = 40;
-const MAX_MESSAGE_CHARS = 4000;
 
 function refuse(res, text) {
   res.writeHead(200, {
@@ -40,7 +39,7 @@ function toAnthropicMessages(history, message) {
   }
   while (messages.length && messages[0].role !== 'user') messages.shift();
   if (messages.length && messages[messages.length - 1].role === 'user') messages.pop();
-  messages.push({ role: 'user', content: String(message).slice(0, MAX_MESSAGE_CHARS) });
+  messages.push({ role: 'user', content: String(message) });
   return messages;
 }
 
@@ -69,6 +68,15 @@ export default async function handler(req, res) {
     res.status(405).json({ error: 'method_not_allowed' });
     return;
   }
+  const { message, history, focus } = req.body || {};
+  if (!message || typeof message !== 'string' || !message.trim()) {
+    res.status(400).json({ error: 'empty_message', message: 'That message is empty.' });
+    return;
+  }
+  if (messageTooLong(message)) {
+    res.status(400).json({ error: 'message_too_long', message: 'That message is too long.' });
+    return;
+  }
   if (!process.env.ANTHROPIC_API_KEY) {
     res.status(503).json({ error: 'not_configured' });
     return;
@@ -86,12 +94,6 @@ export default async function handler(req, res) {
     res.status(429).json({ requestId, error: err.code, message: err.userMessage });
     return;
   }
-  const { message, history, focus } = req.body || {};
-  if (!message || typeof message !== 'string' || !message.trim()) {
-    res.status(400).json({ error: 'empty_message' });
-    return;
-  }
-
   const focusNorm = normalizeFocus(focus);
   let system;
   try {

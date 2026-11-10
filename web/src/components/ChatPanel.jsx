@@ -13,7 +13,7 @@ import {
   toggleReplyMode,
 } from '../lib/replyModes';
 import ReplyModeGroup from './ReplyModeGroup';
-import { acceptSend, retryTurn } from '../lib/chatLimits';
+import { acceptSend, capMessage, retryTurn } from '../lib/chatLimits';
 
 const OFFLINE_REPLY =
   "classy isn't listening yet. try one of these instead:";
@@ -462,7 +462,7 @@ export default function ChatPanel({
             <textarea
               ref={textareaRef}
               value={input}
-              onChange={(e) => setInput(e.target.value)}
+              onChange={(e) => setInput(capMessage(e.target.value))}
               onKeyDown={onKeyDown}
               rows={1}
               enterKeyHint={mobile ? 'enter' : 'send'}

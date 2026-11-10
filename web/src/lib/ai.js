@@ -1,4 +1,5 @@
 export { sanitizeAssistantText } from './sanitizeAssistantText.js';
+import { MAX_HISTORY_MESSAGES } from './chatLimits.js';
 
 export async function checkChatBackend(signal) {
   try {
@@ -52,6 +53,7 @@ export async function* streamChatReply({ priorMessages = [], message, focus = nu
   if (signal?.aborted) throw aborted();
   const history = priorMessages
     .filter((m) => m?.text && (m.role === 'user' || m.role === 'assistant') && !m.error)
+    .slice(-MAX_HISTORY_MESSAGES)
     .map((m) => ({ role: m.role, text: String(m.text) }));
 
   let response;
