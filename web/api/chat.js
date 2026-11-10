@@ -5,6 +5,7 @@ import {
 } from '../src/lib/prompt.js';
 import { openKnowledge } from '../server/chat/knowledge.js';
 import { resolveChatConfig, streamProvider, ChatProviderError } from '../server/chat/provider.js';
+import { CANNED_ONLY, CHAT_PAUSED, chatMode, chatStatus, matchCanned } from '../server/chat/mode.js';
 import { assertUnderCap, recordUsage } from '../server/chat/spend.js';
 import { rateLimit } from '../server/http.js';
 import { MAX_CHAT_BODY_BYTES, MAX_HISTORY_MESSAGES, MAX_MESSAGE_CHARS, messageTooLong } from '../src/lib/chatLimits.js';
@@ -52,20 +53,10 @@ export default async function handler(req, res) {
   const requestId = requestIdFrom(req);
   if (typeof res.setHeader === 'function') res.setHeader('X-Request-Id', requestId);
   const chatConfig = resolveChatConfig();
+  const mode = chatMode();
   if (req.method === 'GET') {
-    if (!chatConfig.apiKey) {
-      fail(res, 503, 'not_configured', requestId);
-      return;
-    }
-    if (chatConfig.provider === 'anthropic') {
-      try {
-        assertUnderCap();
-      } catch {
-        fail(res, 402, 'spend_cap', requestId);
-        return;
-      }
-    }
-    res.status(204).end();
+    res.setHeader('Cache-Control', 'no-store');
+    res.status(200).json(chatStatus());
     return;
   }
   if (req.method !== 'POST') {
@@ -84,6 +75,15 @@ export default async function handler(req, res) {
   }
   if (messageTooLong(message)) {
     fail(res, 400, 'message_too_long', requestId);
+    return;
+  }
+  if (mode === 'off') {
+    refuse(res, CHAT_PAUSED);
+    return;
+  }
+  const focusNorm = normalizeFocus(focus);
+  if (mode === 'canned') {
+    refuse(res, matchCanned(message, focusNorm) || CANNED_ONLY);
     return;
   }
   if (!chatConfig.apiKey) {
@@ -105,7 +105,6 @@ export default async function handler(req, res) {
     res.status(429).json(errorBody(requestId, err.code, err.userMessage));
     return;
   }
-  const focusNorm = normalizeFocus(focus);
   let system;
   try {
     const opened = await openKnowledge(focusNorm);

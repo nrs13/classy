@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   chatPaused,
   checkChatBackend,
+  CHAT_PAUSED,
   formatChatError,
   sanitizeAssistantText,
   streamChatReply,
@@ -38,7 +39,7 @@ export default function ChatPanel({
   const [showJump, setShowJump] = useState(false);
   const [copiedIdx, setCopiedIdx] = useState(null);
   const [suggestSeed, setSuggestSeed] = useState(0);
-  const [backendReady, setBackendReady] = useState(null);
+  const [chatState, setChatState] = useState(null);
   const [replyModes, setReplyModes] = useState(DEFAULT_REPLY_MODES);
   const [retryArmed, setRetryArmed] = useState(false);
   const scrollRef = useRef(null);
@@ -71,7 +72,7 @@ export default function ChatPanel({
   useEffect(() => {
     let cancelled = false;
     checkChatBackend().then((status) => {
-      if (!cancelled) setBackendReady(status === 'ready');
+      if (!cancelled) setChatState(status);
     });
     return () => {
       cancelled = true;
@@ -83,7 +84,8 @@ export default function ChatPanel({
     () => buildSalientSuggestions(knowledge, suggestionVideoIds, { seed: suggestSeed, count: 4 }),
     [knowledge, suggestionKey, suggestSeed],
   );
-  const chatReady = Boolean(knowledge && backendReady);
+  const chatReady = Boolean(knowledge && chatState?.ready);
+  const inputPaused = chatState?.ready === false;
 
   const resizeTextarea = useCallback(() => {
     const el = textareaRef.current;
@@ -187,24 +189,23 @@ export default function ChatPanel({
     const ctrl = new AbortController();
     chatAbort.current = ctrl;
     setMessages(() => [...priorMessages, { role: 'user', text: q }, { role: 'assistant', text: '' }]);
-    let ready = chatReady;
-    if (!ready) {
-      const status = await checkChatBackend(ctrl.signal);
-      if (gen !== sendGen.current || status === 'aborted') {
-        releaseSend(gen);
-        return;
+      let ready = chatReady;
+      if (!ready) {
+        const status = await checkChatBackend(ctrl.signal);
+        if (gen !== sendGen.current || status.aborted) {
+          releaseSend(gen);
+          return;
+        }
+        setChatState(status);
+        ready = Boolean(knowledge && status.ready);
       }
-      const up = status === 'ready';
-      setBackendReady(up);
-      ready = Boolean(knowledge && up);
-    }
     if (!ready) {
       if (gen !== sendGen.current) return;
       setMessages((m) => {
         const copy = [...m];
         copy[copy.length - 1] = {
           role: 'assistant',
-          text: OFFLINE_REPLY,
+          text: CHAT_PAUSED,
         };
         return copy;
       });
@@ -341,6 +342,7 @@ export default function ChatPanel({
           key={`${keyPrefix}${i}`}
           type="button"
           onClick={() => send(s)}
+          disabled={inputPaused || busy}
           className="text-left text-[13px] px-3 py-2.5 suggest-chip leading-snug"
         >
           {s}
@@ -358,7 +360,7 @@ export default function ChatPanel({
         <div className="min-w-0">
           <div className="chat-title tracking-[0.04em]">ask classy</div>
           <div className="chat-subtitle text-[11px] tracking-[0.05em] mt-1">
-            {backendReady ? replyModeSummary(replyModes) : "classy isn't listening yet"}
+            {chatState?.ready ? replyModeSummary(replyModes) : CHAT_PAUSED}
           </div>
         </div>
         <div className="chat-header-actions shrink-0">
@@ -472,7 +474,7 @@ export default function ChatPanel({
         style={{ background: 'var(--bg-subtle)' }}
       >
         <div className="composer-shell">
-          <ReplyModeGroup value={replyModes} onChange={toggleMode} disabled={busy} />
+          <ReplyModeGroup value={replyModes} onChange={toggleMode} disabled={busy || inputPaused} />
           <div className="composer-entry">
             <textarea
               ref={textareaRef}
@@ -481,7 +483,8 @@ export default function ChatPanel({
               onKeyDown={onKeyDown}
               rows={1}
               enterKeyHint={mobile ? 'enter' : 'send'}
-              placeholder={replyModePlaceholder(replyModes)}
+              disabled={inputPaused}
+              placeholder={inputPaused ? CHAT_PAUSED : replyModePlaceholder(replyModes)}
               className="w-full text-[13px] chat-input"
               aria-label={
                 mobile
@@ -502,7 +505,7 @@ export default function ChatPanel({
             <button
               type="button"
               onClick={busy ? stop : () => send()}
-              disabled={!busy && !input.trim()}
+              disabled={inputPaused || (!busy && !input.trim())}
               className="chat-send-btn btn-primary text-[13px]"
               aria-label={busy ? 'Stop reply' : 'Send'}
               title={busy ? 'Stop' : 'Send message'}

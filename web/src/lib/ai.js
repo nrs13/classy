@@ -4,12 +4,13 @@ import { MAX_HISTORY_MESSAGES } from './chatLimits.js';
 export async function checkChatBackend(signal) {
   try {
     const res = await fetch('/api/chat', { method: 'GET', signal });
-    if (res.status === 402) return 'spend_cap';
-    if (res.ok) return 'ready';
-    return 'down';
+    if (!res.ok) return { mode: 'off', ready: false, privacy: false };
+    const body = await res.json();
+    const mode = body?.mode === 'live' || body?.mode === 'canned' ? body.mode : 'off';
+    return { mode, ready: Boolean(body?.ready), privacy: Boolean(body?.privacy) };
   } catch {
-    if (signal?.aborted) return 'aborted';
-    return 'down';
+    if (signal?.aborted) return { mode: 'off', ready: false, privacy: false, aborted: true };
+    return { mode: 'off', ready: false, privacy: false };
   }
 }
 
