@@ -1,4 +1,4 @@
-export default function ReelId({
+export default function VideoId({
   id,
   variant = 'plain',
   winner = false,
@@ -8,9 +8,9 @@ export default function ReelId({
   if (!id) return null;
 
   const cls = [
-    'reel-id',
-    `reel-id--${variant}`,
-    onDark ? 'reel-id--on-dark' : '',
+    'video-id',
+    `video-id--${variant}`,
+    onDark ? 'video-id--on-dark' : '',
     winner ? 'is-winner' : '',
     className,
   ]
@@ -19,7 +19,7 @@ export default function ReelId({
 
   return (
     <span className={cls}>
-      <span className="reel-id-text">{id}</span>
+      <span className="video-id-text">{id}</span>
     </span>
   );
 }

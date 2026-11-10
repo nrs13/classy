@@ -1,10 +1,14 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { loadManifest, loadBrain } from './lib/data';
-import ReelStage from './components/ReelStage';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { loadCatalog, loadBrain } from './lib/data';
+import VideoStage from './components/VideoStage';
 import ChatPanel from './components/ChatPanel';
 import { CompareVerdictLayout } from './components/CompareVerdict';
-import ReelId from './components/ReelId';
+import VideoId from './components/VideoId';
 import { suggestionFocusIds } from './lib/suggestedQuestions';
+import LibrarySearch from './components/LibrarySearch';
+import SearchView from './components/SearchView';
+import { useLibrarySearch } from './lib/useLibrarySearch';
+import { searchFromUrl, searchToUrl } from './lib/search';
 
 const TIER_CLASS = {
   breakout: 'tier-breakout',
@@ -33,6 +37,10 @@ function fmtPlays(n) {
   if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
   if (n >= 1e3) return (n / 1e3).toFixed(0) + 'K';
   return String(n);
+}
+
+function playsLabel(n) {
+  return n == null ? 'plays not recorded' : `${fmtPlays(n)} plays`;
 }
 
 function readStoredWidth() {
@@ -65,11 +73,16 @@ function clampChatW(px) {
   return Math.max(Math.min(CHAT_W_MIN, max), Math.min(max, Math.round(px)));
 }
 
+function initialSearchState() {
+  return typeof window === 'undefined' ? { view: '', q: '', filters: {} } : searchFromUrl(window.location.href);
+}
+
 export default function App() {
+  const [initialSearch] = useState(initialSearchState);
   const [manifest, setManifest] = useState(null);
   const [brain, setBrain] = useState(null);
   const [knowledge, setKnowledge] = useState(null);
-  const [mode, setMode] = useState('explore');
+  const [mode, setMode] = useState(() => (initialSearch.view === 'search' ? 'search' : 'explore'));
   const [selId, setSelId] = useState(null);
   const [compareIds, setCompareIds] = useState([]);
   const [compareCapMsg, setCompareCapMsg] = useState(false);
@@ -84,7 +97,7 @@ export default function App() {
   const [chatW, setChatW] = useState(readStoredWidth);
   const [chatCollapsed, setChatCollapsed] = useState(readStoredCollapsed);
   const [mobileChatOpen, setMobileChatOpen] = useState(false);
-  const [reelDrawerOpen, setReelDrawerOpen] = useState(false);
+  const [libraryOpen, setLibraryOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(() =>
     typeof window !== 'undefined' ? window.matchMedia('(max-width: 768px)').matches : false,
   );
@@ -92,6 +105,17 @@ export default function App() {
   const dragRef = useRef(null);
   const [viewMoment, setViewMoment] = useState({ videoId: null, timeSec: 0 });
   const viewMomentTimer = useRef(null);
+  const [seekRequest, setSeekRequest] = useState(null);
+  const [searchHit, setSearchHit] = useState(null);
+  const search = useLibrarySearch(initialSearch);
+  const [searchReturn, setSearchReturn] = useState(null);
+  const restoreSearch = useRef(null);
+  const mainRef = useRef(null);
+  const railInputRef = useRef(null);
+  const drawerInputRef = useRef(null);
+  const pageInputRef = useRef(null);
+  const sharedClockRef = useRef({ timeSec: 0, playing: false, seekSeq: 0, duration: 0 });
+  const durationById = useRef({});
 
   const onViewMoment = useCallback((moment) => {
     if (!moment?.videoId) return;
@@ -105,36 +129,23 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const manifestRequest = loadManifest();
-    manifestRequest.then((m) => {
+    const catalogRequest = loadCatalog();
+    catalogRequest.then((m) => {
       setManifest(m);
-      const first = m.videos[0]?.id;
+      const first = m.videos[0]?.id || null;
       setSelId(first);
       setCompareIds(first ? [first] : []);
+      setKnowledge({
+        product: 'Classy',
+        videos: m.videos,
+        formulas: {
+          like_rate: 'likes / plays',
+          amplification: 'plays / followers',
+        },
+      });
     });
-    manifestRequest.then(loadBrain).then(setBrain);
-    fetch('/data/knowledge.json')
-      .then((r) => {
-        const ct = r.headers.get('content-type') || '';
-        if (!r.ok || ct.includes('text/html')) return null;
-        return r.json();
-      })
-      .then(setKnowledge)
-      .catch(() => setKnowledge(null));
+    catalogRequest.then((m) => loadBrain(m)).then(setBrain);
   }, []);
-
-  useEffect(() => {
-    if (knowledge || !manifest) return;
-    setKnowledge({
-      product: 'Classy',
-      note: 'Derived from manifest; run web_export.py for the full pack.',
-      videos: manifest.videos,
-      formulas: {
-        like_rate: 'likes / plays',
-        amplification: 'plays / followers',
-      },
-    });
-  }, [manifest, knowledge]);
 
   useEffect(() => {
     const timers = new WeakMap();
@@ -264,11 +275,19 @@ export default function App() {
     return map;
   }, [manifest]);
 
-  const videos = manifest?.videos || [];
+  const videos = useMemo(() => manifest?.videos || [], [manifest]);
   const networksById = useMemo(() => {
     const map = {};
     (knowledge?.videos || []).forEach((video) => {
       if (video?.id && video.networks) map[video.id] = video.networks;
+    });
+    return map;
+  }, [knowledge]);
+
+  const recordById = useMemo(() => {
+    const map = {};
+    (knowledge?.videos || []).forEach((video) => {
+      if (video?.id) map[video.id] = video;
     });
     return map;
   }, [knowledge]);
@@ -315,29 +334,128 @@ export default function App() {
     setCompareCapMsg(false);
   }, []);
 
-  const onReelActivate = useCallback(
+  const onVideoActivate = useCallback(
     (id) => {
+      setSearchHit(null);
+      setSearchReturn(null);
       if (mode === 'compare') toggleCompare(id);
       else setSelId(id);
     },
     [mode, toggleCompare],
   );
 
+  const openSearchHit = useCallback((hit) => {
+    setSearchHit(hit);
+    search.remember(search.query);
+    setSearchReturn(
+      mode === 'search' ? { scrollTop: mainRef.current?.scrollTop || 0, videoId: hit.videoId } : null,
+    );
+    setMode('explore');
+    setSelId(hit.videoId);
+    setSeekRequest({
+      videoId: hit.videoId,
+      tSec: hit.tSec,
+      nonce: Date.now(),
+    });
+    setLibraryOpen(false);
+  }, [mode, search]);
+
+  const openSearchSection = useCallback(() => {
+    setMode('search');
+    setLibraryOpen(false);
+  }, []);
+
+  const backToResults = useCallback(() => {
+    restoreSearch.current = searchReturn;
+    setSearchReturn(null);
+    setMode('search');
+  }, [searchReturn]);
+
+  useLayoutEffect(() => {
+    const target = restoreSearch.current;
+    if (mode !== 'search' || !target) return;
+    restoreSearch.current = null;
+    if (mainRef.current) mainRef.current.scrollTop = target.scrollTop;
+    document.querySelector(`#result-${target.videoId} [data-result-moment]`)?.focus({ preventScroll: true });
+  }, [mode]);
+
+  const jumpToResult = useCallback((videoId) => {
+    setLibraryOpen(false);
+    const el = document.getElementById(`result-${videoId}`);
+    if (!el) return;
+    const smooth = !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    el.scrollIntoView({ block: 'start', behavior: smooth ? 'smooth' : 'auto' });
+    el.querySelector('[data-result-moment]')?.focus({ preventScroll: true });
+  }, []);
+
+  const openVideo = useCallback((id) => {
+    setSearchHit(null);
+    setSearchReturn(null);
+    setSelId(id);
+    setMode('explore');
+    setLibraryOpen(false);
+  }, []);
+
+  useEffect(() => {
+    const next = searchToUrl(window.location.href, {
+      view: mode === 'search' ? 'search' : '',
+      q: mode === 'search' ? search.query : '',
+      filters: mode === 'search' ? search.filters : {},
+    });
+    if (next !== `${window.location.pathname}${window.location.search}${window.location.hash}`) {
+      window.history.replaceState(window.history.state, '', next);
+    }
+  }, [mode, search.query, search.filters]);
+
+  const onSharedSeek = useCallback((sec) => {
+    const clock = sharedClockRef.current;
+    const cap = clock.duration;
+    clock.timeSec = cap > 0 ? Math.max(0, Math.min(sec, cap)) : Math.max(0, sec);
+    clock.seekSeq += 1;
+  }, []);
+
+  const onSharedPlay = useCallback((next) => {
+    sharedClockRef.current.playing = next;
+    setSyncedPlaying(next);
+  }, []);
+
+  const onSharedDuration = useCallback((id, dur) => {
+    if (!Number.isFinite(dur) || dur <= 0) return;
+    durationById.current[id] = dur;
+    const values = compareIds.map((item) => durationById.current[item]).filter((n) => n > 0);
+    sharedClockRef.current.duration = values.length ? Math.max(...values) : dur;
+  }, [compareIds]);
+
   useEffect(() => {
     function onKey(e) {
+      const typing =
+        ['input', 'textarea', 'select'].includes((e.target?.tagName || '').toLowerCase()) || e.target?.isContentEditable;
+      if (e.key === '/' && !typing && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        const field =
+          mode === 'search' ? pageInputRef.current : libraryOpen ? drawerInputRef.current : railInputRef.current;
+        if (field) {
+          e.preventDefault();
+          field.focus();
+          field.select();
+        } else if (isMobile) {
+          e.preventDefault();
+          setMode('search');
+        }
+        return;
+      }
       if (e.key === 'Escape') {
         if (mobileChatOpen) {
           e.preventDefault();
           setMobileChatOpen(false);
           return;
         }
-        if (reelDrawerOpen) {
+        if (libraryOpen) {
           e.preventDefault();
-          setReelDrawerOpen(false);
+          setLibraryOpen(false);
           return;
         }
       }
-      if (!videos.length) return;
+      if (!videos.length || mode === 'search') return;
       const tag = (e.target?.tagName || '').toLowerCase();
       if (tag === 'input' || tag === 'textarea' || e.target?.isContentEditable) return;
 
@@ -350,7 +468,7 @@ export default function App() {
       } else if (e.key === 'Enter') {
         e.preventDefault();
         const v = videos[focusIdx];
-        if (v) onReelActivate(v.id);
+        if (v) onVideoActivate(v.id);
       } else if (e.key === 'Escape' && mode === 'compare') {
         e.preventDefault();
         setCompareIds([]);
@@ -359,19 +477,42 @@ export default function App() {
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [videos, focusIdx, mode, onReelActivate, mobileChatOpen, reelDrawerOpen]);
+  }, [videos, focusIdx, mode, onVideoActivate, mobileChatOpen, libraryOpen, isMobile]);
 
   useEffect(() => {
     if (!syncPlayback) setSyncedPlaying(false);
   }, [syncPlayback]);
 
   useEffect(() => {
+    if (mode !== 'compare' || compareIds.length < 2 || !syncPlayback) {
+      sharedClockRef.current.playing = false;
+      return undefined;
+    }
+    let raf;
+    let prev = performance.now();
+    const tick = (now) => {
+      const dt = Math.min(0.1, (now - prev) / 1000);
+      prev = now;
+      const clock = sharedClockRef.current;
+      if (clock.playing && clock.duration > 0) {
+        clock.timeSec += dt;
+        if (clock.timeSec >= clock.duration) clock.timeSec = 0;
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [mode, compareIds.length, syncPlayback]);
+
+  useEffect(() => {
     if (compareIds.length < 2) {
       setSyncPlayback(false);
       setSyncedPlaying(false);
+      sharedClockRef.current.playing = false;
       setCompareCamera(null);
       return;
     }
+    setSyncPlayback(true);
     setCompareCamera((prev) => ({
       preset: prev?.preset || 'front',
       spin: false,
@@ -475,7 +616,7 @@ export default function App() {
           spin
         </button>
       </div>
-      {isMobile && <span className="compare-controls-hint">swipe for next reel</span>}
+      {isMobile && <span className="compare-controls-hint">swipe for next video</span>}
     </div>
   );
 
@@ -493,21 +634,30 @@ export default function App() {
             ×
           </button>
           <div className="compare-card-head">
-            <ReelId id={v.id} variant="stage" />
+            <VideoId id={v.id} variant="stage" />
           </div>
           <div className="compare-card-desc">
             {[v.account, v.annotations?.format].filter(Boolean).join(' · ')}
           </div>
-          <ReelStage
+          <div className="compare-card-record">
+            {fmtPlays(v.metrics?.plays)} plays · {fmtPlays(v.metrics?.likes)} likes ·{' '}
+            {fmtPlays(v.metrics?.comments)} comments
+          </div>
+          <VideoStage
             video={v}
             brain={brain}
             networks={networksById[v.id]}
+            record={recordById[v.id]}
             layout="stack"
-            syncPlayback={syncPlayback}
+            syncPlayback={syncPlayback && compareIds.length >= 2}
             syncedPlaying={syncedPlaying}
-            onSyncPlayChange={setSyncedPlaying}
+            onSyncPlayChange={onSharedPlay}
             onViewMoment={onViewMoment}
             masterCamera={compareCamera}
+            sharedClock={syncPlayback && compareIds.length >= 2 ? sharedClockRef : null}
+            onSharedSeek={onSharedSeek}
+            onSharedPlay={onSharedPlay}
+            onSharedDuration={onSharedDuration}
           />
         </div>
       ))}
@@ -525,7 +675,7 @@ export default function App() {
           <div className="brand-tagline text-[12px] mt-1.5">marketing reimagined</div>
         </div>
         <div className="flex gap-1 mode-toggle p-1 text-[12px]">
-          {['explore', 'compare'].map((mo) => (
+          {['explore', 'compare', 'search'].map((mo) => (
             <button
               key={mo}
               type="button"
@@ -550,22 +700,32 @@ export default function App() {
       >
         {!isMobile && (
         <aside className="border-r hairline flex flex-col min-h-0" style={{ background: 'var(--bg)' }}>
-          <div className="px-4 pt-4 pb-2 flex items-baseline justify-between gap-2">
-            <div className="section-label">reels</div>
+          <div className="px-4 pt-4 pb-1 flex items-baseline justify-between gap-2">
+            <div className="section-label">library</div>
             {mode === 'compare' && (
               <div className="text-[11px] tracking-[0.04em]" style={{ color: 'var(--text-secondary)' }}>
                 {compareIds.length}/{COMPARE_CAP} selected
               </div>
             )}
           </div>
-
+          <LibrarySearch
+            search={search}
+            mode={mode}
+            videos={videos}
+            onOpen={openSearchHit}
+            onSeeAll={openSearchSection}
+            onJump={jumpToResult}
+            onOpenVideo={openVideo}
+            inputRef={railInputRef}
+            listClassName="library-search-list flex-1 min-h-0 overflow-y-auto px-4 pb-4 scroll-pane scroll-pane-y"
+          >
           {compareCapMsg && mode === 'compare' && (
             <div className="mx-4 mb-2 text-[11px] tracking-[0.03em] leading-snug compare-cap-msg">
               {COMPARE_CAP_MSG}
             </div>
           )}
 
-          <div className="reel-list-wrap flex-1 min-h-0 relative">
+          <div className="library-list-wrap flex-1 min-h-0 relative">
             <div
               ref={listRef}
               className="h-full overflow-y-auto px-4 pb-4 space-y-1 scroll-pane scroll-pane-y"
@@ -584,29 +744,32 @@ export default function App() {
                     type="button"
                     onClick={() => {
                       setFocusIdx(i);
-                      onReelActivate(v.id);
+                      onVideoActivate(v.id);
                     }}
                     onFocus={() => setFocusIdx(i)}
-                    className={`w-full text-left px-3 py-2.5 reel-item ${selected ? 'active' : ''}`}
+                    className={`w-full text-left px-3 py-2.5 library-item ${selected ? 'active' : ''}`}
                     aria-current={selected ? 'true' : undefined}
                   >
                     <div className="flex items-start gap-2">
                       {mode === 'compare' && (
                         <span
-                          className={`reel-check ${selected ? 'checked' : ''}`}
+                          className={`library-check ${selected ? 'checked' : ''}`}
                           aria-hidden
                         />
                       )}
                       <div className="min-w-0 flex-1">
-                        <div className="reel-id">{v.id}</div>
-                        <div className="reel-item-meta text-[11px] tracking-[0.03em] mt-0.5">
-                          <span className="reel-item-meta-plays">
-                            {fmtPlays(v.metrics?.plays)} plays ·{' '}
-                          </span>
-                          <span className={`tier-label ${tierCls}`}>[{v.tier}]</span>
+                        <div className="video-id">{v.id}</div>
+                        <div className="library-item-meta text-[11px] tracking-[0.03em] mt-0.5">
+                          <span className="library-item-meta-plays">{playsLabel(v.metrics?.plays)}</span>
+                          {v.tier && (
+                            <>
+                              {' · '}
+                              <span className={`tier-label ${tierCls}`}>[{v.tier}]</span>
+                            </>
+                          )}
                         </div>
                         {v.annotations?.format && (
-                          <div className="reel-item-desc">{v.annotations.format}</div>
+                          <div className="library-item-desc">{v.annotations.format}</div>
                         )}
                       </div>
                     </div>
@@ -614,12 +777,14 @@ export default function App() {
                 );
               })}
             </div>
-            {listOverflow && <div className="reel-scroll-fade" aria-hidden />}
+            {listOverflow && <div className="library-scroll-fade" aria-hidden />}
           </div>
+          </LibrarySearch>
         </aside>
         )}
 
         <main
+          ref={mainRef}
           className={`main-stage overflow-x-hidden p-4 min-w-0${
             mode === 'compare' && compareVideos.length >= 2
               ? ' main-stage-compare'
@@ -628,44 +793,71 @@ export default function App() {
           style={{ background: 'var(--bg)' }}
         >
           {isMobile && (
-            <div className="mobile-reel-bar">
+            <div className="mobile-library-bar">
               <button
                 type="button"
-                className="mobile-reel-bar-btn"
-                onClick={() => setReelDrawerOpen(true)}
-                aria-expanded={reelDrawerOpen}
+                className="mobile-library-bar-btn"
+                onClick={() => setLibraryOpen(true)}
+                aria-expanded={libraryOpen}
                 aria-haspopup="dialog"
               >
-                <span className="mobile-reel-bar-id">
+                <span className="mobile-library-bar-id">
                   {mode === 'compare'
                     ? `${compareIds.length}/${COMPARE_CAP} selected`
-                    : selId || 'reels'}
+                    : mode === 'search'
+                      ? 'library'
+                      : selId || 'library'}
                 </span>
-                <span className="mobile-reel-bar-meta">
-                  {mode === 'compare' ? (
-                    'select reels'
+                <span className="mobile-library-bar-meta">
+                  {mode === 'search' ? (
+                    search.query.trim() && search.results.length
+                      ? `${search.counts.videos} of ${videos.length} match`
+                      : `${videos.length} videos`
+                  ) : mode === 'compare' ? (
+                    'select videos'
                   ) : sel ? (
                     <>
-                      <span className="reel-item-meta-plays">
+                      <span className="library-item-meta-plays">
                         {fmtPlays(sel.metrics?.plays)} plays ·{' '}
                       </span>
                       <span className={`tier-label ${tierClass(sel.tier)}`}>[{sel.tier}]</span>
                     </>
                   ) : (
-                    'select a reel'
+                    'select a video'
                   )}
                 </span>
               </button>
             </div>
           )}
-          {mode === 'explore' ? (
-            sel && (
-              <ReelStage
+          {mode === 'explore' && searchReturn && (
+            <button type="button" className="back-to-results" onClick={backToResults}>
+              <span aria-hidden>←</span> Back to results
+              {search.query.trim() && <span className="back-to-results-q">for “{search.query.trim()}”</span>}
+            </button>
+          )}
+          {mode === 'search' ? (
+            <SearchView
+              search={search}
+              videos={videos}
+              onOpen={openSearchHit}
+              inputRef={pageInputRef}
+              compact={isMobile}
+            />
+          ) : mode === 'explore' ? (
+            !videos.length ? (
+              <p className="text-[13px] tracking-[0.03em] py-12 text-center" style={{ color: 'var(--text-secondary)' }}>
+                Your Library is empty.
+              </p>
+            ) : sel && (
+              <VideoStage
                 key={sel.id}
                 video={sel}
                 brain={brain}
                 networks={networksById[sel.id]}
+                record={recordById[sel.id]}
                 onViewMoment={onViewMoment}
+                seekRequest={seekRequest}
+                searchHit={searchHit}
               />
             )
           ) : (
@@ -675,7 +867,7 @@ export default function App() {
                   className="text-[13px] tracking-[0.03em] py-12 text-center"
                   style={{ color: 'var(--text-secondary)' }}
                 >
-                  select up to {COMPARE_CAP} reels from the list
+                  select up to {COMPARE_CAP} videos from the Library
                 </div>
               ) : compareVideos.length >= 2 ? (
                 <CompareVerdictLayout videos={compareVideos} controls={compareControls}>
@@ -740,43 +932,56 @@ export default function App() {
               />
             </div>
           )}
-          {reelDrawerOpen && (
+          {libraryOpen && (
             <div
-              className="reel-drawer-root"
+              className="library-drawer-root"
               role="dialog"
               aria-modal="true"
-              aria-label="Choose reels"
+              aria-label="Library"
             >
               <button
                 type="button"
-                className="reel-drawer-backdrop"
-                aria-label="Close reel list"
-                onClick={() => setReelDrawerOpen(false)}
+                className="library-drawer-backdrop"
+                aria-label="Close Library"
+                onClick={() => setLibraryOpen(false)}
               />
-              <div className="reel-drawer-sheet">
-                <div className="reel-drawer-header">
-                  <div className="section-label">reels</div>
-                  <div className="reel-drawer-header-meta">
+              <div className="library-drawer-sheet">
+                <div className="library-drawer-header">
+                  <div className="section-label">library</div>
+                  <div className="library-drawer-header-meta">
                     <span>
                       {mode === 'compare'
                         ? `${compareIds.length}/${COMPARE_CAP} selected`
-                        : 'select a reel'}
+                        : mode === 'search'
+                          ? 'jump to a result'
+                          : 'select a video'}
                     </span>
                     <button
                       type="button"
-                      className="reel-drawer-done"
-                      onClick={() => setReelDrawerOpen(false)}
+                      className="library-drawer-done"
+                      onClick={() => setLibraryOpen(false)}
                     >
                       done
                     </button>
                   </div>
                 </div>
+                <LibrarySearch
+                  search={search}
+                  mode={mode}
+                  videos={videos}
+                  onOpen={openSearchHit}
+                  onSeeAll={openSearchSection}
+                  onJump={jumpToResult}
+                  onOpenVideo={openVideo}
+                  inputRef={drawerInputRef}
+                  listClassName="library-drawer-list scroll-pane scroll-pane-y"
+                >
                 {compareCapMsg && mode === 'compare' && (
                   <div className="mx-4 mb-2 text-[11px] tracking-[0.03em] leading-snug compare-cap-msg">
                     {COMPARE_CAP_MSG}
                   </div>
                 )}
-                <div className="reel-drawer-list scroll-pane scroll-pane-y">
+                <div className="library-drawer-list scroll-pane scroll-pane-y">
                   {videos.map((v, i) => {
                     const selected =
                       mode === 'compare' ? compareIds.includes(v.id) : selId === v.id;
@@ -787,29 +992,32 @@ export default function App() {
                         type="button"
                         onClick={() => {
                           setFocusIdx(i);
-                          onReelActivate(v.id);
-                          if (mode === 'explore') setReelDrawerOpen(false);
+                          onVideoActivate(v.id);
+                          if (mode === 'explore') setLibraryOpen(false);
                         }}
-                        className={`w-full text-left px-3 py-2.5 reel-item ${selected ? 'active' : ''}`}
+                        className={`w-full text-left px-3 py-2.5 library-item ${selected ? 'active' : ''}`}
                         aria-current={selected ? 'true' : undefined}
                       >
                         <div className="flex items-start gap-2">
                           {mode === 'compare' && (
                             <span
-                              className={`reel-check ${selected ? 'checked' : ''}`}
+                              className={`library-check ${selected ? 'checked' : ''}`}
                               aria-hidden
                             />
                           )}
                           <div className="min-w-0 flex-1">
-                            <div className="reel-id">{v.id}</div>
-                            <div className="reel-item-meta text-[11px] tracking-[0.03em] mt-0.5">
-                              <span className="reel-item-meta-plays">
-                                {fmtPlays(v.metrics?.plays)} plays ·{' '}
-                              </span>
-                              <span className={`tier-label ${tierCls}`}>[{v.tier}]</span>
+                            <div className="video-id">{v.id}</div>
+                            <div className="library-item-meta text-[11px] tracking-[0.03em] mt-0.5">
+                              <span className="library-item-meta-plays">{playsLabel(v.metrics?.plays)}</span>
+                              {v.tier && (
+                                <>
+                                  {' · '}
+                                  <span className={`tier-label ${tierCls}`}>[{v.tier}]</span>
+                                </>
+                              )}
                             </div>
                             {v.annotations?.format && (
-                              <div className="reel-item-desc">{v.annotations.format}</div>
+                              <div className="library-item-desc">{v.annotations.format}</div>
                             )}
                           </div>
                         </div>
@@ -817,6 +1025,7 @@ export default function App() {
                     );
                   })}
                 </div>
+                </LibrarySearch>
               </div>
             </div>
           )}
