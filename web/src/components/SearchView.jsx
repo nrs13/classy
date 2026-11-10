@@ -8,7 +8,7 @@ import {
   KINDS,
   MATCH_LABEL,
   countLine,
-  errorCopy,
+  searchFailureView,
   fmtCount,
   fmtTime,
   highlightParts,
@@ -390,10 +390,11 @@ function Empty({ query, filters, literal, onClearFilters, onLiteral, onPick, und
 }
 
 function Failure({ error, onRetry }) {
+  const view = searchFailureView(error);
   return (
     <div className="sx-empty" role="alert">
-      <p className="sx-empty-title">{errorCopy(error)}</p>
-      {error.kind !== 'offline' && (
+      <p className="sx-empty-title">{view.message}</p>
+      {view.retry && (
         <div className="sx-actions">
           <button type="button" className="sx-button" onClick={onRetry}>
             Try again

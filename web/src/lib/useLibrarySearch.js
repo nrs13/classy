@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { addRecent, dropRecent, ERROR_COPY, EXACT_COPY, loadRecent, resultCounts } from './search';
+import { addRecent, beginSearchState, dropRecent, ERROR_COPY, EXACT_COPY, loadRecent, resultCounts } from './search';
 
 /** Exact matches follow the keyboard; meaning and understanding wait for a pause or Enter. */
 const EXACT_DELAY_MS = 120;
@@ -110,7 +110,7 @@ export function useLibrarySearch(initial = {}) {
 
     const ctrl = new AbortController();
     let fullDone = false;
-    setState((prev) => ({ ...prev, busy: true, stale: prev.results.length > 0, error: null, forKey }));
+    setState((prev) => beginSearchState(prev, forKey));
 
     const runExact = async () => {
       const key = keyOf('exact');

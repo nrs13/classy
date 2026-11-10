@@ -32,6 +32,30 @@ export function errorCopy(error) {
   return ERROR_KIND_COPY[error.kind] || error.message || ERROR_COPY;
 }
 
+/** What the failure panel may render. A missing error must not throw. */
+export function searchFailureView(error) {
+  return {
+    message: errorCopy(error) || ERROR_COPY,
+    retry: error?.kind !== 'offline',
+  };
+}
+
+/**
+ * A new search starts while the previous failure is still on screen.
+ * Drop the error in the same update, or the panel reads a null error and crashes.
+ */
+export function beginSearchState(prev, forKey) {
+  const results = Array.isArray(prev?.results) ? prev.results : [];
+  return {
+    ...prev,
+    status: prev?.status === 'error' ? 'loading' : prev?.status,
+    busy: true,
+    stale: results.length > 0,
+    error: null,
+    forKey,
+  };
+}
+
 /** Curated starting points in several languages; each one finds its video first. */
 export const CURATED_EXAMPLES = [
   { q: 'how was the math exam', lang: 'en' },

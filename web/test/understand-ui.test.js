@@ -10,7 +10,7 @@ const { needsUnderstanding, cleanUnderstanding, understandQuery } = await import
 const { boostLanguages, matchOf, fuseRanks, LANGUAGE_BONUS } = await import('../server/search/rank.js');
 const { frameOf } = await import('../server/search/frames.js');
 const { trimQuote } = await import('../server/search/explain.js');
-const { highlightParts, errorCopy, searchFromUrl, searchToUrl, whyLine, countLine, resultCounts } = await import(
+const { highlightParts, errorCopy, searchFailureView, beginSearchState, searchFromUrl, searchToUrl, whyLine, countLine, resultCounts } = await import(
   '../src/lib/search.js'
 );
 
@@ -158,6 +158,28 @@ test('errorCopy: says what happened for each failure kind', () => {
   assert.match(errorCopy({ kind: 'unavailable' }), /unavailable/);
   assert.equal(errorCopy({ kind: 'other', message: 'Bad filter.' }), 'Bad filter.');
   assert.equal(errorCopy(null), '');
+});
+
+test('search failure view stays safe when the error is cleared mid-retry', () => {
+  assert.equal(searchFailureView(null).retry, true);
+  assert.match(searchFailureView(null).message, /unavailable/);
+  assert.equal(searchFailureView(undefined).retry, true);
+  assert.equal(searchFailureView({ kind: 'offline' }).retry, false);
+  assert.match(searchFailureView({ kind: 'offline' }).message, /offline/);
+
+  const next = beginSearchState(
+    { status: 'error', error: { kind: 'offline' }, results: [], phase: 'full' },
+    'offline-only',
+  );
+  assert.equal(next.status, 'loading');
+  assert.equal(next.error, null);
+  assert.equal(next.busy, true);
+  assert.equal(next.stale, false);
+
+  const kept = beginSearchState({ status: 'done', error: null, results: [{ videoId: 'v001' }] }, 'again');
+  assert.equal(kept.status, 'done');
+  assert.equal(kept.stale, true);
+  assert.equal(kept.error, null);
 });
 
 test('search URL state round-trips and drops unknown kinds', () => {
