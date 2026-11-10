@@ -821,7 +821,7 @@ export default function App() {
           }`}
           style={{ background: 'var(--bg)' }}
         >
-          {isMobile && (
+          {isMobile && mode !== 'search' && (
             <div className="mobile-library-bar">
               <button
                 type="button"
