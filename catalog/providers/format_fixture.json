@@ -1,0 +1,20 @@
+{
+  "about": "Shared by web/server/providers/embedding/format.js and catalog/providers/embedding.py. Both must turn input into expected, so documents packed in Python and queries embedded in JS go through the same text rules.",
+  "maxDocumentChars": 4000,
+  "maxQueryChars": 1000,
+  "profiles": {
+    "voyage": "voyage|4-series|1024|document",
+    "gemini": "gemini|gemini-embedding-001|768|retrieval"
+  },
+  "cases": [
+    { "input": "  hello   world  ", "expected": "hello world" },
+    { "input": "line one\nline two\tTabbed\r\nend", "expected": "line one line two Tabbed end" },
+    { "input": "non\u00a0breaking\u3000ideographic\u2009thin", "expected": "non breaking ideographic thin" },
+    { "input": "cafe\u0301 re\u0301viser", "expected": "café réviser" },
+    { "input": "T'AS LA FLEMME ?", "expected": "T'AS LA FLEMME ?" },
+    { "input": "AIと一緒に勉強もできますと", "expected": "AIと一緒に勉強もできますと" },
+    { "input": "emoji 🧠📚 stay", "expected": "emoji 🧠📚 stay" },
+    { "input": "\u200bzero\u200bwidth\ufeff", "expected": "zerowidth" },
+    { "input": "", "expected": "" }
+  ]
+}

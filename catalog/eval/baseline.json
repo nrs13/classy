@@ -1,0 +1,33 @@
+{
+  "about": "Minimum recall@5 per query language and minimum first-place rate overall for pack_snapshot.py --promote. Set by run.py --set-baseline. latency_budget_ms is the per-request target measured over HTTP (scripts/search-debug.mjs prints timings).",
+  "snapshot": "live",
+  "query_model": null,
+  "recall@5": {
+    "all": 1.0,
+    "query:en": 1.0,
+    "query:es": 1.0,
+    "query:de": 1.0,
+    "query:fr": 1.0,
+    "query:it": 1.0,
+    "query:pt": 1.0,
+    "query:ja": 1.0,
+    "query:tr": 1.0
+  },
+  "top1": {
+    "all": 0.916,
+    "kind:quoted": 1.0,
+    "kind:verbatim": 1.0,
+    "kind:paraphrase": 0.833,
+    "kind:name": 0.333,
+    "kind:scene": 1.0,
+    "kind:on_screen": 1.0,
+    "kind:describe": 0.938,
+    "kind:intent": 1.0
+  },
+  "latency_budget_ms": {
+    "exact": 150,
+    "cached": 150,
+    "hybrid_new": 1500,
+    "understood_new": 2200
+  }
+}
