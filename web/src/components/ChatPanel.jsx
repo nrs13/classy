@@ -210,14 +210,7 @@ export default function ChatPanel({
       });
     } catch (err) {
       console.error('[ask classy]', err);
-      const apiMsg = formatChatError(err);
-      const bothQuota =
-        err?.code === 'BOTH_MODELS_QUOTA' || err?.name === 'BothModelsQuotaError';
-      let text = apiMsg;
-      if (!bothQuota && knowledge) {
-        const local = localKnowledgeReply(knowledge, q);
-        text = `${apiMsg}\n\nfallback from local data:\n${local}`;
-      }
+      const text = formatChatError(err);
       setMessages((m) => {
         const copy = [...m];
         copy[copy.length - 1] = {
