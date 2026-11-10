@@ -78,6 +78,7 @@ function wrapRes(res, done) {
 }
 
 const ROUTES = {
+  '/api/health': 'api/health.js',
   '/api/chat': 'api/chat.js',
   '/api/catalog': 'api/catalog.js',
   '/api/search': 'api/search.js',
