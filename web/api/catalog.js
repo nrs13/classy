@@ -47,13 +47,23 @@ export function profileUrl(videoUrl, account) {
   return '';
 }
 
+export function tierFor(plays) {
+  if (plays == null || plays === '') return null;
+  const n = Number(plays);
+  if (!Number.isFinite(n)) return null;
+  if (n >= 1000000) return 'breakout';
+  if (n >= 50000) return 'strong';
+  if (n >= 10000) return 'mid';
+  return 'tail';
+}
+
 export default route('catalog', {}, async (req, res, { requestId }) => {
   const snapshot = await currentSnapshot();
   if (!snapshot) {
     res.status(200).json({ requestId, snapshotId: null, quoteFloor: null, atlas: ATLAS, videos: [] });
     return;
   }
-  const etag = `"${snapshot.id}:profile"`;
+  const etag = `"${snapshot.id}:tier"`;
   res.setHeader('ETag', etag);
   res.setHeader('Cache-Control', 'private, no-cache');
   if (req.headers?.['if-none-match'] === etag) {
@@ -72,6 +82,7 @@ export default route('catalog', {}, async (req, res, { requestId }) => {
       id: row.video_id,
       account: row.account || '',
       profileUrl: profileUrl(row.url, row.account) || undefined,
+      tier: tierFor(row.plays) || undefined,
       language: row.language || '',
       duration: row.duration,
       frames: row.frames,
