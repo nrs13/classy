@@ -1,7 +1,7 @@
 import { useRef } from 'react';
 import Frame from './Frame';
 import SearchField from './SearchField';
-import { EMPTY_COPY, errorCopy, fmtTime } from '../lib/search';
+import { compareKeepsLibrary, EMPTY_COPY, errorCopy, fmtTime } from '../lib/search';
 
 function moveFocus(container, event) {
   if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return false;
@@ -90,6 +90,18 @@ export default function LibrarySearch({
   const onKeyDown = (event) => {
     if (moveFocus(listRef.current, event) === 'field') inputRef?.current?.focus();
   };
+
+  if (compareKeepsLibrary(mode, { status, busy, refining, resultCount: results.length })) {
+    return (
+      <>
+        {field}
+        <p className="library-search-empty" aria-live="polite">
+          {note || EMPTY_COPY}
+        </p>
+        {children}
+      </>
+    );
+  }
 
   if (inSearch) {
     const byId = new Map(results.map((r, i) => [r.videoId, { result: r, order: i }]));

@@ -17,6 +17,10 @@ export const MAX_QUERY = 300;
 export const COUNT_FROM = 280;
 
 export const EMPTY_COPY = 'Nothing in your Library matches that.';
+
+export function compareKeepsLibrary(mode, { status, busy, refining, resultCount }) {
+  return mode === 'compare' && status === 'done' && !busy && !refining && resultCount === 0;
+}
 export const EMPTY_HINT = 'Try fewer words, another language, or describe what happens in the video.';
 export const ERROR_COPY = 'Search is unavailable. Try again in a moment.';
 export const EXACT_COPY = 'Showing exact matches only right now.';

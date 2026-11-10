@@ -10,7 +10,7 @@ const { needsUnderstanding, cleanUnderstanding, understandQuery } = await import
 const { boostLanguages, matchOf, fuseRanks, LANGUAGE_BONUS } = await import('../server/search/rank.js');
 const { frameOf } = await import('../server/search/frames.js');
 const { trimQuote } = await import('../server/search/explain.js');
-const { highlightParts, errorCopy, searchFailureView, beginSearchState, searchFromUrl, searchToUrl, whyLine, countLine, resultCounts } = await import(
+const { highlightParts, errorCopy, searchFailureView, beginSearchState, compareKeepsLibrary, searchFromUrl, searchToUrl, whyLine, countLine, resultCounts } = await import(
   '../src/lib/search.js'
 );
 
@@ -158,6 +158,14 @@ test('errorCopy: says what happened for each failure kind', () => {
   assert.match(errorCopy({ kind: 'unavailable' }), /unavailable/);
   assert.equal(errorCopy({ kind: 'other', message: 'Bad filter.' }), 'Bad filter.');
   assert.equal(errorCopy(null), '');
+});
+
+test('compare keeps the library when a search has no hits', () => {
+  const empty = { status: 'done', busy: false, refining: false, resultCount: 0 };
+  assert.equal(compareKeepsLibrary('compare', empty), true);
+  assert.equal(compareKeepsLibrary('explore', empty), false);
+  assert.equal(compareKeepsLibrary('compare', { ...empty, resultCount: 2 }), false);
+  assert.equal(compareKeepsLibrary('compare', { ...empty, busy: true }), false);
 });
 
 test('search failure view stays safe when the error is cleared mid-retry', () => {
