@@ -39,6 +39,7 @@ import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
+from urllib.parse import urlparse
 
 import numpy as np
 import psycopg2
@@ -93,7 +94,22 @@ def normalize_score(value):
 
 
 def database_url() -> str:
-    return os.environ.get("DATABASE_URL", "postgresql:///classy")
+    """Local Postgres by default. A Neon URL is allowed only for a non-production branch."""
+    url = os.environ.get("DATABASE_URL", "postgresql:///classy")
+    if os.environ.get("CLASSY_ALLOW_PRODUCTION") == "1":
+        return url
+    host = ""
+    try:
+        host = urlparse(url.replace("postgresql:", "http:", 1)).hostname or ""
+    except ValueError:
+        host = ""
+    branch = os.environ.get("NEON_BRANCH", "")
+    if host.endswith(".neon.tech") and branch in ("", "production"):
+        raise SystemExit(
+            "Refusing the production database. Use the dev branch, "
+            "or set CLASSY_ALLOW_PRODUCTION=1 for this command."
+        )
+    return url
 
 
 def object_root() -> Path:

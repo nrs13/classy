@@ -36,6 +36,8 @@ function loadEnv(path) {
 
 loadEnv(join(here, '..', '.env.local'));
 process.env.CLASSY_LOG = process.env.CLASSY_LOG || 'off';
+const { assertDevDatabase } = await import('../server/repo/productionGuard.js');
+assertDevDatabase();
 
 const { searchLibrary } = await import('../server/search/service.js');
 const { parseQuery } = await import('../server/search/query.js');

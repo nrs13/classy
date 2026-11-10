@@ -21,6 +21,8 @@ for (const line of (() => {
   if (m && !process.env[m[1]]) process.env[m[1]] = m[2].replace(/^(['"])(.*)\1$/, '$2');
 }
 process.env.CLASSY_LOG = 'off';
+const { assertDevDatabase } = await import('../server/repo/productionGuard.js');
+assertDevDatabase();
 
 const args = process.argv.slice(2);
 const flag = (name, fallback = '') => {
