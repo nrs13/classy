@@ -726,7 +726,15 @@ export default function VideoStage({
             {video.account && (
               <>
                 <dt>Account</dt>
-                <dd>@{video.account}</dd>
+                <dd>
+                  {video.profileUrl ? (
+                    <a href={video.profileUrl} target="_blank" rel="noreferrer noopener">
+                      @{video.account}
+                    </a>
+                  ) : (
+                    <>@{video.account}</>
+                  )}
+                </dd>
               </>
             )}
             {video.language && (

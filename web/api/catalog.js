@@ -24,13 +24,36 @@ const ATLAS = {
   syntheticMeshCompatible: false,
 };
 
+export function profileUrl(videoUrl, account) {
+  const raw = String(videoUrl || '').trim();
+  if (!raw) return '';
+  let url;
+  try {
+    url = new URL(raw);
+  } catch {
+    return '';
+  }
+  const host = url.hostname.toLowerCase().replace(/^www\./, '');
+  if (host === 'tiktok.com' || host === 'm.tiktok.com') {
+    const handle = url.pathname.split('/').filter(Boolean).find((part) => part.startsWith('@'));
+    if (!handle || handle.length < 2) return '';
+    return `https://www.tiktok.com/${handle}`;
+  }
+  if (host === 'instagram.com') {
+    const name = String(account || '').trim().replace(/^@/, '');
+    if (!name || /[/?#\s]/.test(name)) return '';
+    return `https://www.instagram.com/${name}/`;
+  }
+  return '';
+}
+
 export default route('catalog', {}, async (req, res, { requestId }) => {
   const snapshot = await currentSnapshot();
   if (!snapshot) {
     res.status(200).json({ requestId, snapshotId: null, quoteFloor: null, atlas: ATLAS, videos: [] });
     return;
   }
-  const etag = `"${snapshot.id}:yeo7"`;
+  const etag = `"${snapshot.id}:profile"`;
   res.setHeader('ETag', etag);
   res.setHeader('Cache-Control', 'private, no-cache');
   if (req.headers?.['if-none-match'] === etag) {
@@ -48,6 +71,7 @@ export default route('catalog', {}, async (req, res, { requestId }) => {
     videos: rows.map((row) => ({
       id: row.video_id,
       account: row.account || '',
+      profileUrl: profileUrl(row.url, row.account) || undefined,
       language: row.language || '',
       duration: row.duration,
       frames: row.frames,

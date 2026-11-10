@@ -2956,3 +2956,15 @@ select {
   color: var(--text-tertiary);
   overflow-wrap: anywhere;
 }
+
+.video-notes-grid a {
+  color: inherit;
+  text-decoration-line: underline;
+  text-decoration-color: var(--border);
+  text-underline-offset: 2px;
+}
+
+.video-notes-grid a:hover {
+  color: var(--text-primary);
+  text-decoration-color: var(--text-secondary);
+}

@@ -4,12 +4,13 @@ export const VIDEO_ID = /^v\d+$/;
 
 export async function listVideos(snapshotId) {
   const result = await query(
-    `SELECT video_id, duration, language, account, plays, likes, comments, followers,
-            like_rate, amplification, hook_slope, peak_mean_abs, sustain_ratio,
-            timing_eligible, cuts, frames, networks, topics, keywords
-     FROM clip
-     WHERE snapshot_id = $1
-     ORDER BY video_id`,
+    `SELECT c.video_id, c.duration, c.language, c.account, c.plays, c.likes, c.comments, c.followers,
+            c.like_rate, c.amplification, c.hook_slope, c.peak_mean_abs, c.sustain_ratio,
+            c.timing_eligible, c.cuts, c.frames, c.networks, c.topics, c.keywords, i.url
+     FROM clip c
+     LEFT JOIN ingest i ON i.video_id = c.video_id
+     WHERE c.snapshot_id = $1
+     ORDER BY c.video_id`,
     [snapshotId],
   );
   return result.rows;
