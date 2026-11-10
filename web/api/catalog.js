@@ -30,7 +30,7 @@ export default route('catalog', {}, async (req, res, { requestId }) => {
     res.status(200).json({ requestId, snapshotId: null, quoteFloor: null, atlas: ATLAS, videos: [] });
     return;
   }
-  const etag = `"${snapshot.id}"`;
+  const etag = `"${snapshot.id}:yeo7"`;
   res.setHeader('ETag', etag);
   res.setHeader('Cache-Control', 'private, no-cache');
   if (req.headers?.['if-none-match'] === etag) {
@@ -67,7 +67,8 @@ export default route('catalog', {}, async (req, res, { requestId }) => {
         sustain_ratio: row.sustain_ratio,
       },
       networks: row.networks || null,
-      annotations: {},
+      topics: row.topics || '',
+      keywords: row.keywords || '',
     })),
   });
 });

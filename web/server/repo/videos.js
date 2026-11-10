@@ -6,7 +6,7 @@ export async function listVideos(snapshotId) {
   const result = await query(
     `SELECT video_id, duration, language, account, plays, likes, comments, followers,
             like_rate, amplification, hook_slope, peak_mean_abs, sustain_ratio,
-            timing_eligible, cuts, frames, networks
+            timing_eligible, cuts, frames, networks, topics, keywords
      FROM clip
      WHERE snapshot_id = $1
      ORDER BY video_id`,
