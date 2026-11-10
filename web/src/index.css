@@ -2968,3 +2968,23 @@ select {
   color: var(--text-primary);
   text-decoration-color: var(--text-secondary);
 }
+
+.confidentiality-note {
+  margin: 0;
+  padding: 8px 24px;
+  max-width: 100%;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: var(--weight-body);
+  line-height: 1.45;
+  color: var(--text-secondary);
+  background: var(--bg-subtle);
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 640px) {
+  .confidentiality-note {
+    padding: 8px 16px;
+  }
+}
