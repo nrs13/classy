@@ -144,10 +144,6 @@ export function clipNotes(videoId) {
   };
 }
 
-export function formatFor(videoId) {
-  return clipNotes(videoId).format;
-}
-
 export function tierFor(plays) {
   if (plays == null || plays === '') return null;
   const n = Number(plays);

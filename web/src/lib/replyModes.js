@@ -56,13 +56,3 @@ export function replyModePlaceholder(active) {
   const modes = normalizeReplyModes(active);
   return modes.length === 1 ? getReplyMode(modes[0]).placeholder : 'ask classy…';
 }
-
-export function replyModePreamble(ids) {
-  const modes = normalizeReplyModes(ids);
-  const lines = modes.map((id) => `- ${getReplyMode(id).register}`).join('\n');
-  const closer = 'This sets the register only; the DATA is always the same.\n\n';
-  if (modes.length === 1) {
-    return `Active reply mode:\n${lines}\n${closer}`;
-  }
-  return `Active reply modes (${modes.length}). Blend them into ONE answer. Do not write a separate section per mode, do not label the modes, and never restate the same point in two registers. Weight them roughly evenly:\n${lines}\n${closer}`;
-}

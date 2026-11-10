@@ -174,13 +174,3 @@ export function receiptView(row) {
     ask: hasAsk(row) ? row.ask : null,
   };
 }
-
-
-export function sourceLabel(source) {
-  if (source === 'content_understanding') return 'Content Understanding';
-  if (source === 'gemini') return 'Gemini';
-  if (source === 'both') return 'Both models';
-  if (source === 'video_indexer') return 'Video Indexer';
-  if (source === 'extract') return 'Extracted scene';
-  return source || 'Record';
-}
