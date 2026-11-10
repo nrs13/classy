@@ -4357,6 +4357,19 @@ select {
   cursor: pointer;
 }
 
+.brain-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  min-height: 120px;
+  padding: 16px;
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .sf.is-busy .sf-progress::after,
   .sf-spinner,

@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import BrainViewer from './BrainViewer';
+import { ErrorBoundary } from './ErrorBoundary';
+import { BRAIN_FALLBACK } from '../lib/boundary';
 import Receipt from './Receipt';
 import VideoId from './VideoId';
 import { loadActivation } from '../lib/data';
@@ -555,16 +557,26 @@ export default function VideoStage({
         </div>
       )}
       {brainReady && (
-        <BrainViewer
-          brain={brain}
-          activation={activation}
-          progressRef={progressRef}
-          videoId={video.id}
-          timeSec={progress * (duration || video.duration || 0)}
-          onNetworkChange={handleNetworkChange}
-          compact={stack}
-          masterCamera={masterCamera}
-        />
+        <ErrorBoundary
+          key={video.id}
+          scope="brain"
+          fallback={
+            <div className="brain-fallback" role="status">
+              {BRAIN_FALLBACK}
+            </div>
+          }
+        >
+          <BrainViewer
+            brain={brain}
+            activation={activation}
+            progressRef={progressRef}
+            videoId={video.id}
+            timeSec={progress * (duration || video.duration || 0)}
+            onNetworkChange={handleNetworkChange}
+            compact={stack}
+            masterCamera={masterCamera}
+          />
+        </ErrorBoundary>
       )}
     </div>
   );
