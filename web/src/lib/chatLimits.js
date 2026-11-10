@@ -1,5 +1,6 @@
 export const MAX_MESSAGE_CHARS = 4000;
 export const MAX_HISTORY_MESSAGES = 40;
+export const MAX_CHAT_BODY_BYTES = 512 * 1024;
 
 /** Code points, so an emoji counts as one and is never split. */
 export function messageLength(text) {

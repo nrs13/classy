@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { acceptSend, capMessage, dropUnfinishedReply, MAX_MESSAGE_CHARS, messageLength, messageTooLong, retryTurn } from '../src/lib/chatLimits.js';
+import { acceptSend, capMessage, dropUnfinishedReply, MAX_CHAT_BODY_BYTES, MAX_MESSAGE_CHARS, messageLength, messageTooLong, retryTurn } from '../src/lib/chatLimits.js';
 
 process.env.CLASSY_LOG = 'off';
 
@@ -50,6 +50,35 @@ test('the server rejects an over-length message instead of sending it', async ()
   assert.equal(res.statusCode, 400);
   assert.equal(res.body.error, 'message_too_long');
   assert.equal(res.body.message, 'That message is too long.');
+});
+
+test('an oversized chat body is rejected before the model is called', async () => {
+  const handler = (await import('../api/chat.js')).default;
+  const res = {
+    statusCode: 200,
+    headers: {},
+    body: undefined,
+    setHeader() {},
+    status(code) {
+      this.statusCode = code;
+      return this;
+    },
+    json(payload) {
+      this.body = payload;
+    },
+  };
+  await handler(
+    {
+      method: 'POST',
+      headers: { 'x-forwarded-for': '203.0.113.45' },
+      url: '/api/chat',
+      body: { message: 'x'.repeat(MAX_CHAT_BODY_BYTES) },
+    },
+    res,
+  );
+  assert.equal(res.statusCode, 413);
+  assert.equal(res.body.error, 'payload_too_large');
+  assert.equal(res.body.message, 'That request is too large.');
 });
 
 test('changing clips drops a reply that never produced text', () => {

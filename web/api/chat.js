@@ -7,7 +7,7 @@ import {
 import { openKnowledge } from '../server/chat/knowledge.js';
 import { assertUnderCap, recordUsage } from '../server/chat/spend.js';
 import { rateLimit } from '../server/http.js';
-import { MAX_HISTORY_MESSAGES, MAX_MESSAGE_CHARS, messageTooLong } from '../src/lib/chatLimits.js';
+import { MAX_CHAT_BODY_BYTES, MAX_HISTORY_MESSAGES, MAX_MESSAGE_CHARS, messageTooLong } from '../src/lib/chatLimits.js';
 import { AppError } from '../server/obs/errors.js';
 import { logEvent, requestIdFrom } from '../server/obs/log.js';
 
@@ -66,6 +66,11 @@ export default async function handler(req, res) {
   }
   if (req.method !== 'POST') {
     res.status(405).json({ error: 'method_not_allowed' });
+    return;
+  }
+  const bodyBytes = Buffer.byteLength(JSON.stringify(req.body ?? {}));
+  if (bodyBytes > MAX_CHAT_BODY_BYTES) {
+    res.status(413).json({ error: 'payload_too_large', message: 'That request is too large.' });
     return;
   }
   const { message, history, focus } = req.body || {};

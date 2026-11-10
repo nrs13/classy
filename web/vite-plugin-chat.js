@@ -1,4 +1,5 @@
 import { existsSync, readFileSync, statSync } from 'node:fs';
+import { MAX_CHAT_BODY_BYTES } from './src/lib/chatLimits.js';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -25,8 +26,27 @@ function loadLocalEnv(root) {
 function readBody(req) {
   return new Promise((resolve, reject) => {
     const chunks = [];
-    req.on('data', (c) => chunks.push(c));
+    let size = 0;
+    let settled = false;
+    const fail = (err) => {
+      if (settled) return;
+      settled = true;
+      reject(err);
+    };
+    req.on('data', (chunk) => {
+      size += chunk.length;
+      if (size > MAX_CHAT_BODY_BYTES) {
+        const err = new Error('payload_too_large');
+        err.statusCode = 413;
+        fail(err);
+        req.destroy();
+        return;
+      }
+      chunks.push(chunk);
+    });
     req.on('end', () => {
+      if (settled) return;
+      settled = true;
       const raw = Buffer.concat(chunks).toString('utf8');
       if (!raw) {
         resolve({});
@@ -38,7 +58,7 @@ function readBody(req) {
         reject(err);
       }
     });
-    req.on('error', reject);
+    req.on('error', fail);
   });
 }
 
@@ -127,11 +147,18 @@ export function classyChatApi() {
             ).catch(reject);
           });
         } catch (err) {
-          console.error('[classy api]', err);
+          const tooBig = err?.statusCode === 413;
+          if (!tooBig) console.error('[classy api]', err?.name || 'Error');
           if (!res.headersSent) {
-            res.statusCode = 500;
+            res.statusCode = tooBig ? 413 : 500;
             res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({ error: 'api_handler_failed' }));
+            res.end(
+              JSON.stringify(
+                tooBig
+                  ? { error: 'payload_too_large', message: 'That request is too large.' }
+                  : { error: 'api_handler_failed' },
+              ),
+            );
           }
         }
       });
