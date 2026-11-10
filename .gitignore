@@ -26,11 +26,18 @@ web/*.local
 web/.env
 web/.env.*
 !web/.env.example
+web/.classy-spend.json
 
 web/.agents/
 web/skills-lock.json
 .cursor/
 **/AGENTS.md
+
+# Private catalog objects. Not part of the static deploy.
+catalog/objects/
+
+# Local search-eval runs. The baseline and queries stay tracked.
+catalog/eval/results/
 
 # Logs
 *.log

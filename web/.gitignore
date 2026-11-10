@@ -5,6 +5,7 @@ dist-ssr
 .env
 .env.*
 !.env.example
+.classy-spend.json
 .agents
 skills-lock.json
 .cursor
@@ -12,3 +13,5 @@ AGENTS.md
 .DS_Store
 *.log
 .vercel
+node_modules.nosync
+node_modules.old.nosync
