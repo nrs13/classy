@@ -8,7 +8,7 @@ import { openKnowledge } from '../server/chat/knowledge.js';
 import { assertUnderCap, recordUsage } from '../server/chat/spend.js';
 import { rateLimit } from '../server/http.js';
 import { MAX_CHAT_BODY_BYTES, MAX_HISTORY_MESSAGES, MAX_MESSAGE_CHARS, messageTooLong } from '../src/lib/chatLimits.js';
-import { AppError } from '../server/obs/errors.js';
+import { AppError, errorBody } from '../server/obs/errors.js';
 import { logEvent, requestIdFrom } from '../server/obs/log.js';
 
 export const PRIMARY_MODEL = process.env.CLASSY_MODEL || 'claude-opus-5';
@@ -47,56 +47,60 @@ function send(res, payload) {
   res.write(`data: ${JSON.stringify(payload)}\n\n`);
 }
 
+function fail(res, status, error, requestId) {
+  res.status(status).json(errorBody(requestId, error));
+}
+
 export default async function handler(req, res) {
   const requestId = requestIdFrom(req);
   if (typeof res.setHeader === 'function') res.setHeader('X-Request-Id', requestId);
   if (req.method === 'GET') {
     if (!process.env.ANTHROPIC_API_KEY) {
-      res.status(503).json({ error: 'not_configured' });
+      fail(res, 503, 'not_configured', requestId);
       return;
     }
     try {
       assertUnderCap();
     } catch {
-      res.status(402).json({ error: 'spend_cap' });
+      fail(res, 402, 'spend_cap', requestId);
       return;
     }
     res.status(204).end();
     return;
   }
   if (req.method !== 'POST') {
-    res.status(405).json({ error: 'method_not_allowed' });
+    fail(res, 405, 'method_not_allowed', requestId);
     return;
   }
   const bodyBytes = Buffer.byteLength(JSON.stringify(req.body ?? {}));
   if (bodyBytes > MAX_CHAT_BODY_BYTES) {
-    res.status(413).json({ error: 'payload_too_large', message: 'That request is too large.' });
+    fail(res, 413, 'payload_too_large', requestId);
     return;
   }
   const { message, history, focus } = req.body || {};
   if (!message || typeof message !== 'string' || !message.trim()) {
-    res.status(400).json({ error: 'empty_message', message: 'That message is empty.' });
+    fail(res, 400, 'empty_message', requestId);
     return;
   }
   if (messageTooLong(message)) {
-    res.status(400).json({ error: 'message_too_long', message: 'That message is too long.' });
+    fail(res, 400, 'message_too_long', requestId);
     return;
   }
   if (!process.env.ANTHROPIC_API_KEY) {
-    res.status(503).json({ error: 'not_configured' });
+    fail(res, 503, 'not_configured', requestId);
     return;
   }
   try {
     assertUnderCap();
   } catch (err) {
-    res.status(402).json({ requestId, error: 'spend_cap', message: err.message });
+    fail(res, 402, 'spend_cap', requestId);
     return;
   }
   try {
     rateLimit(req, { name: 'chat', max: 12, windowMs: 60_000 });
   } catch (err) {
     if (!(err instanceof AppError)) throw err;
-    res.status(429).json({ requestId, error: err.code, message: err.userMessage });
+    res.status(429).json(errorBody(requestId, err.code, err.userMessage));
     return;
   }
   const focusNorm = normalizeFocus(focus);
@@ -111,7 +115,7 @@ export default async function handler(req, res) {
     system = openClipPreamble(delivered, focusNorm);
   } catch (err) {
     logEvent({ level: 'error', requestId, route: 'chat', code: 'library_unavailable', error: String(err?.message || err) });
-    res.status(502).json({ requestId, error: 'library_unavailable', message: 'Your Library is unavailable. Try again in a moment.' });
+    res.status(502).json(errorBody(requestId, 'library_unavailable'));
     return;
   }
 

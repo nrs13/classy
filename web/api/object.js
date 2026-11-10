@@ -2,6 +2,8 @@ import { createReadStream, existsSync, statSync } from 'node:fs';
 import { dirname, join, normalize, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { verifyMedia } from '../server/media.js';
+import { errorBody } from '../server/obs/errors.js';
+import { requestIdFrom } from '../server/obs/log.js';
 
 function objectRoot() {
   const here = dirname(fileURLToPath(import.meta.url));
@@ -10,24 +12,33 @@ function objectRoot() {
 
 const TYPES = { mp4: 'video/mp4', sprite: 'image/jpeg' };
 
+function deny(res, status, error, requestId) {
+  const body = JSON.stringify(errorBody(requestId, error));
+  res.writeHead(status, {
+    'Content-Type': 'application/json',
+    'Cache-Control': 'no-store',
+    'Content-Length': Buffer.byteLength(body),
+    'X-Request-Id': requestId,
+  });
+  res.end(body);
+}
+
 export default async function handler(req, res) {
+  const requestId = requestIdFrom(req);
   if (req.method !== 'GET') {
-    res.writeHead(405);
-    res.end();
+    deny(res, 405, 'method_not_allowed', requestId);
     return;
   }
   const token = new URL(req.url || '', 'http://localhost').searchParams.get('token');
   const payload = verifyMedia(token);
   if (!payload?.objectKey) {
-    res.writeHead(403);
-    res.end();
+    deny(res, 403, 'forbidden', requestId);
     return;
   }
   const root = objectRoot();
   const path = normalize(join(root, payload.objectKey));
   if (!path.startsWith(root) || !existsSync(path)) {
-    res.writeHead(404);
-    res.end();
+    deny(res, 404, 'not_found', requestId);
     return;
   }
   const stat = statSync(path);

@@ -1,5 +1,7 @@
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { MAX_CHAT_BODY_BYTES } from './src/lib/chatLimits.js';
+import { errorBody } from './server/obs/errors.js';
+import { requestIdFrom } from './server/obs/log.js';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -120,9 +122,12 @@ export function classyChatApi() {
         const file = ROUTES[path];
         if (!file) {
           if (path?.startsWith('/api/')) {
+            const requestId = requestIdFrom(req);
             res.statusCode = 404;
             res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({ error: 'not_found' }));
+            res.setHeader('Cache-Control', 'no-store');
+            res.setHeader('X-Request-Id', requestId);
+            res.end(JSON.stringify(errorBody(requestId, 'unknown_route')));
             return;
           }
           next();
@@ -150,15 +155,11 @@ export function classyChatApi() {
           const tooBig = err?.statusCode === 413;
           if (!tooBig) console.error('[classy api]', err?.name || 'Error');
           if (!res.headersSent) {
+            const requestId = requestIdFrom(req);
             res.statusCode = tooBig ? 413 : 500;
             res.setHeader('Content-Type', 'application/json');
-            res.end(
-              JSON.stringify(
-                tooBig
-                  ? { error: 'payload_too_large', message: 'That request is too large.' }
-                  : { error: 'api_handler_failed' },
-              ),
-            );
+            res.setHeader('X-Request-Id', requestId);
+            res.end(JSON.stringify(errorBody(requestId, tooBig ? 'payload_too_large' : 'api_handler_failed')));
           }
         }
       });

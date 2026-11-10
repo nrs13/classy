@@ -10,7 +10,19 @@ const USER_COPY = {
   media_unavailable: "This video can't play right now.",
   queue_unavailable: 'The queue is unavailable. Try again in a moment.',
   rate_limited: 'Too many requests. Wait a moment and try again.',
+  not_configured: 'Chat is paused in this demo.',
+  spend_cap: 'Chat is paused in this demo.',
+  payload_too_large: 'That request is too large.',
+  empty_message: 'That message is empty.',
+  message_too_long: 'That message is too long.',
+  unknown_route: 'That request was not found.',
+  api_handler_failed: 'That request could not be completed.',
+  forbidden: "This video can't play right now.",
 };
+
+export function errorBody(requestId, error, message) {
+  return { requestId, error, message: message || userMessage(error) };
+}
 
 export class AppError extends Error {
   constructor(code, status = 400, message = '') {
