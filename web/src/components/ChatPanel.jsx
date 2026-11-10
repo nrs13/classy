@@ -13,6 +13,7 @@ import {
   toggleReplyMode,
 } from '../lib/replyModes';
 import ReplyModeGroup from './ReplyModeGroup';
+import { acceptSend } from '../lib/chatLimits';
 
 const OFFLINE_REPLY =
   "classy isn't listening yet. try one of these instead:";
@@ -43,6 +44,7 @@ export default function ChatPanel({
   const stickRef = useRef(true);
   const chatAbort = useRef(null);
   const sendGen = useRef(0);
+  const busyRef = useRef(false);
   const suggestionKey = suggestionVideoIds.join('|');
 
   const toggleMode = useCallback((id) => {
@@ -134,9 +136,17 @@ export default function ChatPanel({
     }
   }
 
+  function releaseSend(gen) {
+    if (gen !== sendGen.current) return;
+    busyRef.current = false;
+    setBusy(false);
+  }
+
   async function send(text) {
     const q = (text ?? input).trim();
-    if (!q || busy) return;
+    if (!acceptSend(busyRef.current, q)) return;
+    busyRef.current = true;
+    setBusy(true);
     setInput('');
     setShowOfflineHints(false);
     stickRef.current = true;
@@ -151,7 +161,10 @@ export default function ChatPanel({
     let ready = chatReady;
     if (!ready) {
       const status = await checkChatBackend(ctrl.signal);
-      if (gen !== sendGen.current || status === 'aborted') return;
+      if (gen !== sendGen.current || status === 'aborted') {
+        releaseSend(gen);
+        return;
+      }
       const up = status === 'ready';
       setBackendReady(up);
       ready = Boolean(knowledge && up);
@@ -168,9 +181,9 @@ export default function ChatPanel({
       });
       setShowOfflineHints(true);
       setSuggestSeed((n) => n + 1);
+      releaseSend(gen);
       return;
     }
-    setBusy(true);
     try {
       let acc = '';
       let usedModel = null;
@@ -235,10 +248,8 @@ export default function ChatPanel({
         return copy;
       });
     } finally {
-      if (gen === sendGen.current) {
-        setBusy(false);
-        setSuggestSeed((n) => n + 1);
-      }
+      if (gen === sendGen.current) setSuggestSeed((n) => n + 1);
+      releaseSend(gen);
     }
   }
 
