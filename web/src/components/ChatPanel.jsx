@@ -13,7 +13,7 @@ import {
   toggleReplyMode,
 } from '../lib/replyModes';
 import ReplyModeGroup from './ReplyModeGroup';
-import { acceptSend } from '../lib/chatLimits';
+import { acceptSend, retryTurn } from '../lib/chatLimits';
 
 const OFFLINE_REPLY =
   "classy isn't listening yet. try one of these instead:";
@@ -39,6 +39,7 @@ export default function ChatPanel({
   const [suggestSeed, setSuggestSeed] = useState(0);
   const [backendReady, setBackendReady] = useState(null);
   const [replyModes, setReplyModes] = useState(DEFAULT_REPLY_MODES);
+  const [retryArmed, setRetryArmed] = useState(false);
   const scrollRef = useRef(null);
   const textareaRef = useRef(null);
   const stickRef = useRef(true);
@@ -119,6 +120,7 @@ export default function ChatPanel({
   async function clearChat() {
     if (busy) return;
     setMessages([]);
+    setRetryArmed(false);
     setShowOfflineHints(false);
     setInput('');
     setShowJump(false);
@@ -136,28 +138,40 @@ export default function ChatPanel({
     }
   }
 
+  function stop() {
+    chatAbort.current?.abort();
+  }
+
+  function retry() {
+    const turn = retryTurn(messages);
+    if (!turn || busyRef.current) return;
+    setRetryArmed(false);
+    send(turn.text, { prior: turn.prior });
+  }
+
   function releaseSend(gen) {
     if (gen !== sendGen.current) return;
     busyRef.current = false;
     setBusy(false);
   }
 
-  async function send(text) {
+  async function send(text, { prior } = {}) {
     const q = (text ?? input).trim();
     if (!acceptSend(busyRef.current, q)) return;
     busyRef.current = true;
     setBusy(true);
+    setRetryArmed(false);
     setInput('');
     setShowOfflineHints(false);
     stickRef.current = true;
     setShowJump(false);
-    const priorMessages = messages;
+    const priorMessages = prior ?? messages;
     const gen = sendGen.current + 1;
     sendGen.current = gen;
     chatAbort.current?.abort();
     const ctrl = new AbortController();
     chatAbort.current = ctrl;
-    setMessages((m) => [...m, { role: 'user', text: q }, { role: 'assistant', text: '' }]);
+    setMessages(() => [...priorMessages, { role: 'user', text: q }, { role: 'assistant', text: '' }]);
     let ready = chatReady;
     if (!ready) {
       const status = await checkChatBackend(ctrl.signal);
@@ -235,9 +249,22 @@ export default function ChatPanel({
         return copy;
       });
     } catch (err) {
-      if (err?.name === 'AbortError' || err?.code === 'ABORTED' || gen !== sendGen.current) return;
+      if (gen !== sendGen.current) return;
+      if (err?.name === 'AbortError' || err?.code === 'ABORTED') {
+        setRetryArmed(true);
+        setMessages((m) => {
+          const copy = [...m];
+          const last = copy[copy.length - 1];
+          if (last?.role !== 'assistant') return copy;
+          if (!last.text) copy.pop();
+          else copy[copy.length - 1] = { ...last, error: true };
+          return copy;
+        });
+        return;
+      }
       console.error('[ask classy]', err);
       const text = formatChatError(err);
+      setRetryArmed(true);
       setMessages((m) => {
         const copy = [...m];
         copy[copy.length - 1] = {
@@ -447,14 +474,25 @@ export default function ChatPanel({
                   : 'Message ask classy. Enter to send, Shift+Enter for newline'
               }
             />
+            {retryArmed && !busy && (
+              <button
+                type="button"
+                onClick={retry}
+                className="chat-send-btn text-[13px]"
+                aria-label="Retry"
+              >
+                Retry
+              </button>
+            )}
             <button
               type="button"
-              onClick={() => send()}
-              disabled={busy || !input.trim()}
+              onClick={busy ? stop : () => send()}
+              disabled={!busy && !input.trim()}
               className="chat-send-btn btn-primary text-[13px]"
-              title="Send message"
+              aria-label={busy ? 'Stop reply' : 'Send'}
+              title={busy ? 'Stop' : 'Send message'}
             >
-              Send
+              {busy ? 'Stop' : 'Send'}
             </button>
           </div>
         </div>
