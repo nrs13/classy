@@ -260,7 +260,6 @@ select {
   border-color: var(--accent-cool);
 }
 
-/* pressed = selected */
 .mode-tab:active:not(.active),
 .mode-tab.active,
 .mode-tab.active:hover {
@@ -1923,12 +1922,6 @@ select {
   letter-spacing: 0.06em;
 }
 
-.brand-tagline {
-  font-family: var(--font-ui);
-  font-weight: var(--weight-caption);
-  color: var(--text-secondary);
-}
-
 .time-readout {
   font-weight: var(--weight-caption);
   color: var(--text-secondary);
@@ -3255,7 +3248,6 @@ select {
   color: var(--text-tertiary);
 }
 
-/* Search field: one component for the rail and the Search page */
 .sf {
   position: relative;
   display: flex;
@@ -3472,7 +3464,6 @@ select {
   outline-offset: 2px;
 }
 
-/* Rail */
 .rail-search {
   padding: 4px 16px 10px;
 }
@@ -3574,7 +3565,6 @@ select {
   padding: 4px 12px;
 }
 
-/* Frames cut from a video's sprite */
 .frame {
   position: relative;
   display: block;
@@ -3593,7 +3583,6 @@ select {
   pointer-events: none;
 }
 
-/* Search page */
 .search-view {
   max-width: 820px;
   margin: 0 auto;
@@ -3795,7 +3784,6 @@ select {
   text-decoration-color: currentColor;
 }
 
-/* Results */
 .sr-list {
   display: flex;
   flex-direction: column;
@@ -4104,7 +4092,6 @@ select {
   width: 64%;
 }
 
-/* Idle, empty and failure states */
 .sx-idle {
   display: flex;
   flex-direction: column;
