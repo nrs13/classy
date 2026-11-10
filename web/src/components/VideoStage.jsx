@@ -201,47 +201,40 @@ export default function VideoStage({
   }, [video.id]);
 
   useEffect(() => {
-    let alive = true;
+    const ctrl = new AbortController();
     setActivation(null);
-    loadActivation(video, brain).then((a) => {
-      if (!alive) return;
-      setActivation(a);
+    loadActivation(video, brain, { signal: ctrl.signal }).then((a) => {
+      if (!ctrl.signal.aborted) setActivation(a);
     });
-    return () => {
-      alive = false;
-    };
+    return () => ctrl.abort();
   }, [video.id, brain]);
 
   useEffect(() => {
-    let alive = true;
+    const ctrl = new AbortController();
     setPackedSeconds(null);
-    fetch(`/api/seconds?id=${encodeURIComponent(video.id)}`)
+    fetch(`/api/seconds?id=${encodeURIComponent(video.id)}`, { signal: ctrl.signal })
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
-        if (alive) setPackedSeconds(data);
+        if (!ctrl.signal.aborted) setPackedSeconds(data);
       })
       .catch(() => {
-        if (alive) setPackedSeconds(null);
+        if (!ctrl.signal.aborted) setPackedSeconds(null);
       });
-    return () => {
-      alive = false;
-    };
+    return () => ctrl.abort();
   }, [video.id]);
 
   useEffect(() => {
-    let alive = true;
+    const ctrl = new AbortController();
     setMediaSrc('');
-    fetch(`/api/media?id=${encodeURIComponent(video.id)}&kind=mp4`)
+    fetch(`/api/media?id=${encodeURIComponent(video.id)}&kind=mp4`, { signal: ctrl.signal })
       .then((res) => (res.ok ? res.json() : null))
       .then((body) => {
-        if (alive && body?.url) setMediaSrc(body.url);
+        if (!ctrl.signal.aborted && body?.url) setMediaSrc(body.url);
       })
       .catch(() => {
-        if (alive) setMediaSrc('');
+        if (!ctrl.signal.aborted) setMediaSrc('');
       });
-    return () => {
-      alive = false;
-    };
+    return () => ctrl.abort();
   }, [video.id]);
 
   function applyProgress(p, { forceState = false } = {}) {

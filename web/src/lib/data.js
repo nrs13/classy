@@ -2,8 +2,13 @@ import { IcosahedronGeometry } from 'three';
 
 const DATA = '/data';
 
-async function fetchArrayBuffer(url) {
-  const res = await fetch(url);
+async function fetchArrayBuffer(url, signal) {
+  const res = await fetch(url, { signal });
+  if (signal?.aborted) {
+    const err = new Error('aborted');
+    err.name = 'AbortError';
+    throw err;
+  }
   if (!res.ok) throw new Error(`${url}: ${res.status}`);
   const ct = res.headers.get('content-type') || '';
   if (ct.includes('text/html')) throw new Error(`${url}: not found (html fallback)`);
@@ -75,14 +80,14 @@ export async function loadCatalog() {
   };
 }
 
-export async function loadActivation(video, brain) {
-  if (!video?.id || !brain || brain.synthetic) return null;
+export async function loadActivation(video, brain, { signal } = {}) {
+  if (!video?.id || !brain || brain.synthetic || signal?.aborted) return null;
   try {
-    const meta = await fetch(`/api/media?id=${encodeURIComponent(video.id)}&kind=act`);
-    if (!meta.ok) return null;
+    const meta = await fetch(`/api/media?id=${encodeURIComponent(video.id)}&kind=act`, { signal });
+    if (signal?.aborted || !meta.ok) return null;
     const body = await meta.json();
     if (!body?.url) return null;
-    const data = new Uint8Array(await fetchArrayBuffer(body.url));
+    const data = new Uint8Array(await fetchArrayBuffer(body.url, signal));
     const n = brain.vertexCount;
     const frames = n > 0 ? Math.round(data.length / n) : 0;
     if (frames > 0 && data.length === frames * n) {
