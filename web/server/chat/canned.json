@@ -1,0 +1,42 @@
+[
+  {
+    "videoId": "v002",
+    "question": "How did v002 reach 5,443× amplification from 5,750 followers?",
+    "answer": "Amplification is plays divided by followers. v002 has 31,300,000 plays and 5,750 followers, which is 5,443×, so the tier is breakout. The ratio is not a cause. This pack is N=97."
+  },
+  {
+    "videoId": "v002",
+    "question": "v002's mean cortical activation peaks late at second 6 of ~7. Does that match its breakout outcome?",
+    "answer": "The mean cortical activation peaks at second 6 of a clip about 7 seconds long. The peak mean absolute activation is 0.0710. Breakout comes from the public play count, 31,300,000, not from the peak time. The peak time does not explain the tier. N=97."
+  },
+  {
+    "videoId": "v002",
+    "question": "v002's Visual lead over Dorsal Attention is wide (0.1260 vs 0.0697). What do ranks 2 and 3 add beyond the baseline?",
+    "answer": "Visual is rank 1 at 0.1260. Rank 2 is Dorsal Attention at 0.0697 and rank 3 is Somatomotor at 0.0664. Those are the next two predicted Yeo-7 means. They do not replace Visual, and a mean is not a cause. N=97."
+  },
+  {
+    "videoId": "v002",
+    "question": "What are the biggest caveats of this analysis at N=97?",
+    "answer": "The pack is 97 videos. Amplification is plays divided by followers. The activation is a predicted encoding, not a measured brain. A network mean or a peak time does not show that a line, a face, or a cut caused the plays."
+  },
+  {
+    "videoId": "v002",
+    "question": "How is amplification computed for v002? Show the numbers (31,300,000 plays / 5,750 followers).",
+    "answer": "Amplification is plays divided by followers. For v002 that is 31,300,000 plays divided by 5,750 followers, which is 5,443×. N=97."
+  },
+  {
+    "videoId": "v002",
+    "question": "What's v002's peak mean cortical activation, and when does it occur?",
+    "answer": "The peak mean absolute cortical activation is 0.0710, at second 6 of a clip about 7 seconds long."
+  },
+  {
+    "videoId": "v002",
+    "question": "What does v002's sustain_ratio of 1 say about its activation timeline?",
+    "answer": "sustain_ratio is the share of post-hook frames at or above half the peak. A value of 1 means every post-hook frame in this timeline stayed at or above half the peak. It does not say the plays were caused by that shape. N=97."
+  },
+  {
+    "videoId": "v002",
+    "question": "How does v002's hook slope (0.0061) compare across this N=97 pack?",
+    "answer": "v002's hook slope is 0.0061. Across the 97 clips the lowest is -0.0207, the median is 0.0009, and the highest is 0.0164. 0.0061 is 24th highest. The breakout tier still comes from 31,300,000 plays, not from the hook slope."
+  }
+]
