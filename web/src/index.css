@@ -2170,6 +2170,7 @@ select {
 }
 
 .chat-composer.is-mobile .composer-mode {
+  min-height: 44px;
   padding: 10px 5px;
 }
 

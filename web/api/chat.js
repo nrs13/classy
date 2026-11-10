@@ -1,14 +1,15 @@
 import {
   deliverOpenClip,
   normalizeFocus,
-  openClipPreamble,
 } from '../src/lib/prompt.js';
+import { buildSystemPrompt } from '../server/chat/promptBlocks.js';
 import { openKnowledge } from '../server/chat/knowledge.js';
 import { resolveChatConfig, streamProvider, ChatProviderError } from '../server/chat/provider.js';
 import { CANNED_ONLY, CHAT_PAUSED, chatMode, chatStatus, liveFallbackText, matchCanned } from '../server/chat/mode.js';
 import { assertUnderCap, recordUsage } from '../server/chat/spend.js';
-import { rateLimit } from '../server/http.js';
-import { MAX_CHAT_BODY_BYTES, MAX_HISTORY_MESSAGES, MAX_MESSAGE_CHARS, messageTooLong } from '../src/lib/chatLimits.js';
+import { MAX_CHAT_BODY_BYTES, MAX_HISTORY_MESSAGES, MAX_MESSAGE_CHARS, messageTooLong, messageTooShort } from '../src/lib/chatLimits.js';
+import { chatCacheKey, readChatCache, writeChatCache } from '../server/chat/cache.js';
+import { CHAT_TIMEOUT_MS, MAX_OUTPUT_TOKENS, chatGuardFor, clientIp } from '../server/chat/guard.js';
 import { AppError, errorBody } from '../server/obs/errors.js';
 import { logEvent, requestIdFrom } from '../server/obs/log.js';
 
@@ -77,6 +78,10 @@ export default async function handler(req, res) {
     fail(res, 400, 'message_too_long', requestId);
     return;
   }
+  if (messageTooShort(message)) {
+    fail(res, 400, 'message_too_short', requestId);
+    return;
+  }
   if (mode === 'off') {
     refuse(res, CHAT_PAUSED);
     return;
@@ -98,10 +103,20 @@ export default async function handler(req, res) {
     return;
   }
   }
+  const cached = readChatCache(chatCacheKey(message, focusNorm));
+  if (cached) {
+    refuse(res, cached);
+    return;
+  }
   try {
-    rateLimit(req, { name: 'chat', max: 12, windowMs: 60_000 });
+    chatGuardFor().take(clientIp(req));
   } catch (err) {
     if (!(err instanceof AppError)) throw err;
+    const stored = matchCanned(message, focusNorm);
+    if (stored) {
+      refuse(res, stored);
+      return;
+    }
     res.status(429).json(errorBody(requestId, err.code, err.userMessage));
     return;
   }
@@ -113,7 +128,7 @@ export default async function handler(req, res) {
       return;
     }
     const delivered = deliverOpenClip(opened.knowledge, focusNorm);
-    system = openClipPreamble(delivered, focusNorm);
+    system = buildSystemPrompt(delivered, focusNorm);
   } catch (err) {
     logEvent({ level: 'error', requestId, route: 'chat', code: 'library_unavailable', error: String(err?.message || err) });
     res.status(502).json(errorBody(requestId, 'library_unavailable'));
@@ -131,11 +146,13 @@ export default async function handler(req, res) {
   });
 
   let announced = false;
+  let acc = '';
   try {
     for await (const event of streamProvider(chatConfig, {
       system,
       messages,
-      maxOutputTokens: 4096,
+      maxOutputTokens: MAX_OUTPUT_TOKENS,
+      timeoutMs: CHAT_TIMEOUT_MS,
       signal: abort.signal,
     })) {
       if (event.type === 'text') {
@@ -143,6 +160,7 @@ export default async function handler(req, res) {
           announced = true;
           send(res, { type: 'meta', model: event.model });
         }
+        acc += event.text || '';
         send(res, { type: 'text', text: event.text });
       } else if (event.type === 'usage' && chatConfig.provider === 'anthropic') {
         recordUsage(event.model, event.usage);
@@ -150,6 +168,7 @@ export default async function handler(req, res) {
         send(res, { type: 'error', code: 'refusal', message: 'the model declined to answer that.' });
       }
     }
+    if (acc.trim()) writeChatCache(chatCacheKey(message, focusNorm), acc);
     send(res, { type: 'done' });
     res.end();
   } catch (err) {

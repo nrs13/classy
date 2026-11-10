@@ -5,7 +5,7 @@ export const REPLY_MODES = [
     hint: 'hooks & creative',
     placeholder: 'ask about hooks…',
     register:
-      'MARKETING. Marketing/UGC language: hooks, formats, payoff, what to replicate. Keep numbers accurate but secondary. No jargon for its own sake.',
+      'Marketing. Give practical hook and creative advice, and what to try next, in plain language.',
   },
   {
     id: 'analytics',
@@ -13,7 +13,7 @@ export const REPLY_MODES = [
     hint: 'metrics & rankings',
     placeholder: 'ask about rankings…',
     register:
-      'ANALYTICS. Analyst language: rankings, deltas, ratios, plain-text arithmetic. Lead with evidence and comparison across the full set.',
+      'Analytics. Give exact numbers, comparisons between clips, ranges, and caveats. Make no claim beyond the data.',
   },
   {
     id: 'research',
@@ -21,7 +21,7 @@ export const REPLY_MODES = [
     hint: 'brain & method',
     placeholder: 'ask about networks…',
     register:
-      'RESEARCH. Neuroscience and methods literacy: predicted encoding, Yeo-7 networks, caveats. Never overclaim causality.',
+      'Research. Explain how the metric is computed, the assumptions and limits, and what the data cannot show.',
   },
 ];
 
