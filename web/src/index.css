@@ -4327,6 +4327,36 @@ select {
   }
 }
 
+.app-error {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 12px;
+  padding: 32px 24px;
+  color: var(--text-primary);
+  background: var(--bg);
+}
+
+.app-error p {
+  margin: 0;
+  max-width: 28rem;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.app-error button {
+  align-self: flex-start;
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .sf.is-busy .sf-progress::after,
   .sf-spinner,
