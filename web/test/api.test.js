@@ -270,6 +270,9 @@ test('media: a sprite redirects to a signed object URL that can be cached briefl
 });
 
 test('chat refuses videos that are not open or not in the Library', async () => {
+  const prev = process.env.CHAT_PROVIDER;
+  process.env.CHAT_PROVIDER = 'anthropic';
+  try {
   const none = await call(api.chat, { method: 'POST', url: '/api/chat', body: { message: 'hi', focus: null } });
   assert.equal(sseText(none), 'Open a video first.');
   for (const ids of [['v003'], ['x1'], ['v001', '../v002']]) {
@@ -278,4 +281,8 @@ test('chat refuses videos that are not open or not in the Library', async () => 
   }
   const empty = await call(api.chat, { method: 'POST', url: '/api/chat', body: { message: '  ' } });
   assert.equal(empty.statusCode, 400);
+  } finally {
+    if (prev === undefined) delete process.env.CHAT_PROVIDER;
+    else process.env.CHAT_PROVIDER = prev;
+  }
 });

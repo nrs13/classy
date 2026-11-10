@@ -1,18 +1,15 @@
-import Anthropic from '@anthropic-ai/sdk';
 import {
   deliverOpenClip,
   normalizeFocus,
   openClipPreamble,
 } from '../src/lib/prompt.js';
 import { openKnowledge } from '../server/chat/knowledge.js';
+import { resolveChatConfig, streamProvider, ChatProviderError } from '../server/chat/provider.js';
 import { assertUnderCap, recordUsage } from '../server/chat/spend.js';
 import { rateLimit } from '../server/http.js';
 import { MAX_CHAT_BODY_BYTES, MAX_HISTORY_MESSAGES, MAX_MESSAGE_CHARS, messageTooLong } from '../src/lib/chatLimits.js';
 import { AppError, errorBody } from '../server/obs/errors.js';
 import { logEvent, requestIdFrom } from '../server/obs/log.js';
-
-export const PRIMARY_MODEL = process.env.CLASSY_MODEL || 'claude-opus-5';
-export const FALLBACK_MODEL = 'claude-haiku-4-5';
 
 function refuse(res, text) {
   res.writeHead(200, {
@@ -54,16 +51,19 @@ function fail(res, status, error, requestId) {
 export default async function handler(req, res) {
   const requestId = requestIdFrom(req);
   if (typeof res.setHeader === 'function') res.setHeader('X-Request-Id', requestId);
+  const chatConfig = resolveChatConfig();
   if (req.method === 'GET') {
-    if (!process.env.ANTHROPIC_API_KEY) {
+    if (!chatConfig.apiKey) {
       fail(res, 503, 'not_configured', requestId);
       return;
     }
-    try {
-      assertUnderCap();
-    } catch {
-      fail(res, 402, 'spend_cap', requestId);
-      return;
+    if (chatConfig.provider === 'anthropic') {
+      try {
+        assertUnderCap();
+      } catch {
+        fail(res, 402, 'spend_cap', requestId);
+        return;
+      }
     }
     res.status(204).end();
     return;
@@ -86,15 +86,17 @@ export default async function handler(req, res) {
     fail(res, 400, 'message_too_long', requestId);
     return;
   }
-  if (!process.env.ANTHROPIC_API_KEY) {
+  if (!chatConfig.apiKey) {
     fail(res, 503, 'not_configured', requestId);
     return;
   }
+  if (chatConfig.provider === 'anthropic') {
   try {
     assertUnderCap();
-  } catch (err) {
+  } catch {
     fail(res, 402, 'spend_cap', requestId);
     return;
+  }
   }
   try {
     rateLimit(req, { name: 'chat', max: 12, windowMs: 60_000 });
@@ -119,9 +121,9 @@ export default async function handler(req, res) {
     return;
   }
 
-  const client = new Anthropic();
   const messages = toAnthropicMessages(history, message);
-  const chain = PRIMARY_MODEL === FALLBACK_MODEL ? [PRIMARY_MODEL] : [PRIMARY_MODEL, FALLBACK_MODEL];
+  const abort = new AbortController();
+  req.on?.('aborted', () => abort.abort());
 
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
@@ -129,55 +131,49 @@ export default async function handler(req, res) {
     Connection: 'keep-alive',
   });
 
-  for (let i = 0; i < chain.length; i++) {
-    const model = chain[i];
-    const isLast = i === chain.length - 1;
-    let announced = false;
-    try {
-      const stream = client.messages.stream({
-        model,
-        max_tokens: 4096,
-        ...(model.startsWith('claude-haiku')
-          ? {}
-          : { output_config: { effort: process.env.CLASSY_EFFORT || 'low' } }),
-        system: [
-          {
-            type: 'text',
-            text: system,
-            cache_control: { type: 'ephemeral' },
-          },
-        ],
-        messages,
-      });
-      for await (const event of stream) {
-        if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
-          if (!announced) {
-            announced = true;
-            send(res, { type: 'meta', model });
-          }
-          send(res, { type: 'text', text: event.delta.text });
+  let announced = false;
+  try {
+    for await (const event of streamProvider(chatConfig, {
+      system,
+      messages,
+      maxOutputTokens: 4096,
+      signal: abort.signal,
+    })) {
+      if (event.type === 'text') {
+        if (!announced) {
+          announced = true;
+          send(res, { type: 'meta', model: event.model });
         }
-      }
-      const final = await stream.finalMessage();
-      recordUsage(model, final.usage);
-      if (final.stop_reason === 'refusal') {
+        send(res, { type: 'text', text: event.text });
+      } else if (event.type === 'usage' && chatConfig.provider === 'anthropic') {
+        recordUsage(event.model, event.usage);
+      } else if (event.type === 'refusal') {
         send(res, { type: 'error', code: 'refusal', message: 'the model declined to answer that.' });
       }
-      send(res, { type: 'done' });
-      res.end();
-      return;
-    } catch (err) {
-      const isQuota = err instanceof Anthropic.RateLimitError || err?.status === 429;
-      if (isQuota && !isLast && !announced) continue;
-      logEvent({ level: 'error', requestId, route: 'chat', model, status: err?.status, error: String(err?.message || err).slice(0, 2000) });
-      send(res, {
-        type: 'error',
-        code: isQuota ? 'quota' : 'api_error',
-        message: err?.status === 401 || err?.status === 403 ? 'api key rejected' : 'the assistant is unavailable right now',
-      });
-      send(res, { type: 'done' });
-      res.end();
+    }
+    send(res, { type: 'done' });
+    res.end();
+  } catch (err) {
+    if (err?.name === 'AbortError' || err?.code === 'ABORTED') {
+      if (!res.writableEnded) res.end();
       return;
     }
+    const errorType = err instanceof ChatProviderError ? err.errorType : 'server';
+    const status = err instanceof ChatProviderError ? err.status : 0;
+    logEvent({
+      level: 'error',
+      requestId,
+      route: 'chat',
+      provider: chatConfig.provider,
+      status,
+      errorType,
+    });
+    send(res, {
+      type: 'error',
+      code: errorType === 'quota' ? 'quota' : 'api_error',
+      message: errorType === 'auth' ? 'api key rejected' : 'the assistant is unavailable right now',
+    });
+    send(res, { type: 'done' });
+    res.end();
   }
 }
