@@ -1,7 +1,14 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { CHAT_PRIVACY } from '../src/lib/ai.js';
-import { CHAT_PAUSED, chatMode, chatStatus, liveFallbackText, matchCanned } from '../server/chat/mode.js';
+import {
+  CHAT_PAUSED,
+  REGION_CANNED_NOTICE,
+  chatMode,
+  chatStatus,
+  liveFallbackText,
+  matchCanned,
+} from '../server/chat/mode.js';
 
 process.env.CLASSY_LOG = 'off';
 
@@ -37,7 +44,8 @@ test('the live privacy note uses the unpaid-services wording', () => {
     CHAT_PRIVACY,
     /provide, improve, and develop Google products and services and machine learning technologies/,
   );
-  assert.equal(chatStatus({ CHAT_MODE: 'live', GEMINI_CHAT_API_KEY: 'present' }).privacy, true);
+  assert.equal(chatStatus({ CHAT_MODE: 'live', GEMINI_CHAT_API_KEY: 'present' }, 'US').privacy, true);
+  assert.equal(chatStatus({ CHAT_MODE: 'live', GEMINI_CHAT_API_KEY: 'present' }, 'FR').privacy, false);
   assert.equal(chatStatus({ CHAT_MODE: 'canned' }).privacy, false);
   assert.equal(chatStatus({ CHAT_MODE: 'off' }).privacy, false);
 });
@@ -48,8 +56,9 @@ test('a missing or invalid chat mode is off', () => {
   assert.equal(chatMode({ CHAT_MODE: 'sometimes' }), 'off');
   assert.equal(chatMode({ CHAT_MODE: 'LIVE' }), 'live');
   assert.equal(chatMode({ CHAT_MODE: 'canned' }), 'canned');
-  assert.equal(chatStatus({ CHAT_MODE: 'live' }).ready, false);
-  assert.equal(chatStatus({ CHAT_MODE: 'live', GEMINI_CHAT_API_KEY: 'present' }).ready, true);
+  assert.equal(chatStatus({ CHAT_MODE: 'live' }, 'US').ready, false);
+  assert.equal(chatStatus({ CHAT_MODE: 'live' }).mode, 'canned');
+  assert.equal(chatStatus({ CHAT_MODE: 'live', GEMINI_CHAT_API_KEY: 'present' }, 'US').ready, true);
   assert.equal(chatStatus({ CHAT_MODE: 'canned' }).ready, true);
   assert.equal(chatStatus({}).privacy, false);
 });
@@ -93,6 +102,63 @@ test('canned mode answers from storage and does not call a model', async () => {
   assert.match(res.raw, /Only the suggested questions are answered in this demo/);
   if (prev === undefined) delete process.env.CHAT_MODE;
   else process.env.CHAT_MODE = prev;
+});
+
+test('a restricted country, and a missing country, keep live chat canned', async () => {
+  const prevMode = process.env.CHAT_MODE;
+  const prevKey = process.env.GEMINI_CHAT_API_KEY;
+  process.env.CHAT_MODE = 'live';
+  process.env.GEMINI_CHAT_API_KEY = 'present';
+  const handler = (await import('../api/chat.js')).default;
+  const cases = [
+    ['FR', 'canned', false, REGION_CANNED_NOTICE],
+    ['GB', 'canned', false, REGION_CANNED_NOTICE],
+    ['CH', 'canned', false, REGION_CANNED_NOTICE],
+    ['NP', 'live', true, ''],
+    ['US', 'live', true, ''],
+    ['', 'canned', false, REGION_CANNED_NOTICE],
+  ];
+  try {
+    for (const [country, mode, privacy, notice] of cases) {
+      const headers = country ? { 'x-vercel-ip-country': country } : {};
+      const res = sseCapture();
+      await handler({ method: 'GET', headers, url: '/api/chat' }, res);
+      assert.equal(res.body.mode, mode, country || 'missing');
+      assert.equal(res.body.privacy, privacy, country || 'missing');
+      assert.equal(res.body.notice, notice, country || 'missing');
+      assert.equal(res.body.ready, true, country || 'missing');
+    }
+    const post = sseCapture();
+    let called = false;
+    const original = globalThis.fetch;
+    globalThis.fetch = async () => {
+      called = true;
+      return { ok: true, status: 200, body: null };
+    };
+    try {
+      await handler(
+        {
+          method: 'POST',
+          headers: { 'x-vercel-ip-country': 'FR' },
+          url: '/api/chat',
+          body: { message: 'a question that is not stored', focus: { ids: ['v002'] } },
+        },
+        post,
+      );
+    } finally {
+      globalThis.fetch = original;
+    }
+    assert.equal(called, false);
+    assert.match(post.raw, /Only the suggested questions are answered in this demo/);
+    assert.equal(chatStatus({ CHAT_MODE: 'off' }, 'FR').mode, 'off');
+    assert.equal(chatStatus({ CHAT_MODE: 'off' }).notice, '');
+    assert.equal(chatStatus({ CHAT_MODE: 'canned' }, 'GB').notice, '');
+  } finally {
+    if (prevMode === undefined) delete process.env.CHAT_MODE;
+    else process.env.CHAT_MODE = prevMode;
+    if (prevKey === undefined) delete process.env.GEMINI_CHAT_API_KEY;
+    else process.env.GEMINI_CHAT_API_KEY = prevKey;
+  }
 });
 
 test('a live provider failure uses a stored answer, otherwise the paused line', () => {

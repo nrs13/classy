@@ -375,6 +375,7 @@ export default function ChatPanel({
           <div className="chat-subtitle text-[11px] tracking-[0.05em] mt-1">
             {chatState?.ready ? replyModeSummary(replyModes) : CHAT_PAUSED}
           </div>
+          {chatState?.notice ? <p className="chat-region-note">{chatState.notice}</p> : null}
         </div>
         <div className="chat-header-actions shrink-0">
           {messages.length > 0 && (

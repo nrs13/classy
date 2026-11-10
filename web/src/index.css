@@ -2165,6 +2165,15 @@ select {
   line-height: 34px;
 }
 
+.chat-region-note {
+  margin: 6px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--text-secondary);
+}
+
 .chat-privacy-note {
   margin: 0;
   padding: 8px 12px 10px;

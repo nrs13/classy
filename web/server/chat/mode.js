@@ -5,6 +5,18 @@ import { resolveChatConfig } from './provider.js';
 
 export const CHAT_PAUSED = 'Chat is paused in this demo.';
 export const CANNED_ONLY = 'Only the suggested questions are answered in this demo.';
+export const REGION_CANNED_NOTICE =
+  'Live chat is not available in your region. Pick a question to see an example answer.';
+
+/** EU members, the other EEA countries, Switzerland, and the UK. Free-tier chat stays canned here. */
+export const RESTRICTED_CHAT_COUNTRIES = [
+  'AT', 'BE', 'BG', 'HR', 'CY', 'CZ', 'DK', 'EE', 'FI', 'FR', 'DE', 'GR', 'HU', 'IE', 'IT',
+  'LV', 'LT', 'LU', 'MT', 'NL', 'PL', 'PT', 'RO', 'SK', 'SI', 'ES', 'SE',
+  'IS', 'LI', 'NO',
+  'CH', 'GB',
+];
+
+const RESTRICTED = new Set(RESTRICTED_CHAT_COUNTRIES);
 
 export function chatMode(env = process.env) {
   const raw = String(env.CHAT_MODE ?? '').trim().toLowerCase();
@@ -12,14 +24,36 @@ export function chatMode(env = process.env) {
   return 'off';
 }
 
-export function chatStatus(env = process.env) {
-  const mode = chatMode(env);
+/** Two-letter country from x-vercel-ip-country. Missing or unusable is empty, which fails closed. */
+export function visitorCountry(headers) {
+  const raw = headers?.['x-vercel-ip-country'];
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  const code = String(value ?? '').trim().toUpperCase();
+  return /^[A-Z]{2}$/.test(code) ? code : '';
+}
+
+export function regionLimitsLive(country) {
+  return !country || RESTRICTED.has(country);
+}
+
+/** Live becomes canned for a restricted visitor, and when the country header is missing. */
+export function effectiveChatMode(env = process.env, country = '') {
+  const configured = chatMode(env);
+  if (configured === 'live' && regionLimitsLive(country)) return 'canned';
+  return configured;
+}
+
+export function chatStatus(env = process.env, country = '') {
+  const configured = chatMode(env);
+  const mode = effectiveChatMode(env, country);
   const { apiKey } = resolveChatConfig(env);
   const ready = mode === 'canned' || (mode === 'live' && Boolean(apiKey));
+  const gated = configured === 'live' && mode === 'canned';
   return {
     mode,
     ready,
     privacy: mode === 'live' && ready,
+    notice: gated ? REGION_CANNED_NOTICE : '',
   };
 }
 

@@ -5,7 +5,7 @@ import {
 import { buildSystemPrompt } from '../server/chat/promptBlocks.js';
 import { openKnowledge } from '../server/chat/knowledge.js';
 import { resolveChatConfig, streamProvider, ChatProviderError } from '../server/chat/provider.js';
-import { CANNED_ONLY, CHAT_PAUSED, chatMode, chatStatus, liveFallbackText, matchCanned } from '../server/chat/mode.js';
+import { CANNED_ONLY, CHAT_PAUSED, chatStatus, effectiveChatMode, liveFallbackText, matchCanned, visitorCountry } from '../server/chat/mode.js';
 import { assertUnderCap, recordUsage } from '../server/chat/spend.js';
 import { MAX_CHAT_BODY_BYTES, MAX_HISTORY_MESSAGES, MAX_MESSAGE_CHARS, messageTooLong, messageTooShort } from '../src/lib/chatLimits.js';
 import { chatCacheKey, readChatCache, writeChatCache } from '../server/chat/cache.js';
@@ -54,10 +54,11 @@ export default async function handler(req, res) {
   const requestId = requestIdFrom(req);
   if (typeof res.setHeader === 'function') res.setHeader('X-Request-Id', requestId);
   const chatConfig = resolveChatConfig();
-  const mode = chatMode();
+  const country = visitorCountry(req.headers);
+  const mode = effectiveChatMode(process.env, country);
   if (req.method === 'GET') {
     res.setHeader('Cache-Control', 'no-store');
-    res.status(200).json(chatStatus());
+    res.status(200).json(chatStatus(process.env, country));
     return;
   }
   if (req.method !== 'POST') {
