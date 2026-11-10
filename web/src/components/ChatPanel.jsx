@@ -41,6 +41,8 @@ export default function ChatPanel({
   const scrollRef = useRef(null);
   const textareaRef = useRef(null);
   const stickRef = useRef(true);
+  const chatAbort = useRef(null);
+  const sendGen = useRef(0);
   const suggestionKey = suggestionVideoIds.join('|');
 
   const toggleMode = useCallback((id) => {
@@ -58,6 +60,7 @@ export default function ChatPanel({
     });
     return () => {
       cancelled = true;
+      chatAbort.current?.abort();
     };
   }, []);
 
@@ -139,15 +142,22 @@ export default function ChatPanel({
     stickRef.current = true;
     setShowJump(false);
     const priorMessages = messages;
+    const gen = sendGen.current + 1;
+    sendGen.current = gen;
+    chatAbort.current?.abort();
+    const ctrl = new AbortController();
+    chatAbort.current = ctrl;
     setMessages((m) => [...m, { role: 'user', text: q }, { role: 'assistant', text: '' }]);
     let ready = chatReady;
     if (!ready) {
-      const status = await checkChatBackend();
+      const status = await checkChatBackend(ctrl.signal);
+      if (gen !== sendGen.current || status === 'aborted') return;
       const up = status === 'ready';
       setBackendReady(up);
       ready = Boolean(knowledge && up);
     }
     if (!ready) {
+      if (gen !== sendGen.current) return;
       setMessages((m) => {
         const copy = [...m];
         copy[copy.length - 1] = {
@@ -167,12 +177,14 @@ export default function ChatPanel({
       for await (const event of streamChatReply({
         priorMessages,
         message: q,
+        signal: ctrl.signal,
         focus: {
           ids: suggestionVideoIds,
           timeSec: viewMoment?.timeSec,
           modes: replyModes,
         },
       })) {
+        if (gen !== sendGen.current) return;
         if (event.type === 'meta') {
           usedModel = event.model;
           setMessages((m) => {
@@ -198,6 +210,7 @@ export default function ChatPanel({
           return copy;
         });
       }
+      if (gen !== sendGen.current) return;
       const finalText = sanitizeAssistantText(acc);
       setMessages((m) => {
         const copy = [...m];
@@ -209,6 +222,7 @@ export default function ChatPanel({
         return copy;
       });
     } catch (err) {
+      if (err?.name === 'AbortError' || err?.code === 'ABORTED' || gen !== sendGen.current) return;
       console.error('[ask classy]', err);
       const text = formatChatError(err);
       setMessages((m) => {
@@ -221,8 +235,10 @@ export default function ChatPanel({
         return copy;
       });
     } finally {
-      setBusy(false);
-      setSuggestSeed((n) => n + 1);
+      if (gen === sendGen.current) {
+        setBusy(false);
+        setSuggestSeed((n) => n + 1);
+      }
     }
   }
 

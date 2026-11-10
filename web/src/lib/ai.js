@@ -1,12 +1,13 @@
 export { sanitizeAssistantText } from './sanitizeAssistantText.js';
 
-export async function checkChatBackend() {
+export async function checkChatBackend(signal) {
   try {
-    const res = await fetch('/api/chat', { method: 'GET' });
+    const res = await fetch('/api/chat', { method: 'GET', signal });
     if (res.status === 402) return 'spend_cap';
     if (res.ok) return 'ready';
     return 'down';
   } catch {
+    if (signal?.aborted) return 'aborted';
     return 'down';
   }
 }
@@ -40,7 +41,15 @@ export function formatChatError(err) {
   return `AI error: ${clipped || 'unknown failure'}`;
 }
 
-export async function* streamChatReply({ priorMessages = [], message, focus = null }) {
+function aborted() {
+  const err = new Error('aborted');
+  err.name = 'AbortError';
+  err.code = 'ABORTED';
+  return err;
+}
+
+export async function* streamChatReply({ priorMessages = [], message, focus = null, signal } = {}) {
+  if (signal?.aborted) throw aborted();
   const history = priorMessages
     .filter((m) => m?.text && (m.role === 'user' || m.role === 'assistant') && !m.error)
     .map((m) => ({ role: m.role, text: String(m.text) }));
@@ -51,8 +60,10 @@ export async function* streamChatReply({ priorMessages = [], message, focus = nu
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ message, history, focus }),
+      signal,
     });
   } catch (err) {
+    if (err?.name === 'AbortError' || signal?.aborted) throw aborted();
     const wrapped = new Error(`chat request failed: ${err?.message || err}`);
     wrapped.code = 'NO_BACKEND';
     throw wrapped;
@@ -66,31 +77,42 @@ export async function* streamChatReply({ priorMessages = [], message, focus = nu
     throw err;
   }
 
+  if (signal?.aborted) throw aborted();
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let buffer = '';
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split('\n\n');
-    buffer = lines.pop();
-    for (const line of lines) {
-      if (!line.startsWith('data: ')) continue;
-      let event;
-      try {
-        event = JSON.parse(line.slice(6));
-      } catch {
-        continue;
-      }
-      if (event.type === 'meta' || event.type === 'text') {
-        yield event;
-      } else if (event.type === 'error') {
-        if (event.code === 'quota') throw new BothModelsQuotaError();
-        throw new Error(event.message || 'AI error');
-      } else if (event.type === 'done') {
-        return;
+  const onAbort = () => {
+    reader.cancel().catch(() => {});
+  };
+  signal?.addEventListener('abort', onAbort);
+  try {
+    while (true) {
+      if (signal?.aborted) throw aborted();
+      const { done, value } = await reader.read();
+      if (signal?.aborted) throw aborted();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n\n');
+      buffer = lines.pop();
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        let event;
+        try {
+          event = JSON.parse(line.slice(6));
+        } catch {
+          continue;
+        }
+        if (event.type === 'meta' || event.type === 'text') {
+          yield event;
+        } else if (event.type === 'error') {
+          if (event.code === 'quota') throw new BothModelsQuotaError();
+          throw new Error(event.message || 'AI error');
+        } else if (event.type === 'done') {
+          return;
+        }
       }
     }
+  } finally {
+    signal?.removeEventListener('abort', onAbort);
   }
 }
