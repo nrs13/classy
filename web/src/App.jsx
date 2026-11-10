@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { loadCatalog, loadBrain } from './lib/data';
+import { catalogFailurePlan, loadCatalog, loadBrain } from './lib/data';
 import VideoStage from './components/VideoStage';
 import ChatPanel from './components/ChatPanel';
 import { CompareVerdictLayout } from './components/CompareVerdict';
@@ -157,9 +157,13 @@ export default function App() {
         });
       })
       .catch((err) => {
-        if (ctrl.signal.aborted || err?.name === 'AbortError') return;
-        setCatalogError(true);
-        setManifest({ videos: [] });
+        const plan = catalogFailurePlan(err, ctrl.signal.aborted);
+        if (!plan) return;
+        setCatalogError(plan.catalogError);
+        setManifest(plan.manifest);
+        return loadBrain(plan.manifest).then((next) => {
+          if (!ctrl.signal.aborted) setBrain(next);
+        });
       });
     return () => ctrl.abort();
   }, [catalogAttempt]);

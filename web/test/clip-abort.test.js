@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { loadActivation, loadCatalog, secondsFailed } from '../src/lib/data.js';
+import { catalogFailurePlan, loadActivation, loadCatalog, secondsFailed } from '../src/lib/data.js';
 
 test('loadActivation passes the abort signal and returns nothing when cancelled', async () => {
   const original = globalThis.fetch;
@@ -33,6 +33,19 @@ test('a failed seconds load is retryable unless the clip already changed', () =>
   assert.equal(secondsFailed(new AbortController().signal, { ok: false }), true);
   assert.equal(secondsFailed(AbortSignal.abort(), { ok: false }), false);
   assert.equal(secondsFailed(new AbortController().signal, { ok: true }), false);
+});
+
+test('a catalog failure still boots the brain, and an abort does not', () => {
+  const fail = new Error('catalog');
+  fail.code = 'catalog_unavailable';
+  const plan = catalogFailurePlan(fail, false);
+  assert.equal(plan.catalogError, true);
+  assert.deepEqual(plan.manifest, { videos: [] });
+  assert.equal(plan.loadBrain, true);
+  const abort = new Error('aborted');
+  abort.name = 'AbortError';
+  assert.equal(catalogFailurePlan(abort, false), null);
+  assert.equal(catalogFailurePlan(fail, true), null);
 });
 
 test('a failed catalog load is an error the page can retry', async () => {

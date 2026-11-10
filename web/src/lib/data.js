@@ -72,6 +72,12 @@ export function secondsFailed(signal, response) {
   return !response?.ok;
 }
 
+/** Abort leaves the screen alone. Any other catalog failure still boots the mesh and shows the retry. */
+export function catalogFailurePlan(err, aborted) {
+  if (aborted || err?.name === 'AbortError') return null;
+  return { catalogError: true, manifest: { videos: [] }, loadBrain: true };
+}
+
 export async function loadCatalog(signal) {
   let res;
   try {
