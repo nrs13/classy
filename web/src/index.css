@@ -2741,23 +2741,27 @@ select {
 }
 
 .confidentiality-note {
-  margin: 0;
-  padding: 8px 24px;
-  max-width: 100%;
+  margin: 6px 0 0;
+  max-width: 42rem;
   font-family: var(--font-ui);
-  font-size: 13px;
-  font-weight: var(--weight-body);
+  font-size: 12px;
+  font-weight: var(--weight-caption);
   line-height: 1.45;
   color: var(--text-secondary);
-  background: var(--bg-subtle);
   text-align: left;
   overflow-wrap: anywhere;
 }
 
-@media (max-width: 640px) {
-  .confidentiality-note {
-    padding: 8px 16px;
-  }
+.confidentiality-note a {
+  color: inherit;
+  text-decoration-line: underline;
+  text-decoration-color: var(--text-secondary);
+  text-underline-offset: 2px;
+}
+
+.confidentiality-note a:focus-visible {
+  outline: 2px solid var(--text-primary);
+  outline-offset: 2px;
 }
 
 .compare-verdict-bar {
