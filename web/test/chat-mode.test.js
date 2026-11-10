@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { CHAT_PRIVACY } from '../src/lib/ai.js';
 import { CHAT_PAUSED, chatMode, chatStatus, liveFallbackText, matchCanned } from '../server/chat/mode.js';
 
 process.env.CLASSY_LOG = 'off';
@@ -29,6 +30,17 @@ function sseCapture() {
     },
   };
 }
+
+test('the live privacy note uses the unpaid-services wording', () => {
+  assert.match(CHAT_PRIVACY, /Google's Gemini API/);
+  assert.match(
+    CHAT_PRIVACY,
+    /provide, improve, and develop Google products and services and machine learning technologies/,
+  );
+  assert.equal(chatStatus({ CHAT_MODE: 'live', GEMINI_CHAT_API_KEY: 'present' }).privacy, true);
+  assert.equal(chatStatus({ CHAT_MODE: 'canned' }).privacy, false);
+  assert.equal(chatStatus({ CHAT_MODE: 'off' }).privacy, false);
+});
 
 test('a missing or invalid chat mode is off', () => {
   assert.equal(chatMode({}), 'off');
@@ -91,6 +103,14 @@ test('a live provider failure uses a stored answer, otherwise the paused line', 
     assert.equal(liveFallbackText(errorType, 'Tell me a secret.', focus, rows), CHAT_PAUSED);
   }
   assert.equal(liveFallbackText('api', 'How did this clip grow?', focus, rows), null);
+});
+
+test('the stored v002 answers match the suggested questions', () => {
+  const question = 'How is amplification computed for v002? Show the numbers (31,300,000 plays / 5,750 followers).';
+  const answer = matchCanned(question, { ids: ['v002'] });
+  assert.match(answer, /31,300,000/);
+  assert.match(answer, /5,750/);
+  assert.equal(matchCanned(question, { ids: ['v014'] }), null);
 });
 
 test('a canned question matches only its clip', () => {

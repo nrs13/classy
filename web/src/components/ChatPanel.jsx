@@ -3,6 +3,7 @@ import {
   chatPaused,
   checkChatBackend,
   CHAT_PAUSED,
+  CHAT_PRIVACY,
   formatChatError,
   sanitizeAssistantText,
   streamChatReply,
@@ -15,7 +16,7 @@ import {
   toggleReplyMode,
 } from '../lib/replyModes';
 import ReplyModeGroup from './ReplyModeGroup';
-import { acceptSend, capMessage, dropUnfinishedReply, retryTurn } from '../lib/chatLimits';
+import { acceptSend, capMessage, CHAT_COOLDOWN_MS, dropUnfinishedReply, retryTurn } from '../lib/chatLimits';
 
 const OFFLINE_REPLY =
   "classy isn't listening yet. try one of these instead:";
@@ -46,6 +47,8 @@ export default function ChatPanel({
   const textareaRef = useRef(null);
   const stickRef = useRef(true);
   const chatAbort = useRef(null);
+  const lastSentAt = useRef(0);
+  const [cooldownUntil, setCooldownUntil] = useState(0);
   const sendGen = useRef(0);
   const busyRef = useRef(false);
   const suggestionKey = suggestionVideoIds.join('|');
@@ -84,6 +87,14 @@ export default function ChatPanel({
     () => buildSalientSuggestions(knowledge, suggestionVideoIds, { seed: suggestSeed, count: 4 }),
     [knowledge, suggestionKey, suggestSeed],
   );
+  useEffect(() => {
+    if (!cooldownUntil) return undefined;
+    const left = cooldownUntil - Date.now();
+    if (left <= 0) return undefined;
+    const id = setTimeout(() => setCooldownUntil(0), left);
+    return () => clearTimeout(id);
+  }, [cooldownUntil]);
+
   const chatReady = Boolean(knowledge && chatState?.ready);
   const inputPaused = chatState?.ready === false;
 
@@ -174,7 +185,9 @@ export default function ChatPanel({
 
   async function send(text, { prior } = {}) {
     const q = (text ?? input).trim();
-    if (!acceptSend(busyRef.current, q)) return;
+    if (!acceptSend(busyRef.current, q, Date.now(), lastSentAt.current)) return;
+    lastSentAt.current = Date.now();
+    setCooldownUntil(lastSentAt.current + CHAT_COOLDOWN_MS);
     busyRef.current = true;
     setBusy(true);
     setRetryArmed(false);
@@ -505,7 +518,7 @@ export default function ChatPanel({
             <button
               type="button"
               onClick={busy ? stop : () => send()}
-              disabled={inputPaused || (!busy && !input.trim())}
+              disabled={inputPaused || (!busy && !acceptSend(false, input, Date.now(), cooldownUntil ? cooldownUntil - CHAT_COOLDOWN_MS : 0))}
               className="chat-send-btn btn-primary text-[13px]"
               aria-label={busy ? 'Stop reply' : 'Send'}
               title={busy ? 'Stop' : 'Send message'}
@@ -514,6 +527,9 @@ export default function ChatPanel({
             </button>
           </div>
         </div>
+        {chatState?.privacy && (
+          <p className="chat-privacy-note">{CHAT_PRIVACY}</p>
+        )}
       </div>
     </div>
   );
