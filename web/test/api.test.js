@@ -269,6 +269,39 @@ test('media: a sprite redirects to a signed object URL that can be cached briefl
   assert.equal(mp4.headers['cache-control'], 'private, no-store');
 });
 
+test('a live 429 falls back to the paused line when nothing is stored', async () => {
+  const prevMode = process.env.CHAT_MODE;
+  const prevProvider = process.env.CHAT_PROVIDER;
+  const prevKey = process.env.GEMINI_CHAT_API_KEY;
+  process.env.CHAT_MODE = 'live';
+  process.env.CHAT_PROVIDER = 'gemini';
+  process.env.GEMINI_CHAT_API_KEY = 'test-gemini-key';
+  const original = globalThis.fetch;
+  globalThis.fetch = async () => ({
+    ok: false,
+    status: 429,
+    async text() {
+      return 'RESOURCE_EXHAUSTED';
+    },
+  });
+  try {
+    const res = await call(api.chat, {
+      method: 'POST',
+      url: '/api/chat',
+      body: { message: 'What can this clip not tell us?', focus: { ids: ['v002'], timeSec: 0 } },
+    });
+    assert.equal(sseText(res), 'Chat is paused in this demo.');
+  } finally {
+    globalThis.fetch = original;
+    if (prevMode === undefined) delete process.env.CHAT_MODE;
+    else process.env.CHAT_MODE = prevMode;
+    if (prevProvider === undefined) delete process.env.CHAT_PROVIDER;
+    else process.env.CHAT_PROVIDER = prevProvider;
+    if (prevKey === undefined) delete process.env.GEMINI_CHAT_API_KEY;
+    else process.env.GEMINI_CHAT_API_KEY = prevKey;
+  }
+});
+
 test('chat refuses videos that are not open or not in the Library', async () => {
   const prev = process.env.CHAT_PROVIDER;
   const prevMode = process.env.CHAT_MODE;

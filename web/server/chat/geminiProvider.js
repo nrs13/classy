@@ -78,14 +78,14 @@ export async function* streamGemini({
       }
     }
   } catch (err) {
-    if (err instanceof ChatProviderError || err?.name === 'AbortError') throw err;
+    if (err instanceof ChatProviderError) throw err;
     if (signal?.aborted) {
       const aborted = new Error('aborted');
       aborted.name = 'AbortError';
       aborted.code = 'ABORTED';
       throw aborted;
     }
-    if (controller.signal.aborted) throw new ChatProviderError('timeout', 504);
+    if (controller.signal.aborted || err?.name === 'AbortError') throw new ChatProviderError('timeout', 504);
     throw new ChatProviderError('server', 0);
   } finally {
     if (timer) clearTimeout(timer);

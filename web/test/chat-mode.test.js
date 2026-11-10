@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { CHAT_PAUSED, chatMode, chatStatus, matchCanned } from '../server/chat/mode.js';
+import { CHAT_PAUSED, chatMode, chatStatus, liveFallbackText, matchCanned } from '../server/chat/mode.js';
 
 process.env.CLASSY_LOG = 'off';
 
@@ -81,6 +81,16 @@ test('canned mode answers from storage and does not call a model', async () => {
   assert.match(res.raw, /Only the suggested questions are answered in this demo/);
   if (prev === undefined) delete process.env.CHAT_MODE;
   else process.env.CHAT_MODE = prev;
+});
+
+test('a live provider failure uses a stored answer, otherwise the paused line', () => {
+  const rows = [{ videoId: 'v002', question: 'How did this clip grow?', answer: 'Stored from the clip card.' }];
+  const focus = { ids: ['v002'] };
+  for (const errorType of ['quota', 'auth', 'timeout', 'server', 'missing_key']) {
+    assert.equal(liveFallbackText(errorType, 'How did this clip grow?', focus, rows), 'Stored from the clip card.');
+    assert.equal(liveFallbackText(errorType, 'Tell me a secret.', focus, rows), CHAT_PAUSED);
+  }
+  assert.equal(liveFallbackText('api', 'How did this clip grow?', focus, rows), null);
 });
 
 test('a canned question matches only its clip', () => {

@@ -5,7 +5,7 @@ import {
 } from '../src/lib/prompt.js';
 import { openKnowledge } from '../server/chat/knowledge.js';
 import { resolveChatConfig, streamProvider, ChatProviderError } from '../server/chat/provider.js';
-import { CANNED_ONLY, CHAT_PAUSED, chatMode, chatStatus, matchCanned } from '../server/chat/mode.js';
+import { CANNED_ONLY, CHAT_PAUSED, chatMode, chatStatus, liveFallbackText, matchCanned } from '../server/chat/mode.js';
 import { assertUnderCap, recordUsage } from '../server/chat/spend.js';
 import { rateLimit } from '../server/http.js';
 import { MAX_CHAT_BODY_BYTES, MAX_HISTORY_MESSAGES, MAX_MESSAGE_CHARS, messageTooLong } from '../src/lib/chatLimits.js';
@@ -167,6 +167,13 @@ export default async function handler(req, res) {
       status,
       errorType,
     });
+    const fallback = announced ? null : liveFallbackText(errorType, message, focusNorm);
+    if (fallback) {
+      send(res, { type: 'text', text: fallback });
+      send(res, { type: 'done' });
+      res.end();
+      return;
+    }
     send(res, {
       type: 'error',
       code: errorType === 'quota' ? 'quota' : 'api_error',

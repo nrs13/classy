@@ -27,6 +27,13 @@ function norm(text) {
   return String(text || '').trim().toLowerCase().replace(/\s+/g, ' ');
 }
 
+const FALLBACK_TYPES = new Set(['auth', 'quota', 'timeout', 'server', 'missing_key']);
+
+export function liveFallbackText(errorType, message, focus, rows) {
+  if (!FALLBACK_TYPES.has(errorType)) return null;
+  return matchCanned(message, focus, rows) || CHAT_PAUSED;
+}
+
 export function matchCanned(message, focus, rows = readCanned()) {
   const question = norm(message);
   if (!question) return null;

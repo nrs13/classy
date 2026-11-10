@@ -98,6 +98,57 @@ test('a gemini 401 is an auth failure and does not keep the response body', asyn
   );
 });
 
+test('gemini maps quota, auth, server, and timeout without keeping the body', async () => {
+  const cases = [
+    { status: 429, body: 'RESOURCE_EXHAUSTED quota id hidden', errorType: 'quota' },
+    { status: 401, body: 'API key not valid', errorType: 'auth' },
+    { status: 503, body: 'unavailable', errorType: 'server' },
+  ];
+  for (const item of cases) {
+    await assert.rejects(
+      async () => {
+        for await (const _event of streamGemini({
+          apiKey: 'test-gemini-key',
+          model: 'gemini-3.5-flash-lite',
+          system: 'base',
+          messages: [{ role: 'user', content: 'hello there' }],
+          maxOutputTokens: 32,
+          fetchImpl: async () => ({
+            ok: false,
+            status: item.status,
+            async text() {
+              return item.body;
+            },
+          }),
+        })) {
+          // drain
+        }
+      },
+      (err) => err instanceof ChatProviderError && err.errorType === item.errorType && !String(err.message).includes('key'),
+    );
+  }
+  await assert.rejects(
+    () =>
+      streamGemini({
+        apiKey: 'test-gemini-key',
+        model: 'gemini-3.5-flash-lite',
+        system: 'base',
+        messages: [{ role: 'user', content: 'hello there' }],
+        maxOutputTokens: 32,
+        timeoutMs: 20,
+        fetchImpl: (_url, options) =>
+          new Promise((_resolve, reject) => {
+            options.signal.addEventListener('abort', () => {
+              const err = new Error('aborted');
+              err.name = 'AbortError';
+              reject(err);
+            });
+          }),
+      }).next(),
+    (err) => err instanceof ChatProviderError && err.errorType === 'timeout',
+  );
+});
+
 test('the browser sources do not read the chat key', () => {
   const app = readFileSync(new URL('../src/lib/ai.js', import.meta.url), 'utf8');
   assert.equal(app.includes('GEMINI_CHAT_API_KEY'), false);
