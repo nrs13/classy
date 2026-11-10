@@ -1,4 +1,4 @@
-import { receiptView, sourceLabel } from '../lib/receipt';
+import { receiptView } from '../lib/receipt';
 
 function quote(text, score, floor) {
   const body = String(text || '').trim();
@@ -8,13 +8,28 @@ function quote(text, score, floor) {
   return body;
 }
 
-function Note({ source, sentence }) {
-  return (
-    <div className="playhead-extract-note">
-      <p className="playhead-extract-kicker">{sourceLabel(source)}</p>
-      <p className="playhead-extract-sub is-full">{sentence}</p>
-    </div>
-  );
+function wordsOf(sentence) {
+  return String(sentence || '').toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+}
+
+function contentUnderstanding(scenes, outcomes) {
+  const ordered = [
+    ...scenes.filter((item) => item.source === 'content_understanding'),
+    ...scenes.filter((item) => item.source === 'gemini'),
+    ...outcomes,
+  ];
+  const seen = new Set();
+  const kept = [];
+  for (const item of ordered) {
+    const sentence = String(item?.sentence || '').trim();
+    if (!sentence) continue;
+    const words = wordsOf(sentence);
+    const adds = words.some((word) => !seen.has(word));
+    if (!adds && kept.length) continue;
+    kept.push(sentence);
+    words.forEach((word) => seen.add(word));
+  }
+  return kept.join(' ');
 }
 
 export default function Receipt({ row, quoteFloor, searchNote }) {
@@ -28,8 +43,9 @@ export default function Receipt({ row, quoteFloor, searchNote }) {
   const rawScreen = view.text.length > 0;
   const scenes = view.scenes.filter((item) => String(item?.sentence || '').trim());
   const outcomes = view.outcomes.filter((item) => String(item?.sentence || '').trim());
+  const understanding = contentUnderstanding(scenes, outcomes);
   const kept = view.ask?.phrase_en || view.ask?.phrase_original || (view.app ? 'the app screen' : '');
-  const empty = !speech && !screenLines.length && !scenes.length && !rawScreen && !outcomes.length;
+  const empty = !speech && !screenLines.length && !understanding && !rawScreen;
 
   return (
     <div className="playhead-extract">
@@ -48,31 +64,13 @@ export default function Receipt({ row, quoteFloor, searchNote }) {
         {rawScreen && !screenLines.length && (
           <p className="playhead-extract-sub">On-screen text is too unclear to quote.</p>
         )}
-        {scenes.length > 0 && (
+        {understanding && (
           <div className="playhead-extract-note">
-            <p className="playhead-extract-kicker">Scene</p>
-            {scenes.map((scene) => (
-              <Note
-                key={`${scene.source}-${scene.sentence}`}
-                source={scene.source}
-                sentence={scene.sentence}
-              />
-            ))}
+            <p className="playhead-extract-kicker">Content understanding</p>
+            <p className="playhead-extract-line is-full">{understanding}</p>
           </div>
         )}
         {kept && <p className="playhead-extract-sub">Both models kept {kept}.</p>}
-        {outcomes.length > 0 && (
-          <div className="playhead-extract-note">
-            <p className="playhead-extract-kicker">Outcome</p>
-            {outcomes.map((item) => (
-              <Note
-                key={`${item.source}-${item.sentence}`}
-                source={item.source}
-                sentence={item.sentence}
-              />
-            ))}
-          </div>
-        )}
         {empty && <p className="playhead-extract-line is-empty">Nothing was extracted at this second.</p>}
         {searchNote && <p className="playhead-extract-sub">{searchNote}</p>}
       </div>
