@@ -105,6 +105,34 @@ queued -> fetching -> tribe -> indexing -> packing -> validating -> live
 
 Fetching, TRIBE, Video Indexer and Content Understanding belong to the ingest worker. `pack_snapshot.py` owns packing, validating and live: `build_video` reads one video's lab files into rows, `write_video` writes them, and `--derive` builds a new snapshot from the live one with only the added videos packed and embedded (the rest are copied, objects hardlinked). The 78-row timing rule and the exclusion list (Instagram and blocked ids) apply on every path. A derived snapshot goes live only through the same validate and promote gate.
 
+## Deployment environment
+
+Set these on the host. The example file keeps every value empty. Do not put a key in a URL or in the client bundle. `GEMINI_CHAT_API_KEY` is read only on the server and is separate from `GEMINI_API_KEY`.
+
+```
+CHAT_MODE=
+CHAT_PROVIDER=
+CHAT_MODEL=
+GEMINI_CHAT_API_KEY=
+CLASSY_CHAT_DAILY_CAP=
+DATABASE_URL=
+CLASSY_BUCKET=
+CLASSY_OBJECT_ROOT=
+CLASSY_MEDIA_SECRET=
+```
+
+- `CHAT_MODE`: `off`, `canned`, or `live`. A missing or any other value is `off`, which does not call a model.
+- `CHAT_PROVIDER`: `gemini` or `anthropic`. Empty uses Gemini.
+- `CHAT_MODEL`: empty uses `gemini-3.5-flash-lite`.
+- `GEMINI_CHAT_API_KEY`: required for live Gemini. Leave empty to keep live mode unavailable.
+- `CLASSY_CHAT_DAILY_CAP`: empty uses 400 live requests per Pacific day, under the reported free daily limit for `gemini-3.5-flash-lite`.
+- `DATABASE_URL`: Postgres catalog. Empty off Vercel uses the local database. On Vercel an empty value leaves the catalog unconfigured.
+- `CLASSY_BUCKET`: object storage bucket for media. Empty serves files from disk.
+- `CLASSY_OBJECT_ROOT`: directory for those files. Empty uses `catalog/objects`.
+- `CLASSY_MEDIA_SECRET`: HMAC secret for signed media URLs. Set this in production. Empty uses the local development default.
+
+Live chat also reads the `x-vercel-ip-country` header. Visitors in the EEA, Switzerland, or the UK, and any request with that header missing, are served canned answers instead of Gemini. The privacy note is shown only for a live visitor outside that list.
+
 ## Errors and logs
 
 Every response has `X-Request-Id`. Errors return `{requestId, error, message}` with a message safe to show. The detail goes to the server log as one JSON line per event. Search responses send per-stage timing in `Server-Timing`.
