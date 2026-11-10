@@ -1,4 +1,4 @@
-/** Keep Ask Classy replies plain text (no markdown or math markup). */
+/** Strip markdown/math. */
 export function sanitizeAssistantText(text) {
   if (text == null || text === '') return text;
   let out = String(text);

@@ -1,4 +1,4 @@
-/** Reply modes: UI copy and the model register. Same three ids everywhere. */
+/** Mode ids: UI + prompt. */
 export const REPLY_MODES = [
   {
     id: 'marketing',

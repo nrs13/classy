@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   checkChatBackend,
   formatChatError,
-  localKnowledgeReply,
   sanitizeAssistantText,
   streamChatReply,
 } from '../lib/ai';
@@ -54,8 +53,8 @@ export default function ChatPanel({
 
   useEffect(() => {
     let cancelled = false;
-    checkChatBackend().then((ok) => {
-      if (!cancelled) setBackendReady(ok);
+    checkChatBackend().then((status) => {
+      if (!cancelled) setBackendReady(status === 'ready');
     });
     return () => {
       cancelled = true;
@@ -141,7 +140,14 @@ export default function ChatPanel({
     setShowJump(false);
     const priorMessages = messages;
     setMessages((m) => [...m, { role: 'user', text: q }, { role: 'assistant', text: '' }]);
-    if (!chatReady) {
+    let ready = chatReady;
+    if (!ready) {
+      const status = await checkChatBackend();
+      const up = status === 'ready';
+      setBackendReady(up);
+      ready = Boolean(knowledge && up);
+    }
+    if (!ready) {
       setMessages((m) => {
         const copy = [...m];
         copy[copy.length - 1] = {
@@ -267,9 +273,9 @@ export default function ChatPanel({
       {labelled && (
         <div className="section-label chat-suggest-label">try one of these</div>
       )}
-      {visibleSuggestions.map((s) => (
+      {visibleSuggestions.map((s, i) => (
         <button
-          key={keyPrefix + s}
+          key={`${keyPrefix}${i}`}
           type="button"
           onClick={() => send(s)}
           className="text-left text-[13px] px-3 py-2.5 suggest-chip leading-snug"

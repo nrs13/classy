@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import ReelId from './ReelId';
+import VideoId from './VideoId';
 
 const pct = (x, digits = 0) => `${(x * 100).toFixed(digits)}%`;
 
@@ -12,7 +12,7 @@ const SIGNALS = [
     fmt: (x) => x.toFixed(4),
     sentence: (id) => (
       <>
-        <ReelId id={id} variant="inline" /> grabs attention fastest in the first seconds
+        <VideoId id={id} variant="inline" /> grabs attention fastest in the first seconds
       </>
     ),
   },
@@ -24,7 +24,7 @@ const SIGNALS = [
     fmt: (x) => x.toFixed(3),
     sentence: (id) => (
       <>
-        <ReelId id={id} variant="inline" /> hits the highest predicted engagement peak
+        <VideoId id={id} variant="inline" /> hits the highest predicted engagement peak
       </>
     ),
   },
@@ -36,7 +36,7 @@ const SIGNALS = [
     fmt: (x) => pct(x),
     sentence: (id) => (
       <>
-        <ReelId id={id} variant="inline" /> holds attention best after the hook
+        <VideoId id={id} variant="inline" /> holds attention best after the hook
       </>
     ),
   },
@@ -48,7 +48,7 @@ const SIGNALS = [
     fmt: (x) => pct(x, 2),
     sentence: (id) => (
       <>
-        <ReelId id={id} variant="inline" /> converts plays to likes best
+        <VideoId id={id} variant="inline" /> converts plays to likes best
       </>
     ),
   },
@@ -60,7 +60,7 @@ const SIGNALS = [
     fmt: (x) => `${Math.round(x).toLocaleString()}×`,
     sentence: (id) => (
       <>
-        <ReelId id={id} variant="inline" /> travels furthest beyond its followers
+        <VideoId id={id} variant="inline" /> travels furthest beyond its followers
       </>
     ),
   },
@@ -115,7 +115,7 @@ function CompareVerdictSummary({ leaderId, leaderWins, rowCount, open, onToggle 
         onClick={onToggle}
       >
         <span className="compare-verdict-headline">
-          <ReelId id={leaderId} variant="inline" /> leads on {leaderWins} of {rowCount} signals
+          <VideoId id={leaderId} variant="inline" /> leads on {leaderWins} of {rowCount} signals
         </span>
         <span className="compare-verdict-chevron" aria-hidden />
       </button>
@@ -140,7 +140,7 @@ function CompareVerdictDetails({ rows, n, footnoteOpen, setFootnoteOpen }) {
                   key={entry.id}
                   className={`compare-signal-row${entry.id === winner.id ? ' is-winner' : ''}`}
                 >
-                  <ReelId id={entry.id} variant="stage" winner={entry.id === winner.id} />
+                  <VideoId id={entry.id} variant="stage" winner={entry.id === winner.id} />
                   <span className="compare-signal-val">
                     {entry.value == null ? 'n/a' : signal.fmt(entry.value)}
                   </span>

@@ -1,5 +1,6 @@
 import { normalizeReplyModes, replyModePreamble } from './replyModes.js';
 import { datasetSize } from './dataset.js';
+import { sentencesAt } from './forecast.js';
 
 export function prepareKnowledgeForModel(knowledge) {
   if (!knowledge || typeof knowledge !== 'object') return knowledge;
@@ -11,6 +12,12 @@ export function prepareKnowledgeForModel(knowledge) {
     delete clone.atlas.labels;
     delete clone.atlas.encoding;
   }
+  if (clone.delivery === 'open-clip') {
+    for (const video of clone.videos || []) {
+      if (video && typeof video === 'object') delete video.video;
+    }
+    return clone;
+  }
   if (Array.isArray(clone.videos)) {
     for (const v of clone.videos) {
       if (!v || typeof v !== 'object') continue;
@@ -21,7 +28,7 @@ export function prepareKnowledgeForModel(knowledge) {
     }
     const n = clone.videos.length;
     clone.n = n;
-    clone.scope = `N=${n} Instagram study-niche reels; TRIBE V2 predicted cortical response.`;
+    clone.scope = `N=${n} short study-niche videos in the Library; TRIBE V2 predicted cortical response.`;
     if (Array.isArray(clone.caveats)) {
       clone.caveats = clone.caveats.map((line) =>
         typeof line === 'string' && /^N=\d+/.test(line)
@@ -54,17 +61,84 @@ function focusLine(focus) {
   const { ids, timeSec } = normalizeFocus(focus);
   if (!ids.length) return '';
   const at = timeSec != null && timeSec > 0 ? ` at t≈${timeSec.toFixed(1)}s` : '';
-  return `User focus (current UI, not extra data): ${ids.join(', ')}${at}. Use the full DATA; lead with these reels when relevant.\n\n`;
+  return `User focus (current UI, not extra data): ${ids.join(', ')}${at}. Use the full DATA; lead with these videos when relevant.\n\n`;
+}
+
+export function deliverOpenClip(knowledge, focus) {
+  const ids = Array.isArray(focus?.ids) ? focus.ids : [];
+  if (!ids.length || !Array.isArray(knowledge?.videos)) return knowledge;
+  const t = Number(focus?.timeSec) || 0;
+  const videos = knowledge.videos
+    .filter((video) => video?.id && ids.includes(video.id))
+    .map((video) => {
+      const story = Array.isArray(video.story) ? video.story : [];
+      let best = null;
+      let bestDist = Infinity;
+      for (const row of story) {
+        const dist = Math.abs(Number(row?.t_sec) - t);
+        if (dist < bestDist) {
+          bestDist = dist;
+          best = row;
+        }
+      }
+      const sec = best ? Math.floor(Number(best.t_sec)) : Math.floor(t);
+      const events = (video.content_events || []).filter(
+        (event) => Math.floor(Number(event?.t_sec)) === sec,
+      );
+      const clip = {
+        ...video,
+        open_second: best,
+        story: best ? [best] : [],
+        content_events: events,
+      };
+      const lines = sentencesAt(video, t);
+      if (lines.length) clip.forecast_at_second = lines;
+      return clip;
+    });
+  return {
+    ...knowledge,
+    delivery: 'open-clip',
+    videos,
+    n: videos.length,
+    scope:
+      videos.length > 1
+        ? 'The compared videos at the shared second. The rest of the Library is not in this payload.'
+        : 'The open video and the open second. The rest of the Library is not in this payload.',
+  };
+}
+
+export function openClipPreamble(knowledge, focus) {
+  const t = Number(focus?.timeSec);
+  const at = Number.isFinite(t) ? ` The playhead is at about ${t.toFixed(1)} seconds.` : '';
+  return `You are the analyst inside Classy. The DATA below is the open clip and the open second, not the rest of the library.${at}
+
+Answer from that record.
+- This is predicted TRIBE V2 cortical encoding, not a measured brain.
+- Do not say a cut, a face, speech, an app screen, or an ask earned saves or caused the activation.
+- Do not invent a save score or a virality score. Counts on the clip are the public record.
+- If forecast_at_second is present, those sentences are the only cut result. Quote their shared ranges. Do not swap in a mean, and do not describe limbic cortex as that result.
+- If a field is missing, say it was not extracted at this second.
+- Plain text only. No markdown, no asterisks, no LaTeX.
+- Two or three short sentences.
+
+DATA (JSON):
+${JSON.stringify(knowledge)}`;
 }
 
 export function systemPreamble(knowledge, focus = null) {
+  const focusNorm = normalizeFocus(focus);
+  const delivered = deliverOpenClip(knowledge, focusNorm);
+  if (delivered?.delivery === 'open-clip') {
+    return openClipPreamble(prepareKnowledgeForModel(delivered), focusNorm);
+  }
+  knowledge = prepareKnowledgeForModel(delivered);
   const n = datasetSize(knowledge);
   const others = Math.max(0, n - 1);
-  return `You are the analyst assistant embedded in "Classy", a proof-of-concept that runs ${n} Instagram study-niche reels through Meta's TRIBE V2 brain-encoding model and relates the predicted brain response to real engagement.
+  return `You are the analyst assistant embedded in "Classy", a proof-of-concept that runs ${n} short study-niche videos from the Library through Meta's TRIBE V2 brain-encoding model and relates the predicted brain response to real engagement.
 
 You answer THREE kinds of questions, always grounded in the DATA below:
 1. Math/methods: how any feature or metric is computed (plain-text formulas with the actual numbers plugged in).
-2. Content-marketing / UGC: why a reel did or didn't resonate, format patterns, hooks, what to replicate.
+2. Content-marketing / UGC: why a video did or didn't resonate, format patterns, hooks, what to replicate.
 3. Brain / neuroscience: what the activation means, network-level patterns, hemodynamic lag, caveats.
 
 You are a senior data analyst who happens to have full access to this dataset, not a lookup tool. On every question:
@@ -80,7 +154,7 @@ Math/methods: Don't just retrieve stored fields, actually compute new numbers fr
 
 Brain/neuroscience: Answer with real neuroscience literacy, not just repeating the number. Explain what predicted cortical activation actually represents (a model's inference, not a direct brain measurement), mention relevant caveats like hemodynamic lag, and distinguish the available coarse Yeo-7 cortical network summaries from finer ROI or anatomical claims the DATA cannot support. Aim for the depth of someone who actually understands cortical response modeling, not just someone reading off a spreadsheet.
 
-Content-marketing/UGC: Think like a sharp short-form content strategist, not just a data reporter. Actively pattern-match across the formats, hooks, and annotations in the DATA to surface non-obvious insights (e.g. what specific structural choice in a hook likely drove a spike), and when asked for suggestions, give concrete, specific, testable ideas grounded in what's actually in the DATA (reference real reels, real formats, real timestamps), not generic content-marketing advice that could apply to any dataset.
+Content-marketing/UGC: Think like a sharp short-form content strategist, not just a data reporter. Actively pattern-match across the formats, hooks, and annotations in the DATA to surface non-obvious insights (e.g. what specific structural choice in a hook likely drove a spike), and when asked for suggestions, give concrete, specific, testable ideas grounded in what's actually in the DATA (reference real videos, real formats, real timestamps), not generic content-marketing advice that could apply to any dataset.
 
 Each video now has a "story": a second-by-second timeline pairing predicted brain activation with what was actually happening on screen at that moment (speech, on-screen text, scene changes), where available. Use this to explain WHY activation moved, not just that it moved.
 
@@ -101,7 +175,7 @@ How to use network data:
 - Always call Yeo-7 a "cortical parcellation." Never call it "whole-brain." It covers broad cortical networks, not subcortex, cerebellum, or fine anatomy.
 - Network activation magnitude is predicted TRIBE V2 encoding projected onto this cortical parcellation. It is not measured brain activity and is not validated here as a cause of attention, emotion, memory, engagement, or performance. Never use a network value to claim a causal or psychological interpretation. Describe associations only.
 - If Visual ranks first for every video in the DATA, treat that as an expected baseline for video stimuli, not a meaningful differentiator or explanation of performance. Mention Visual only when directly asked, or when it is not rank 1. For performance comparisons, lead with differences in rank 2 and rank 3 networks and their timing.
-- No live hover or clicked-position state is included in the chat DATA in this phase. If asked what network the user is currently hovering, say that hover context is unavailable. Do not infer a hover position from the selected reel, timestamp, atlas labels, or network ranking.
+- No live hover or clicked-position state is included in the chat DATA in this phase. If asked what network the user is currently hovering, say that hover context is unavailable. Do not infer a hover position from the selected video, timestamp, atlas labels, or network ranking.
 - This is N=${n} and descriptive, not inferential. If asked about confidence or significance, state that no p-values, inferential tests, or claims of statistical significance exist in the DATA.
 
 Tone:

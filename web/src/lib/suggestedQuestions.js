@@ -74,7 +74,7 @@ function byIdMap(knowledge) {
   return map;
 }
 
-function reelCandidates(video, pack) {
+function videoCandidates(video, pack) {
   if (!video) return [];
   const id = video.id;
   const tier = video.tier || 'unknown';
@@ -265,16 +265,16 @@ export function buildSalientSuggestions(knowledge, videoIds = [], { seed = 0, co
   if (focusVideos.length >= 2) {
     candidates.push(...compareCandidates(focusVideos));
     for (const v of focusVideos) {
-      candidates.push(...reelCandidates(v, pack).filter((c) => c.score >= 70));
+      candidates.push(...videoCandidates(v, pack).filter((c) => c.score >= 70));
     }
   } else if (focusVideos.length === 1) {
-    candidates.push(...reelCandidates(focusVideos[0], pack));
+    candidates.push(...videoCandidates(focusVideos[0], pack));
   } else if (allVideos.length) {
     candidates.push(
       {
         id: 'pack-breakout',
         score: 70,
-        text: 'Why did the breakout reel outperform the rest on amplification?',
+        text: 'Why did the breakout video outperform the rest on amplification?',
       },
       {
         id: 'pack-hook',
@@ -289,7 +289,7 @@ export function buildSalientSuggestions(knowledge, videoIds = [], { seed = 0, co
       {
         id: 'pack-amp',
         score: 45,
-        text: 'Which reel has the highest amplification, and what is its like rate?',
+        text: 'Which video has the highest amplification, and what is its like rate?',
       },
     );
   }
@@ -323,9 +323,6 @@ export function buildSalientSuggestions(knowledge, videoIds = [], { seed = 0, co
     if (seen.has(c.text)) continue;
     seen.add(c.text);
     picked.push(c.text);
-  }
-  while (picked.length < count) {
-    picked.push(caveat.text);
   }
   return picked.slice(0, count);
 }

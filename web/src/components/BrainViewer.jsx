@@ -3,7 +3,7 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
 import { turboLUT } from '../lib/colormap';
-import ReelId from './ReelId';
+import VideoId from './VideoId';
 
 const FIT_RADIUS = 2.4;
 const VIEW_DISTANCE = 5.8;
@@ -20,7 +20,7 @@ const TAP_MOVE_PX = 8;
 const TOUCH_TAP_SLOP_PX = 16;
 const TAP_MAX_MS = 450;
 const LONG_PRESS_MS = 525;
-/** Cancel arming isolate sooner than full touch-tap slop so slow orbits don't isolate. */
+/** Isolate-arm slop. Shorter than a full tap so slow orbits don't isolate. */
 const LONG_PRESS_CANCEL_PX = 6;
 const SELECT_DEBOUNCE_MS = 60;
 const DRAG_GUARD_MS = 520;
@@ -106,7 +106,7 @@ function buildNetworkGroups(labels) {
   return { byLabel, cortexVertexCount };
 }
 
-/** Live turbo colors for the isolated vertex set only (playback color pass). */
+/** Isolated verts only (playback). */
 function paintIsolatedColors(colors, activation, frame, networkIndices) {
   const base = frame * activation.vertexCount;
   for (const vertex of networkIndices) {
@@ -118,10 +118,7 @@ function paintIsolatedColors(colors, activation, frame, networkIndices) {
   }
 }
 
-/**
- * Mask pass: dim non-isolated vertices, restore isolated set at `frame`.
- * Event-driven only (enter / exit / switch network), not every playback tick.
- */
+/** Dim others; restore isolate set. Enter/exit/switch only. */
 function applyIsolateMask(colors, activation, frame, n, networkIndices) {
   paintFrame(colors, activation.data, frame, n);
   for (let vertex = 0; vertex < n; vertex++) {
@@ -213,7 +210,7 @@ function BrainMesh({
       isolatedLabelId != null ? networkGroups.byLabel.get(isolatedLabelId) || null : null;
   }, [isolatedLabelId, networkGroups]);
 
-  // Activation load / reel change: paint current frame, preserving isolate mask if active.
+  // Clip/activation change: paint frame, keep isolate.
   useEffect(() => {
     if (!activation) return;
     const colors = geometry.attributes.color.array;
@@ -269,7 +266,7 @@ function BrainMesh({
     };
   }, [canvasGesture]);
 
-  // Color pass: every activation-frame change, scoped to isolated set when isolating.
+  // Playback color. Isolate-scoped if active.
   useFrame(() => {
     const act = actRef.current;
     if (!act) return;
@@ -331,7 +328,7 @@ function BrainMesh({
     if (!pickingEnabled) return;
     if (pointerDown.current) {
       const dist = Math.hypot(x - pointerDown.current.x, y - pointerDown.current.y);
-      // Isolate arms only while nearly stationary; cancel before full tap-slop.
+      // Drop isolate-arm on move.
       if (dist >= LONG_PRESS_CANCEL_PX) {
         clearLongPress();
       }
@@ -359,7 +356,7 @@ function BrainMesh({
     if (!pickingEnabled) return;
     clearLongPress();
     const { x, y, pointerType, isPrimary } = eventCoords(event);
-    // Pick on down: touch + OrbitControls often miss on pointerup/click.
+    // Pick on down. OrbitControls often eats the click.
     const pick = getPick(event, true);
     lastTapPick.current = pick;
     pointerDown.current = {
@@ -390,8 +387,7 @@ function BrainMesh({
     if (!pickingEnabled || !started || started.longPressFired) return;
     const { x, y } = eventCoords(event);
     const elapsed = performance.now() - started.at;
-    // Touch: long-press is the upper bound (avoid a dead zone vs LONG_PRESS_MS).
-    // Mouse/pen: keep the shorter tap duration window.
+    // Touch: long-press cap. Mouse: TAP_MAX_MS.
     const tapExpired = isTouchPointer(started.pointerType)
       ? elapsed >= LONG_PRESS_MS
       : elapsed > TAP_MAX_MS;
@@ -666,7 +662,7 @@ export default function BrainViewer({
     <div className={`brain-viewer-shell${compact ? ' is-compact' : ''}`}>
       <div className="brain-viewer-header">
         {!compact && (
-          <ReelId id={videoId} variant="stage" className="brain-viewer-reel" />
+          <VideoId id={videoId} variant="stage" className="brain-viewer-video" />
         )}
         <div className="brain-header-legend" aria-label="Predicted activation low to high">
           <span className="brain-legend-low">low</span>
