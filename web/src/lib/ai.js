@@ -21,23 +21,30 @@ export class BothModelsQuotaError extends Error {
   }
 }
 
+export const CHAT_PAUSED = 'Chat is paused in this demo.';
+
+const PAUSED_STATUS = new Set([401, 402, 403, 429, 500, 502, 503, 504]);
+const PAUSED_CODE = new Set(['BOTH_MODELS_QUOTA', 'SPEND_CAP', 'NOT_CONFIGURED', 'API_ERROR']);
+
+/** The model cannot answer. The UI says the demo is paused instead of a raw error. */
+export function chatPaused(err) {
+  if (!err || err.name === 'AbortError' || err.code === 'ABORTED') return false;
+  if (PAUSED_CODE.has(err.code) || err instanceof BothModelsQuotaError) return true;
+  const status = Number(err.status);
+  if (PAUSED_STATUS.has(status)) return true;
+  const text = String(err.message || err || '').toLowerCase();
+  if (/\b(401|402|403|429|500|502|503|504)\b/.test(text)) return true;
+  return /quota|rate limit|usage limit|spend cap|unavailable|api key/.test(text);
+}
+
 export function formatChatError(err) {
-  if (err?.code === 'BOTH_MODELS_QUOTA' || err instanceof BothModelsQuotaError) {
-    return 'model quota reached, try again later';
-  }
+  if (chatPaused(err)) return CHAT_PAUSED;
   const text = String(err?.message || err || 'unknown error');
-  if (err?.code === 'SPEND_CAP' || text.includes('402')) {
-    return 'local spend cap reached ($8). Chat is paused.';
-  }
-  if (err?.code === 'NOT_CONFIGURED' || text.includes('503')) {
-    return 'no Anthropic API key configured on the server yet.';
-  }
   if (err?.code === 'NO_BACKEND' || text.includes('404')) {
     return 'chat backend unreachable. it runs on the deployed site (or locally via `npm run dev` with .env.local).';
   }
-  if (text.includes('401') || text.includes('403') || text.toLowerCase().includes('api key')) {
-    return 'AI auth failed (API key invalid or revoked).';
-  }
+  if (err?.code === 'message_too_long') return 'That message is too long.';
+  if (err?.code === 'payload_too_large') return 'That request is too large.';
   const clipped = text.replace(/\s+/g, ' ').slice(0, 220);
   return `AI error: ${clipped || 'unknown failure'}`;
 }
@@ -72,10 +79,18 @@ export async function* streamChatReply({ priorMessages = [], message, focus = nu
   }
 
   if (!response.ok) {
+    let code = '';
+    try {
+      code = (await response.json())?.error || '';
+    } catch {
+      code = '';
+    }
     const err = new Error(`chat backend error (${response.status})`);
-    if (response.status === 402) err.code = 'SPEND_CAP';
-    if (response.status === 503) err.code = 'NOT_CONFIGURED';
-    if (response.status === 404) err.code = 'NO_BACKEND';
+    err.status = response.status;
+    if (code) err.code = code;
+    else if (response.status === 402) err.code = 'SPEND_CAP';
+    else if (response.status === 503) err.code = 'NOT_CONFIGURED';
+    else if (response.status === 404) err.code = 'NO_BACKEND';
     throw err;
   }
 
@@ -107,8 +122,11 @@ export async function* streamChatReply({ priorMessages = [], message, focus = nu
         if (event.type === 'meta' || event.type === 'text') {
           yield event;
         } else if (event.type === 'error') {
-          if (event.code === 'quota') throw new BothModelsQuotaError();
-          throw new Error(event.message || 'AI error');
+          if (event.code === 'refusal') throw new Error(event.message || 'The model declined to answer that.');
+          const failure = event.code === 'quota' ? new BothModelsQuotaError() : new Error(event.message || 'the assistant is unavailable right now');
+          if (event.code !== 'quota') failure.code = 'API_ERROR';
+          failure.status = event.code === 'quota' ? 429 : 503;
+          throw failure;
         } else if (event.type === 'done') {
           return;
         }

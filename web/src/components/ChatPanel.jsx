@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  chatPaused,
   checkChatBackend,
   formatChatError,
   sanitizeAssistantText,
@@ -276,7 +277,8 @@ export default function ChatPanel({
         });
         return;
       }
-      console.error('[ask classy]', err);
+      if (chatPaused(err)) console.error('[ask classy] paused');
+      else console.error('[ask classy]', err?.name || 'Error');
       const text = formatChatError(err);
       setRetryArmed(true);
       setMessages((m) => {
