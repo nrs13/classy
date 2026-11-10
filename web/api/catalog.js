@@ -91,43 +91,61 @@ function parseCsv(text) {
   return rows;
 }
 
-let formatById;
-function formatTable() {
-  if (formatById) return formatById;
-  formatById = new Map();
+const NOTE_FIELDS = ['format', 'key_elements', 'relatability_hook'];
+
+let notesById;
+function notesTable() {
+  if (notesById) return notesById;
+  notesById = new Map();
   const path = join(REPO_ROOT, 'metadata.csv');
-  if (!existsSync(path)) return formatById;
+  if (!existsSync(path)) return notesById;
   const rows = parseCsv(readFileSync(path, 'utf8'));
   const header = rows.shift() || [];
   const idCol = header.indexOf('video_id');
-  const formatCol = header.indexOf('format');
-  if (idCol < 0 || formatCol < 0) return formatById;
+  const cols = Object.fromEntries(NOTE_FIELDS.map((field) => [field, header.indexOf(field)]));
+  if (idCol < 0) return notesById;
   for (const record of rows) {
     const id = (record[idCol] || '').trim();
-    if (id) formatById.set(id, (record[formatCol] || '').trim());
+    if (!id) continue;
+    const notes = {};
+    for (const field of NOTE_FIELDS) {
+      notes[field] = cols[field] >= 0 ? (record[cols[field]] || '').trim() : '';
+    }
+    notesById.set(id, notes);
   }
-  return formatById;
+  return notesById;
 }
 
-const metaFormatCache = new Map();
-function metaFormat(videoId) {
-  if (metaFormatCache.has(videoId)) return metaFormatCache.get(videoId);
+const metaNotesCache = new Map();
+function metaNotes(videoId) {
+  if (metaNotesCache.has(videoId)) return metaNotesCache.get(videoId);
   const path = join(REPO_ROOT, 'outputs', videoId, 'meta.json');
-  let format = '';
+  const notes = { format: '', key_elements: '', relatability_hook: '' };
   if (existsSync(path)) {
     try {
       const body = JSON.parse(readFileSync(path, 'utf8'));
-      format = String(body?.annotations?.format || '').trim();
+      const annotations = body?.annotations || {};
+      for (const field of NOTE_FIELDS) notes[field] = String(annotations[field] || '').trim();
     } catch {
-      format = '';
+      /* keep the empty notes */
     }
   }
-  metaFormatCache.set(videoId, format);
-  return format;
+  metaNotesCache.set(videoId, notes);
+  return notes;
+}
+
+export function clipNotes(videoId) {
+  const row = notesTable().get(videoId) || {};
+  const meta = metaNotes(videoId);
+  return {
+    format: row.format || meta.format || '',
+    key_elements: row.key_elements || meta.key_elements || '',
+    relatability_hook: row.relatability_hook || meta.relatability_hook || '',
+  };
 }
 
 export function formatFor(videoId) {
-  return formatTable().get(videoId) || metaFormat(videoId) || '';
+  return clipNotes(videoId).format;
 }
 
 export function tierFor(plays) {
@@ -146,7 +164,7 @@ export default route('catalog', {}, async (req, res, { requestId }) => {
     res.status(200).json({ requestId, snapshotId: null, quoteFloor: null, atlas: ATLAS, videos: [] });
     return;
   }
-  const etag = `"${snapshot.id}:format"`;
+  const etag = `"${snapshot.id}:about"`;
   res.setHeader('ETag', etag);
   res.setHeader('Cache-Control', 'private, no-cache');
   if (req.headers?.['if-none-match'] === etag) {
@@ -166,7 +184,14 @@ export default route('catalog', {}, async (req, res, { requestId }) => {
       account: row.account || '',
       profileUrl: profileUrl(row.url, row.account) || undefined,
       tier: tierFor(row.plays) || undefined,
-      annotations: { format: formatFor(row.video_id) || undefined },
+      annotations: (() => {
+        const notes = clipNotes(row.video_id);
+        return {
+          format: notes.format || undefined,
+          key_elements: notes.key_elements || undefined,
+          relatability_hook: notes.relatability_hook || undefined,
+        };
+      })(),
       language: row.language || '',
       duration: row.duration,
       frames: row.frames,

@@ -719,7 +719,7 @@ export default function VideoStage({
         )}
       </div>
 
-      {!stack && (video.account || video.language || noteText(video.topics) || noteText(video.keywords)) && (
+      {!stack && (video.account || video.language || noteText(video.topics) || noteText(video.keywords) || video.annotations?.key_elements || video.annotations?.relatability_hook) && (
         <div className="video-notes">
           <div className="section-label stat-tile-label">About this video</div>
           <dl className="video-notes-grid">
@@ -753,6 +753,18 @@ export default function VideoStage({
               <>
                 <dt>Keywords</dt>
                 <dd>{noteText(video.keywords)}</dd>
+              </>
+            )}
+            {video.annotations?.key_elements && (
+              <>
+                <dt>Key elements</dt>
+                <dd>{video.annotations.key_elements}</dd>
+              </>
+            )}
+            {video.annotations?.relatability_hook && (
+              <>
+                <dt>Relatability hook</dt>
+                <dd>{video.annotations.relatability_hook}</dd>
               </>
             )}
           </dl>
