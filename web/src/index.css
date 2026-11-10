@@ -2733,9 +2733,30 @@ select {
   text-decoration-color: var(--text-secondary);
 }
 
+.app-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "mark tabs"
+    "note note";
+  align-items: start;
+  column-gap: 16px;
+  row-gap: 6px;
+}
+
+.app-header .brand-mark {
+  grid-area: mark;
+}
+
+.app-header .mode-toggle {
+  grid-area: tabs;
+  justify-self: end;
+}
+
 .confidentiality-note {
-  margin: 6px 0 0;
-  max-width: 42rem;
+  grid-area: note;
+  margin: 0;
+  max-width: none;
   font-family: var(--font-ui);
   font-size: 12px;
   font-weight: var(--weight-caption);
@@ -2743,6 +2764,18 @@ select {
   color: var(--text-secondary);
   text-align: left;
   overflow-wrap: anywhere;
+}
+
+@media (min-width: 900px) {
+  .app-header {
+    grid-template-areas:
+      "mark tabs"
+      "note tabs";
+  }
+
+  .confidentiality-note {
+    max-width: 42rem;
+  }
 }
 
 .confidentiality-note a {

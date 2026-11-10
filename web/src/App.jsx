@@ -667,15 +667,13 @@ export default function App() {
   return (
     <div className="h-full flex flex-col app-shell">
       <header
-        className="flex items-start justify-between gap-4 px-6 py-4 border-b hairline"
+        className="app-header px-6 py-4 border-b hairline"
         style={{ background: 'var(--bg-subtle)' }}
       >
-        <div className="min-w-0">
-          <div className="brand-mark text-[28px] leading-none">classy</div>
-          <p className="confidentiality-note">
-            Reduced demo of an internal project at <a href="https://knowunity.com/" target="_blank" rel="noopener noreferrer">Knowunity</a>. Certain important features, data and details that I shipped are omitted due to a confidentiality agreement.
-          </p>
-        </div>
+        <div className="brand-mark text-[28px] leading-none">classy</div>
+        <p className="confidentiality-note">
+          Reduced demo of an internal project at <a href="https://knowunity.com/" target="_blank" rel="noopener noreferrer">Knowunity</a>. Certain important features, data and details that I shipped are omitted due to a confidentiality agreement.
+        </p>
         <div className="flex shrink-0 gap-1 mode-toggle p-1 text-[12px]">
           {['explore', 'compare', 'search'].map((mo) => (
             <button
