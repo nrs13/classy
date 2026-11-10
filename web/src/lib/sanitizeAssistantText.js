@@ -1,4 +1,3 @@
-/** Strip markdown/math. */
 export function sanitizeAssistantText(text) {
   if (text == null || text === '') return text;
   let out = String(text);

@@ -127,7 +127,7 @@ export default function ChatPanel({
       setCopiedIdx(idx);
       window.setTimeout(() => setCopiedIdx((cur) => (cur === idx ? null : cur)), 1200);
     } catch {
-      /* ignore */
+      // Clipboard can be denied; the message stays on screen.
     }
   }
 

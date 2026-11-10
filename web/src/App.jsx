@@ -49,7 +49,7 @@ function readStoredWidth() {
     const n = Number(raw);
     if (Number.isFinite(n) && n >= CHAT_W_MIN) return n;
   } catch {
-    /* ignore */
+    // Storage can be blocked; the default width still works.
   }
   return CHAT_W_DEFAULT;
 }
@@ -183,7 +183,7 @@ export default function App() {
     try {
       localStorage.setItem(CHAT_W_KEY, String(chatW));
     } catch {
-      /* ignore */
+      // Storage can be blocked; the in-memory width still works.
     }
   }, [chatW]);
 
@@ -191,7 +191,7 @@ export default function App() {
     try {
       localStorage.setItem(CHAT_COLLAPSED_KEY, chatCollapsed ? '1' : '0');
     } catch {
-      /* ignore */
+      // Storage can be blocked; the in-memory width still works.
     }
   }, [chatCollapsed]);
 

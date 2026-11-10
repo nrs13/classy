@@ -35,12 +35,7 @@ export function SearchHit({ result, onOpen }) {
   );
 }
 
-/**
- * Rail search. The field is always here and shares state with the Search page.
- * Outside Search: a query swaps the Library list for the best moment per video, and Enter
- * opens the Search page. In Search: the list becomes a map of the results (matching videos
- * in result order with their moment counts, the rest dimmed); a click jumps to that result.
- */
+/** The rail and the Search page share one query so both open the same second. */
 export default function LibrarySearch({
   search,
   mode,

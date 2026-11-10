@@ -121,12 +121,7 @@ function escapeRe(text) {
   return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-/**
- * Split `text` into plain and matched parts. Only literal matches are marked: the whole
- * phrase, or whole words of four or more letters (two for Chinese, Japanese and Korean)
- * that are not function words. `query` may be a list: the typed text and its English rewrite,
- * whose words the English word lane matched. A meaning-only match marks nothing.
- */
+/** A meaning-only match is not marked, because those words are not the words on screen. */
 export function highlightParts(text, query, match) {
   const source = String(text || '');
   if (match === 'meaning') return [{ text: source, hit: false }];

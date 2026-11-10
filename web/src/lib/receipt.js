@@ -1,5 +1,3 @@
-/** Playhead receipt from a packed second file, or from the video's extracted story. */
-
 function asNumber(value) {
   if (value == null || value === '') return null;
   const n = Number(value);
@@ -23,7 +21,7 @@ function textItems(value) {
       const parsed = JSON.parse(trimmed);
       if (Array.isArray(parsed)) return textItems(parsed);
     } catch {
-      /* plain extracted text */
+      // A line that is not JSON is already the text.
     }
     return [trimmed];
   }

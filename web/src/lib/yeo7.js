@@ -1,4 +1,3 @@
-/** Yeo-7 readout labels. */
 export const YEO7_ROLES = {
   Visual: 'Vision and early visual processing of what is on screen.',
   Somatomotor: 'Movement planning and body sensation, including face and hand maps.',

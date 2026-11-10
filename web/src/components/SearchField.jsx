@@ -29,11 +29,7 @@ function ReturnGlyph() {
   );
 }
 
-/**
- * The one search input, used in the rail and on the Search page.
- * Enter searches now, Esc clears (then leaves the field), Down moves into the results.
- * A 1px line under the field shows work in progress; after SLOW_MS the glyph turns into a spinner.
- */
+/** One field serves the rail and the Search page so the query does not split. */
 export default function SearchField({
   value,
   onChange,

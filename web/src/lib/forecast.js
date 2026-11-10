@@ -1,4 +1,4 @@
-/** Display copy for the held-out cut result. Ranges are the shared overlaps, not a refit. */
+/** Ranges are the shared overlaps, not a new fit. */
 
 export const WITHIN_CLIP =
   'This is a within-video change in the stored predicted curve.';

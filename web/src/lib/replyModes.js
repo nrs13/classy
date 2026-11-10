@@ -1,4 +1,3 @@
-/** Mode ids: UI + prompt. */
 export const REPLY_MODES = [
   {
     id: 'marketing',

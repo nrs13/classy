@@ -60,15 +60,7 @@ function searchKeyOf(q, filters, literal) {
   return JSON.stringify([q, filters, literal]);
 }
 
-/**
- * Library search state shared by the rail and the Search page.
- *
- * While typing, exact matches arrive after EXACT_DELAY_MS. After a FULL_DELAY_MS pause, or
- * at once on submit(), the full search (meaning + query understanding) replaces them;
- * `refining` is true in between. Earlier results stay on screen, marked `stale`, so the
- * list never jumps to empty mid-typing. The cache is keyed by the Library snapshot, so a new
- * snapshot never serves old results.
- */
+/** Earlier results stay visible while the slower search runs, so the list does not flash empty. */
 export function useLibrarySearch(initial = {}) {
   const [query, setQueryState] = useState(initial.q || '');
   const [filters, setFilters] = useState({ ...EMPTY_FILTERS, ...(initial.filters || {}) });

@@ -2,10 +2,7 @@ import { useState } from 'react';
 
 const ASPECT = 170 / 96;
 
-/**
- * One frame cut from a video's sprite (catalog/frames.py), at `width` CSS pixels.
- * The sprite loads lazily and is shared by every frame of the same video.
- */
+/** Frames share one sprite so a result list does not download the sheet once per moment. */
 export default function Frame({ sprite, frame, width = 48, className = '' }) {
   const [failed, setFailed] = useState(false);
   const height = Math.round(width * ASPECT);
