@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { acceptSend, capMessage, MAX_MESSAGE_CHARS, messageLength, messageTooLong, retryTurn } from '../src/lib/chatLimits.js';
+import { acceptSend, capMessage, dropUnfinishedReply, MAX_MESSAGE_CHARS, messageLength, messageTooLong, retryTurn } from '../src/lib/chatLimits.js';
 
 process.env.CLASSY_LOG = 'off';
 
@@ -50,6 +50,19 @@ test('the server rejects an over-length message instead of sending it', async ()
   assert.equal(res.statusCode, 400);
   assert.equal(res.body.error, 'message_too_long');
   assert.equal(res.body.message, 'That message is too long.');
+});
+
+test('changing clips drops a reply that never produced text', () => {
+  const kept = dropUnfinishedReply([
+    { role: 'user', text: 'hello' },
+    { role: 'assistant', text: 'partial' },
+  ]);
+  assert.equal(kept.length, 2);
+  const dropped = dropUnfinishedReply([
+    { role: 'user', text: 'hello' },
+    { role: 'assistant', text: '' },
+  ]);
+  assert.deepEqual(dropped, [{ role: 'user', text: 'hello' }]);
 });
 
 test('retry sends the last user turn and drops the failed reply', () => {

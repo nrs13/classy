@@ -23,6 +23,14 @@ export function acceptSend(inFlight, text) {
   return q.length > 0 && !messageTooLong(q);
 }
 
+/** Drop a reply that was cancelled before any text arrived. */
+export function dropUnfinishedReply(messages) {
+  const copy = Array.isArray(messages) ? messages.slice() : [];
+  const last = copy[copy.length - 1];
+  if (last?.role === 'assistant' && !String(last.text || '').trim()) copy.pop();
+  return copy;
+}
+
 /** The user turn a Retry should send again, after dropping a failed reply. */
 export function retryTurn(messages) {
   const copy = Array.isArray(messages) ? messages.slice() : [];

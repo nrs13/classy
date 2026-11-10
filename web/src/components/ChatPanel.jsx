@@ -13,7 +13,7 @@ import {
   toggleReplyMode,
 } from '../lib/replyModes';
 import ReplyModeGroup from './ReplyModeGroup';
-import { acceptSend, capMessage, retryTurn } from '../lib/chatLimits';
+import { acceptSend, capMessage, dropUnfinishedReply, retryTurn } from '../lib/chatLimits';
 
 const OFFLINE_REPLY =
   "classy isn't listening yet. try one of these instead:";
@@ -47,6 +47,7 @@ export default function ChatPanel({
   const sendGen = useRef(0);
   const busyRef = useRef(false);
   const suggestionKey = suggestionVideoIds.join('|');
+  const clipSeen = useRef(suggestionKey);
 
   const toggleMode = useCallback((id) => {
     setReplyModes((current) => toggleReplyMode(current, id));
@@ -54,6 +55,16 @@ export default function ChatPanel({
 
   useEffect(() => {
     setSuggestSeed(0);
+  }, [suggestionKey]);
+
+  useEffect(() => {
+    if (clipSeen.current === suggestionKey) return;
+    clipSeen.current = suggestionKey;
+    sendGen.current += 1;
+    chatAbort.current?.abort();
+    busyRef.current = false;
+    setBusy(false);
+    setMessages((current) => dropUnfinishedReply(current));
   }, [suggestionKey]);
 
   useEffect(() => {
@@ -117,8 +128,11 @@ export default function ChatPanel({
     setShowJump(false);
   }
 
-  async function clearChat() {
-    if (busy) return;
+  function clearChat() {
+    sendGen.current += 1;
+    chatAbort.current?.abort();
+    busyRef.current = false;
+    setBusy(false);
     setMessages([]);
     setRetryArmed(false);
     setShowOfflineHints(false);
@@ -351,7 +365,6 @@ export default function ChatPanel({
               type="button"
               className="chat-text-btn"
               onClick={clearChat}
-              disabled={busy}
               title="Clear chat"
               aria-label="Clear chat"
             >
