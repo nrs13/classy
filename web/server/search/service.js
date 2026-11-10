@@ -16,18 +16,7 @@ import { understandQuery } from './understand.js';
 export const EXACT_NOTICE = 'Showing exact matches only right now.';
 const RERANK_TOP = 20;
 
-/**
- * Defaults for parts that must earn their place in catalog/eval (run.py --options to A/B).
- *   understand        Claude reads the query (English rewrite, requested language, kind)
- *   understandVector  the English rewrite also searches by meaning (one more embedding)
- *   boost             soft rank bonus for a language the query asked for
- *   scoring           group score: 'max' or 'decay'
- *   videoDocs         whole-video documents add to their video's score: true, false, or
- *                     'described' (only when understanding says the query describes a video).
- *                     Off: on the golden set they did not beat moment-only scoring.
- *   videoDocWeight    share of a whole-video document's fused score added to its video
- *   videoDocCombine   'sum' (document adds to the best moment) or 'max' (the better of the two)
- */
+/** Whole-video documents stay off because they did not beat moment-only scoring. */
 export const SEARCH_DEFAULTS = Object.freeze({
   understand: true,
   understandVector: true,
