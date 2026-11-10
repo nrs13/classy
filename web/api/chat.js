@@ -1,25 +1,29 @@
 import Anthropic from '@anthropic-ai/sdk';
 import {
+  deliverOpenClip,
   normalizeFocus,
-  prepareKnowledgeForModel,
-  systemPreamble,
+  openClipPreamble,
 } from '../src/lib/prompt.js';
+import { openKnowledge } from '../server/chat/knowledge.js';
+import { assertUnderCap, recordUsage } from '../server/chat/spend.js';
+import { rateLimit } from '../server/http.js';
+import { AppError } from '../server/obs/errors.js';
+import { logEvent, requestIdFrom } from '../server/obs/log.js';
 
 export const PRIMARY_MODEL = process.env.CLASSY_MODEL || 'claude-opus-5';
 export const FALLBACK_MODEL = 'claude-haiku-4-5';
 const MAX_HISTORY_MESSAGES = 40;
 const MAX_MESSAGE_CHARS = 4000;
 
-let knowledgeCache = null;
-
-async function loadKnowledge(req) {
-  if (knowledgeCache) return knowledgeCache;
-  const proto = req.headers['x-forwarded-proto'] || 'https';
-  const host = req.headers['x-forwarded-host'] || req.headers.host;
-  const res = await fetch(`${proto}://${host}/data/knowledge.json`);
-  if (!res.ok) throw new Error(`knowledge.json fetch failed (${res.status})`);
-  knowledgeCache = await res.json();
-  return knowledgeCache;
+function refuse(res, text) {
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache, no-transform',
+    Connection: 'keep-alive',
+  });
+  send(res, { type: 'text', text });
+  send(res, { type: 'done' });
+  res.end();
 }
 
 function toAnthropicMessages(history, message) {
@@ -45,9 +49,17 @@ function send(res, payload) {
 }
 
 export default async function handler(req, res) {
+  const requestId = requestIdFrom(req);
+  if (typeof res.setHeader === 'function') res.setHeader('X-Request-Id', requestId);
   if (req.method === 'GET') {
     if (!process.env.ANTHROPIC_API_KEY) {
       res.status(503).json({ error: 'not_configured' });
+      return;
+    }
+    try {
+      assertUnderCap();
+    } catch {
+      res.status(402).json({ error: 'spend_cap' });
       return;
     }
     res.status(204).end();
@@ -61,18 +73,38 @@ export default async function handler(req, res) {
     res.status(503).json({ error: 'not_configured' });
     return;
   }
+  try {
+    assertUnderCap();
+  } catch (err) {
+    res.status(402).json({ requestId, error: 'spend_cap', message: err.message });
+    return;
+  }
+  try {
+    rateLimit(req, { name: 'chat', max: 12, windowMs: 60_000 });
+  } catch (err) {
+    if (!(err instanceof AppError)) throw err;
+    res.status(429).json({ requestId, error: err.code, message: err.userMessage });
+    return;
+  }
   const { message, history, focus } = req.body || {};
   if (!message || typeof message !== 'string' || !message.trim()) {
     res.status(400).json({ error: 'empty_message' });
     return;
   }
 
+  const focusNorm = normalizeFocus(focus);
   let system;
   try {
-    const knowledge = await loadKnowledge(req);
-    system = systemPreamble(prepareKnowledgeForModel(knowledge), normalizeFocus(focus));
+    const opened = await openKnowledge(focusNorm);
+    if (opened.error) {
+      refuse(res, opened.error);
+      return;
+    }
+    const delivered = deliverOpenClip(opened.knowledge, focusNorm);
+    system = openClipPreamble(delivered, focusNorm);
   } catch (err) {
-    res.status(502).json({ error: 'knowledge_unavailable', detail: String(err?.message || err) });
+    logEvent({ level: 'error', requestId, route: 'chat', code: 'library_unavailable', error: String(err?.message || err) });
+    res.status(502).json({ requestId, error: 'library_unavailable', message: 'Your Library is unavailable. Try again in a moment.' });
     return;
   }
 
@@ -116,6 +148,7 @@ export default async function handler(req, res) {
         }
       }
       const final = await stream.finalMessage();
+      recordUsage(model, final.usage);
       if (final.stop_reason === 'refusal') {
         send(res, { type: 'error', code: 'refusal', message: 'the model declined to answer that.' });
       }
@@ -124,12 +157,12 @@ export default async function handler(req, res) {
       return;
     } catch (err) {
       const isQuota = err instanceof Anthropic.RateLimitError || err?.status === 429;
-      // Once tokens have been sent we cannot cleanly restart on the fallback model.
       if (isQuota && !isLast && !announced) continue;
+      logEvent({ level: 'error', requestId, route: 'chat', model, status: err?.status, error: String(err?.message || err).slice(0, 2000) });
       send(res, {
         type: 'error',
         code: isQuota ? 'quota' : 'api_error',
-        message: String(err?.message || err).slice(0, 300),
+        message: err?.status === 401 || err?.status === 403 ? 'api key rejected' : 'the assistant is unavailable right now',
       });
       send(res, { type: 'done' });
       res.end();
