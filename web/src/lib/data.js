@@ -65,6 +65,13 @@ export async function loadBrain(manifest) {
   }
 }
 
+export const SECONDS_UNAVAILABLE = 'This second is unavailable.';
+
+export function secondsFailed(signal, response) {
+  if (signal?.aborted) return false;
+  return !response?.ok;
+}
+
 export async function loadCatalog(signal) {
   let res;
   try {

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { loadActivation, loadCatalog } from '../src/lib/data.js';
+import { loadActivation, loadCatalog, secondsFailed } from '../src/lib/data.js';
 
 test('loadActivation passes the abort signal and returns nothing when cancelled', async () => {
   const original = globalThis.fetch;
@@ -27,6 +27,12 @@ test('loadActivation passes the abort signal and returns nothing when cancelled'
   assert.equal(await pending, null);
   assert.equal(sawSignal, true);
   globalThis.fetch = original;
+});
+
+test('a failed seconds load is retryable unless the clip already changed', () => {
+  assert.equal(secondsFailed(new AbortController().signal, { ok: false }), true);
+  assert.equal(secondsFailed(AbortSignal.abort(), { ok: false }), false);
+  assert.equal(secondsFailed(new AbortController().signal, { ok: true }), false);
 });
 
 test('a failed catalog load is an error the page can retry', async () => {

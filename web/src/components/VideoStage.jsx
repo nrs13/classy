@@ -4,7 +4,7 @@ import { ErrorBoundary } from './ErrorBoundary';
 import { BRAIN_FALLBACK } from '../lib/boundary';
 import Receipt from './Receipt';
 import VideoId from './VideoId';
-import { loadActivation } from '../lib/data';
+import { loadActivation, SECONDS_UNAVAILABLE, secondsFailed } from '../lib/data';
 import { cutMarks, sentencesAt, timingSource } from '../lib/forecast';
 import { whyLine } from '../lib/search';
 import { hasApp, hasAsk, hasOutcome, nextMark, receiptAt, receiptView, secondsFromRecord } from '../lib/receipt';
@@ -169,6 +169,8 @@ export default function VideoStage({
   const lastFloor = useRef(-1);
   const appliedSeek = useRef(0);
   const [packedSeconds, setPackedSeconds] = useState(null);
+  const [secondsError, setSecondsError] = useState(false);
+  const [secondsTry, setSecondsTry] = useState(0);
   const [mediaSrc, setMediaSrc] = useState('');
   const controlled = Boolean(sharedClock);
   const handleNetworkChange = useCallback((next) => {
@@ -212,16 +214,22 @@ export default function VideoStage({
   useEffect(() => {
     const ctrl = new AbortController();
     setPackedSeconds(null);
+    setSecondsError(false);
     fetch(`/api/seconds?id=${encodeURIComponent(video.id)}`, { signal: ctrl.signal })
-      .then((res) => (res.ok ? res.json() : null))
+      .then((res) => {
+        if (secondsFailed(ctrl.signal, res)) throw new Error('seconds');
+        return res.json();
+      })
       .then((data) => {
         if (!ctrl.signal.aborted) setPackedSeconds(data);
       })
-      .catch(() => {
-        if (!ctrl.signal.aborted) setPackedSeconds(null);
+      .catch((err) => {
+        if (ctrl.signal.aborted || err?.name === 'AbortError') return;
+        setPackedSeconds(null);
+        setSecondsError(true);
       });
     return () => ctrl.abort();
-  }, [video.id]);
+  }, [video.id, secondsTry]);
 
   useEffect(() => {
     const ctrl = new AbortController();
@@ -612,6 +620,14 @@ export default function VideoStage({
 
       <div className="curve-block">
         <div className="section-label">Predicted curve</div>
+        {secondsError && (
+          <p className="seconds-error" role="alert">
+            {SECONDS_UNAVAILABLE}
+            <button type="button" onClick={() => setSecondsTry((n) => n + 1)}>
+              Retry
+            </button>
+          </p>
+        )}
       <div
         className={`act-timeline${barsReady ? '' : ' is-loading'}`}
         role="img"
