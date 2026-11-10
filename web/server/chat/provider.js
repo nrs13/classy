@@ -4,7 +4,6 @@ import { streamGemini } from './geminiProvider.js';
 export { ChatProviderError } from './providerError.js';
 
 export const DEFAULT_GEMINI_MODEL = 'gemini-3.5-flash-lite';
-export const ANTHROPIC_FALLBACK_MODEL = 'claude-haiku-4-5';
 
 export function resolveChatConfig(env = process.env) {
   const requested = String(env.CHAT_PROVIDER || 'gemini').trim().toLowerCase();
@@ -19,8 +18,7 @@ export function resolveChatConfig(env = process.env) {
 export async function* streamProvider(config, args) {
   if (!config?.apiKey) throw new ChatProviderError('missing_key', 0);
   if (config.provider === 'anthropic') {
-    const fallbackModel = config.model.startsWith('claude-haiku') ? '' : ANTHROPIC_FALLBACK_MODEL;
-    yield* streamAnthropic({ ...args, apiKey: config.apiKey, model: config.model, fallbackModel });
+    yield* streamAnthropic({ ...args, apiKey: config.apiKey, model: config.model, fallbackModel: '' });
     return;
   }
   yield* streamGemini({ ...args, apiKey: config.apiKey, model: config.model });

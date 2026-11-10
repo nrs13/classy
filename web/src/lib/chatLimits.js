@@ -1,6 +1,8 @@
 export const MAX_MESSAGE_CHARS = 4000;
+export const MIN_MESSAGE_CHARS = 8;
 export const MAX_HISTORY_MESSAGES = 40;
 export const MAX_CHAT_BODY_BYTES = 512 * 1024;
+export const CHAT_COOLDOWN_MS = 8000;
 
 /** Code points, so an emoji counts as one and is never split. */
 export function messageLength(text) {
@@ -17,11 +19,17 @@ export function messageTooLong(text) {
   return messageLength(String(text ?? '').trim()) > MAX_MESSAGE_CHARS;
 }
 
-/** True when a send may start. A second click in the same turn is refused. */
-export function acceptSend(inFlight, text) {
-  if (inFlight) return false;
+export function messageTooShort(text) {
   const q = String(text ?? '').trim();
-  return q.length > 0 && !messageTooLong(q);
+  return messageLength(q) > 0 && messageLength(q) < MIN_MESSAGE_CHARS;
+}
+
+/** True when a send may start. A second click, a short note, or a cooldown is refused. */
+export function acceptSend(inFlight, text, now = 0, lastSentAt = 0) {
+  if (inFlight) return false;
+  if (lastSentAt && now - lastSentAt < CHAT_COOLDOWN_MS) return false;
+  const q = String(text ?? '').trim();
+  return messageLength(q) >= MIN_MESSAGE_CHARS && !messageTooLong(q);
 }
 
 /** Drop a reply that was cancelled before any text arrived. */

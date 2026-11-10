@@ -5,10 +5,13 @@ import { acceptSend, capMessage, dropUnfinishedReply, MAX_CHAT_BODY_BYTES, MAX_M
 process.env.CLASSY_LOG = 'off';
 
 test('a second send is refused while one reply is in flight', () => {
-  assert.equal(acceptSend(false, 'hello'), true);
-  assert.equal(acceptSend(true, 'hello'), false);
+  assert.equal(acceptSend(false, 'hello there'), true);
+  assert.equal(acceptSend(true, 'hello there'), false);
   assert.equal(acceptSend(false, '   '), false);
   assert.equal(acceptSend(false, ''), false);
+  assert.equal(acceptSend(false, 'short'), false);
+  assert.equal(acceptSend(false, 'hello there', 10_000, 9_000), false);
+  assert.equal(acceptSend(false, 'hello there', 20_000, 9_000), true);
 });
 
 test('the client cap matches 4000 code points and does not split an emoji', () => {

@@ -308,10 +308,10 @@ test('chat refuses videos that are not open or not in the Library', async () => 
   process.env.CHAT_PROVIDER = 'anthropic';
   process.env.CHAT_MODE = 'live';
   try {
-  const none = await call(api.chat, { method: 'POST', url: '/api/chat', body: { message: 'hi', focus: null } });
+  const none = await call(api.chat, { method: 'POST', url: '/api/chat', body: { message: 'What is open right now?', focus: null } });
   assert.equal(sseText(none), 'Open a video first.');
   for (const ids of [['v003'], ['x1'], ['v001', '../v002']]) {
-    const res = await call(api.chat, { method: 'POST', url: '/api/chat', body: { message: 'hi', focus: { ids, timeSec: 0 } } });
+    const res = await call(api.chat, { method: 'POST', url: '/api/chat', body: { message: 'What is open right now?', focus: { ids, timeSec: 0 } } });
     assert.equal(sseText(res), 'That video is not in your Library.', ids.join(','));
   }
   const empty = await call(api.chat, { method: 'POST', url: '/api/chat', body: { message: '  ' } });

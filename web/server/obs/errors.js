@@ -14,6 +14,7 @@ const USER_COPY = {
   spend_cap: 'Chat is paused in this demo.',
   payload_too_large: 'That request is too large.',
   empty_message: 'That message is empty.',
+  message_too_short: 'That message is too short.',
   message_too_long: 'That message is too long.',
   unknown_route: 'That request was not found.',
   api_handler_failed: 'That request could not be completed.',
