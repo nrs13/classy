@@ -10,6 +10,7 @@ import { assertUnderCap, recordUsage } from '../server/chat/spend.js';
 import { MAX_CHAT_BODY_BYTES, MAX_HISTORY_MESSAGES, MAX_MESSAGE_CHARS, messageTooLong, messageTooShort } from '../src/lib/chatLimits.js';
 import { chatCacheKey, readChatCache, writeChatCache } from '../server/chat/cache.js';
 import { CHAT_TIMEOUT_MS, MAX_OUTPUT_TOKENS, chatGuardFor, clientIp } from '../server/chat/guard.js';
+import { failureBody } from '../server/chat/classify.js';
 import { AppError, errorBody } from '../server/obs/errors.js';
 import { logEvent, requestIdFrom } from '../server/obs/log.js';
 
@@ -48,6 +49,31 @@ function send(res, payload) {
 
 function fail(res, status, error, requestId) {
   res.status(status).json(errorBody(requestId, error));
+}
+
+function quotaStatus(scope, status) {
+  if (scope === 'auth') return status === 403 ? 403 : 401;
+  if (scope === 'timeout') return 504;
+  if (scope === 'network') return 503;
+  if (scope === 'server') return status >= 500 ? status : 502;
+  return 429;
+}
+
+function sendFailure(res, requestId, failure) {
+  const body = failureBody(requestId, failure);
+  if (failure.retryAfterSeconds) res.setHeader('Retry-After', String(failure.retryAfterSeconds));
+  res.status(quotaStatus(failure.scope, failure.status)).json(body);
+}
+
+function logChatFailure(requestId, provider, failure) {
+  logEvent({
+    level: 'error',
+    requestId,
+    route: 'chat',
+    provider,
+    status: failure.status || 0,
+    errorType: failure.scope,
+  });
 }
 
 export default async function handler(req, res) {
@@ -113,12 +139,12 @@ export default async function handler(req, res) {
     chatGuardFor().take(clientIp(req));
   } catch (err) {
     if (!(err instanceof AppError)) throw err;
-    const stored = matchCanned(message, focusNorm);
-    if (stored) {
-      refuse(res, stored);
-      return;
-    }
-    res.status(429).json(errorBody(requestId, err.code, err.userMessage));
+    sendFailure(res, requestId, {
+      scope: err.scope || err.code,
+      retryAfterSeconds: err.retryAfterSeconds ?? null,
+      resetAt: err.resetAt ?? null,
+      status: err.status,
+    });
     return;
   }
   let system;
@@ -179,16 +205,19 @@ export default async function handler(req, res) {
     }
     const errorType = err instanceof ChatProviderError ? err.errorType : 'server';
     const status = err instanceof ChatProviderError ? err.status : 0;
-    logEvent({
-      level: 'error',
-      requestId,
-      route: 'chat',
-      provider: chatConfig.provider,
+    const failure = {
+      scope: err instanceof ChatProviderError ? err.scope || errorType : 'server',
+      retryAfterSeconds: err instanceof ChatProviderError ? err.retryAfterSeconds : null,
+      resetAt: err instanceof ChatProviderError ? err.resetAt : null,
       status,
-      errorType,
-    });
-    const fallback = announced ? null : liveFallbackText(errorType, message, focusNorm);
-    if (fallback) {
+    };
+    logChatFailure(requestId, chatConfig.provider, failure);
+    if (!announced && !res.headersSent) {
+      sendFailure(res, requestId, failure);
+      return;
+    }
+    const fallback = announced ? null : liveFallbackText(failure.scope, message, focusNorm);
+    if (fallback && failure.scope !== 'auth') {
       send(res, { type: 'text', text: fallback });
       send(res, { type: 'done' });
       res.end();
@@ -196,8 +225,12 @@ export default async function handler(req, res) {
     }
     send(res, {
       type: 'error',
-      code: errorType === 'quota' ? 'quota' : 'api_error',
-      message: errorType === 'auth' ? 'api key rejected' : 'the assistant is unavailable right now',
+      error: failure.scope,
+      scope: failure.scope,
+      retryAfterSeconds: failure.retryAfterSeconds,
+      resetAt: failure.resetAt,
+      requestId,
+      message: failure.scope === 'auth' ? CHAT_PAUSED : CHAT_PAUSED,
     });
     send(res, { type: 'done' });
     res.end();

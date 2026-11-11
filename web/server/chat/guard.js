@@ -28,7 +28,11 @@ export function createChatGuard({
       const t = now();
       const key = pacificDay(t);
       if (key !== day.key) day = { key, count: 0 };
-      if (day.count >= dailyMax) throw new AppError('rate_limited', 429);
+      if (day.count >= dailyMax) {
+        const err = new AppError('own_daily_cap', 429);
+        err.scope = 'own_daily_cap';
+        throw err;
+      }
       const id = ip || 'local';
       let bucket = visitors.get(id);
       if (!bucket) {
@@ -43,7 +47,15 @@ export function createChatGuard({
         bucket.hourStart = t;
         bucket.hour = 0;
       }
-      if (bucket.minute >= perMinute || bucket.hour >= perHour) throw new AppError('rate_limited', 429);
+      if (bucket.minute >= perMinute || bucket.hour >= perHour) {
+        const err = new AppError('visitor_rate', 429);
+        const minuteHit = bucket.minute >= perMinute;
+        const windowMs = minuteHit ? 60_000 : 3_600_000;
+        const start = minuteHit ? bucket.minuteStart : bucket.hourStart;
+        err.scope = 'visitor_rate';
+        err.retryAfterSeconds = Math.max(1, Math.ceil((windowMs - (t - start)) / 1000));
+        throw err;
+      }
       bucket.minute += 1;
       bucket.hour += 1;
       day.count += 1;

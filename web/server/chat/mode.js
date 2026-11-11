@@ -61,7 +61,10 @@ function norm(text) {
   return String(text || '').trim().toLowerCase().replace(/\s+/g, ' ');
 }
 
-const FALLBACK_TYPES = new Set(['auth', 'quota', 'timeout', 'server', 'missing_key']);
+const FALLBACK_TYPES = new Set([
+  'auth', 'quota', 'timeout', 'server', 'network', 'missing_key',
+  'minute_quota', 'day_quota', 'visitor_rate', 'own_daily_cap',
+]);
 
 export function liveFallbackText(errorType, message, focus, rows) {
   if (!FALLBACK_TYPES.has(errorType)) return null;

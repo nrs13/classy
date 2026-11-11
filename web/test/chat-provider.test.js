@@ -100,7 +100,7 @@ test('a gemini 401 is an auth failure and does not keep the response body', asyn
 
 test('gemini maps quota, auth, server, and timeout without keeping the body', async () => {
   const cases = [
-    { status: 429, body: 'RESOURCE_EXHAUSTED quota id hidden', errorType: 'quota' },
+    { status: 429, body: 'RESOURCE_EXHAUSTED quota id hidden', errorType: 'minute_quota' },
     { status: 401, body: 'API key not valid', errorType: 'auth' },
     { status: 503, body: 'unavailable', errorType: 'server' },
   ];

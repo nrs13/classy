@@ -1,11 +1,9 @@
+import { classifyProviderFailure } from './classify.js';
 import { ChatProviderError } from './providerError.js';
 
-function classifyGemini(status, raw) {
-  const text = String(raw || '').toLowerCase();
-  if (status === 401 || status === 403) return 'auth';
-  if (status === 429 || text.includes('resource_exhausted') || text.includes('quota')) return 'quota';
-  if (status >= 500) return 'server';
-  return 'api';
+function failureError(status, raw, kind) {
+  const failure = classifyProviderFailure(status, raw, kind);
+  return new ChatProviderError(failure.scope, failure.status, failure);
 }
 
 export async function* streamGemini({
@@ -43,7 +41,7 @@ export async function* streamGemini({
     });
     if (!res.ok) {
       const raw = await res.text();
-      throw new ChatProviderError(classifyGemini(res.status, raw), res.status);
+      throw failureError(res.status, raw);
     }
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
@@ -85,8 +83,8 @@ export async function* streamGemini({
       aborted.code = 'ABORTED';
       throw aborted;
     }
-    if (controller.signal.aborted || err?.name === 'AbortError') throw new ChatProviderError('timeout', 504);
-    throw new ChatProviderError('server', 0);
+    if (controller.signal.aborted || err?.name === 'AbortError') throw failureError(504, '', 'timeout');
+    throw failureError(0, '', 'network');
   } finally {
     if (timer) clearTimeout(timer);
     signal?.removeEventListener('abort', onAbort);
