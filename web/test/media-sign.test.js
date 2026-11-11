@@ -19,6 +19,7 @@ test('an R2 read link is a 10 minute presigned GET and hides the secret', () => 
   assert.equal(parsed.host, 'example-account.r2.cloudflarestorage.com');
   assert.equal(parsed.pathname, '/classy-media/snapshots/ku/v001.mp4');
   assert.equal(parsed.searchParams.get('X-Amz-Algorithm'), 'AWS4-HMAC-SHA256');
+  assert.equal(parsed.searchParams.get('X-Amz-Content-Sha256'), 'UNSIGNED-PAYLOAD');
   assert.equal(parsed.searchParams.get('X-Amz-Expires'), '600');
   assert.equal(parsed.searchParams.get('X-Amz-Date'), '20261111T073000Z');
   assert.match(parsed.searchParams.get('X-Amz-Signature') || '', /^[0-9a-f]{64}$/);

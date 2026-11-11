@@ -70,12 +70,12 @@ export function presignR2({
   const scope = `${dateStamp}/auto/s3/aws4_request`;
   const params = [
     ['X-Amz-Algorithm', 'AWS4-HMAC-SHA256'],
+    ['X-Amz-Content-Sha256', payloadHash],
     ['X-Amz-Credential', `${accessKeyId}/${scope}`],
     ['X-Amz-Date', amzDate],
     ['X-Amz-Expires', String(expiresSec)],
     ['X-Amz-SignedHeaders', 'host'],
   ];
-  if (payloadHash !== 'UNSIGNED-PAYLOAD') params.push(['X-Amz-Content-Sha256', payloadHash]);
   params.sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
   const canonicalQuery = params.map(([key, value]) => `${encodeRfc3986(key)}=${encodeRfc3986(value)}`).join('&');
   const uri = canonicalUri(bucket, objectKey);
