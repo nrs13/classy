@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
-import { applyLenses } from '../server/chat/lenses.js';
+import { applyLenses, arrangeForLens, storedSentences } from '../server/chat/lenses.js';
 import { matchCanned } from '../server/chat/mode.js';
 import { computedAnswer } from '../server/chat/computed.js';
 import { normalizeReplyModes } from '../src/lib/replyModes.js';
@@ -81,6 +81,53 @@ test('all eight lens selections shape one stored answer in order', () => {
     labelsInOrder(shaped, labels);
     for (const value of numbers(shaped)) assert.ok(numbers(stored.answer).has(value), value);
   }
+});
+
+const HOOK_OR_AUDIENCE = /\bhook\b|\bfollowers?\b|\btier\b|\bbreakout\b|\baudience\b/i;
+const RANK_OR_NUMBER = /\branks?\b|\bhighest\b|\blowest\b|\bmedian\b|\d+(?:st|nd|rd|th)\b|\d/i;
+const METHOD_OR_CAVEAT = /\bdivided by\b|\bshare of\b|\bpredicted\b|\bencoding\b|\bdoes not\b|\bdo not\b|\bnot a\b|\bnot from\b|\bcaused\b|\bcause\b|\bpack is\b|\bN=/i;
+
+test('each lens leads with a different kind of stored sentence', () => {
+  for (const row of canned) {
+    assert.equal(applyLenses(row.answer, []), row.answer, row.question);
+    const marketing = arrangeForLens(row.answer, 'marketing');
+    const analytics = arrangeForLens(row.answer, 'analytics');
+    const research = arrangeForLens(row.answer, 'research');
+    const sentences = storedSentences(row.answer);
+    const sameFacts = (arranged) => {
+      assert.deepEqual(storedSentences(arranged).sort(), [...sentences].sort());
+    };
+    sameFacts(marketing);
+    sameFacts(analytics);
+    sameFacts(research);
+    for (const value of numbers(`${marketing} ${analytics} ${research}`)) {
+      assert.ok(numbers(row.answer).has(value), `${row.question} ${value}`);
+    }
+    const shaped = [
+      applyLenses(row.answer, ['marketing']),
+      applyLenses(row.answer, ['analytics']),
+      applyLenses(row.answer, ['research']),
+    ];
+    assert.equal(new Set(shaped).size, 3, row.question);
+    assert.match(shaped[0], /^Marketing\nHook and audience\.\n/);
+    assert.match(shaped[1], /^Analytics\nNumbers and ranks\.\n/);
+    assert.match(shaped[2], /^Research\nMethod and caveats\.\n/);
+    if (sentences.some((sentence) => HOOK_OR_AUDIENCE.test(sentence))) {
+      assert.match(storedSentences(marketing)[0], HOOK_OR_AUDIENCE);
+    }
+    if (sentences.some((sentence) => RANK_OR_NUMBER.test(sentence))) {
+      assert.match(storedSentences(analytics)[0], RANK_OR_NUMBER);
+    }
+    if (sentences.some((sentence) => METHOD_OR_CAVEAT.test(sentence))) {
+      assert.match(storedSentences(research)[0], METHOD_OR_CAVEAT);
+    }
+  }
+  const growth = canned[0].answer;
+  assert.notEqual(arrangeForLens(growth, 'marketing'), arrangeForLens(growth, 'analytics'));
+  assert.notEqual(arrangeForLens(growth, 'analytics'), arrangeForLens(growth, 'research'));
+  assert.match(storedSentences(arrangeForLens(growth, 'marketing'))[0], /followers|tier|breakout/);
+  assert.match(storedSentences(arrangeForLens(growth, 'analytics'))[0], /\d/);
+  assert.match(storedSentences(arrangeForLens(growth, 'research'))[0], /divided by|does not|not a|N=/);
 });
 
 test('a computed answer keeps only the stored clip numbers', () => {
