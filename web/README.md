@@ -136,6 +136,8 @@ CLASSY_MEDIA_SECRET=
 - `CLASSY_OBJECT_ROOT`: directory for those files. Empty uses `catalog/objects`.
 - `CLASSY_MEDIA_SECRET`: HMAC secret for the local disk links. Set this in production. Empty uses the local development default.
 
+Upload uses a different token, `CLASSY_R2_WRITE_ACCESS_KEY_ID` and `CLASSY_R2_WRITE_SECRET_ACCESS_KEY`, and only from this machine. `node scripts/upload-media.mjs` compares sizes and checksums. `node scripts/upload-media.mjs --upload` sends the files that differ. The script refuses to run when `VERCEL` is set or `NODE_ENV` is `production`.
+
 Live chat also reads the `x-vercel-ip-country` header. Visitors in the EEA, Switzerland, or the UK, and any request with that header missing, are served canned answers instead of Gemini. The privacy note is shown only for a live visitor outside that list.
 
 ## Rebuild the catalog database
