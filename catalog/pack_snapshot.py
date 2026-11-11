@@ -32,6 +32,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -348,6 +349,114 @@ class LabFilesSource:
         return bool(timing_set({video_id: self.public(video_id)}, {video_id: seconds}, self.curves))
 
 
+_WORD = re.compile(r"[^\W\d_]+", re.UNICODE)
+_FOLD = {
+    "application": "app",
+    "applications": "app",
+    "apps": "app",
+    "knows": "know",
+    "knew": "know",
+    "known": "know",
+    "grades": "grade",
+    "explains": "explain",
+    "explained": "explain",
+    "says": "say",
+    "said": "say",
+    "displays": "display",
+    "displayed": "display",
+}
+_SCREEN = re.compile(r"on[-\s]?screen|\bspanish text\b|\btext (?:explains|says|displays)\b", re.I)
+_STOP = {
+    "a", "an", "the", "at", "in", "of", "to", "and", "or", "while", "with",
+    "her", "his", "she", "he", "they", "is", "are", "was", "who", "now", "for",
+}
+
+
+def _tokens(text: str) -> list[str]:
+    return [_FOLD.get(word, word) for word in _WORD.findall(str(text or "").lower())]
+
+
+def _stored_sentences(scenes, outcomes) -> list[str]:
+    ordered = []
+    for source in ("content_understanding", "gemini"):
+        for item in scenes or []:
+            if (item or {}).get("source") == source:
+                sentence = " ".join(str(item.get("sentence") or "").split())
+                if sentence:
+                    ordered.append(sentence)
+    for item in scenes or []:
+        if (item or {}).get("source") not in ("content_understanding", "gemini"):
+            sentence = " ".join(str((item or {}).get("sentence") or "").split())
+            if sentence:
+                ordered.append(sentence)
+    for item in outcomes or []:
+        sentence = " ".join(str((item or {}).get("sentence") or "").split())
+        if sentence:
+            ordered.append(sentence)
+    return ordered
+
+
+def _clauses(sentence: str) -> list[tuple[str, bool]]:
+    parts = re.split(r"\s+while\s+", sentence, maxsplit=1, flags=re.I)
+    if len(parts) == 2 and _SCREEN.search(parts[1]):
+        return [(parts[0], False), (parts[1], True)]
+    return [(sentence, bool(_SCREEN.search(sentence)))]
+
+
+def _content(text: str) -> set[str]:
+    return {word for word in _tokens(text) if word not in _STOP}
+
+
+def _already_said(text: str, kept: list[str]) -> bool:
+    words = _tokens(text)
+    folded = " ".join(words)
+    if any(folded == " ".join(_tokens(prior)) for prior in kept):
+        return True
+    content = _content(text)
+    seen = set()
+    windows = []
+    for prior in kept:
+        seen |= _content(prior)
+        windows.append(" ".join(_tokens(prior)))
+    if content and seen and len(content & seen) / len(content) >= 0.6:
+        return True
+    if len(words) >= 4:
+        for window in windows:
+            for index in range(0, len(words) - 3):
+                if " ".join(words[index:index + 4]) in window:
+                    return True
+    return False
+
+
+def _finish(text: str) -> str:
+    body = " ".join(str(text or "").split())
+    if not body:
+        return ""
+    if body[0].islower():
+        body = body[0].upper() + body[1:]
+    if body[-1] not in ".!?":
+        body += "."
+    return body
+
+
+def cohesive_text(scenes, outcomes) -> str:
+    """One or two sentences from the stored scene and outcome lines, in time order.
+
+    A later line that repeats an earlier fact is dropped. No word is added except a
+    capital letter and a closing period. The stored sentences are not changed.
+    """
+    visual = []
+    screen = []
+    for sentence in _stored_sentences(scenes, outcomes):
+        for clause, is_screen in _clauses(sentence):
+            clause = " ".join(clause.split())
+            if not clause or _already_said(clause, visual + screen):
+                continue
+            (screen if is_screen else visual).append(clause)
+    parts = [_finish(" ".join(visual)), _finish(" ".join(screen))]
+    return " ".join(part for part in parts if part)
+
+
 def build_video(video_id: str, source) -> VideoRecord:
     """Read one video from `source` into a VideoRecord. No database, no files written."""
     if not include_id(video_id):
@@ -357,6 +466,7 @@ def build_video(video_id: str, source) -> VideoRecord:
     events = source.events(video_id)
     seconds, cuts = build_seconds(source.timeline(video_id), events, {})
     for second in seconds:
+        second["happens"] = cohesive_text(second.get("scenes") or [], second.get("outcomes") or [])
         second["speech_score"] = normalize_score(second.get("speech_score"))
         lines = second.get("text_on_screen") or []
         if isinstance(lines, list):
@@ -466,7 +576,7 @@ def write_video(cur, snapshot_id: str, record: VideoRecord, store: Path) -> int:
         """
         INSERT INTO second (
           video_id, snapshot_id, t_sec, speech, speech_score, text_on_screen, speaker,
-          labels, face_count, music_score, sentiment, scenes, outcomes, app, ask
+          labels, face_count, music_score, sentiment, scenes, outcomes, app, ask, happens
         ) VALUES %s
         """,
         [
@@ -486,6 +596,7 @@ def write_video(cur, snapshot_id: str, record: VideoRecord, store: Path) -> int:
                 Json(row.get("outcomes") or []),
                 Json(row.get("app")),
                 Json(row.get("ask")),
+                row.get("happens") or None,
             )
             for row in record.seconds
         ],

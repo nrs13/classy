@@ -63,8 +63,11 @@ CREATE TABLE IF NOT EXISTS second (
   outcomes jsonb,
   app jsonb,
   ask jsonb,
+  happens text,
   PRIMARY KEY (snapshot_id, video_id, t_sec)
 );
+
+ALTER TABLE second ADD COLUMN IF NOT EXISTS happens text;
 
 CREATE TABLE IF NOT EXISTS chunk (
   id bigserial PRIMARY KEY,

@@ -69,16 +69,30 @@ export async function clipDetail(snapshotId, id) {
   return result.rows[0] || null;
 }
 
+const SECOND_COLUMNS = `t_sec, speech, speech_score, text_on_screen, speaker, labels, face_count,
+            music_score, sentiment, scenes, outcomes, app, ask`;
+
 export async function secondsFor(snapshotId, id) {
-  const result = await query(
-    `SELECT t_sec, speech, speech_score, text_on_screen, speaker, labels, face_count,
-            music_score, sentiment, scenes, outcomes, app, ask
-     FROM second
-     WHERE snapshot_id = $1 AND video_id = $2
-     ORDER BY t_sec`,
-    [snapshotId, id],
-  );
-  return result.rows;
+  try {
+    const result = await query(
+      `SELECT ${SECOND_COLUMNS}, happens
+       FROM second
+       WHERE snapshot_id = $1 AND video_id = $2
+       ORDER BY t_sec`,
+      [snapshotId, id],
+    );
+    return result.rows;
+  } catch (err) {
+    if (err?.code !== '42703') throw err;
+    const result = await query(
+      `SELECT ${SECOND_COLUMNS}
+       FROM second
+       WHERE snapshot_id = $1 AND video_id = $2
+       ORDER BY t_sec`,
+      [snapshotId, id],
+    );
+    return result.rows.map((row) => ({ ...row, happens: null }));
+  }
 }
 
 export async function mediaObjects(snapshotId, id) {

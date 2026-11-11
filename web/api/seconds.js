@@ -35,6 +35,7 @@ export default route('seconds', {}, async (req, res, { requestId }) => {
       outcomes: second.outcomes || [],
       app: second.app,
       ask: second.ask,
+      happens: second.happens || '',
     })),
   });
 });
