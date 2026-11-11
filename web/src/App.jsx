@@ -692,9 +692,14 @@ export default function App() {
         style={{ background: 'var(--bg-subtle)' }}
       >
         <div className="brand-mark text-[28px] leading-none">classy</div>
-        <p className="confidentiality-note">
-          Reduced demo of an internal project at <a href="https://knowunity.com/" target="_blank" rel="noopener noreferrer">Knowunity</a>. Certain important features, data and details that I shipped are omitted due to a confidentiality agreement.
-        </p>
+        <div className="header-notes">
+          <p className="confidentiality-note">
+            Reduced demo of an internal project at <a href="https://knowunity.com/" target="_blank" rel="noopener noreferrer">Knowunity</a>. Certain important features, data and details that I shipped are omitted due to a confidentiality agreement.
+          </p>
+          <p className="privacy-note">
+            This demo sets no cookies. This browser stores the chat panel width, whether chat is collapsed, and recent searches. Video, frame sprites, and activation files come from short Cloudflare R2 links. Fonts are files on this site. Chat off sends nothing. Canned chat answers from stored lines. Live chat sends the message and the open clip to Gemini.
+          </p>
+        </div>
         <div className="flex shrink-0 gap-1 mode-toggle p-1 text-[12px]">
           {['explore', 'compare', 'search'].map((mo) => (
             <button

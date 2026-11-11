@@ -2898,8 +2898,16 @@ select {
   justify-self: end;
 }
 
-.confidentiality-note {
+.header-notes {
   grid-area: note;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: none;
+}
+
+.confidentiality-note,
+.privacy-note {
   margin: 0;
   max-width: none;
   font-family: var(--font-ui);
@@ -2918,7 +2926,7 @@ select {
       "note tabs";
   }
 
-  .confidentiality-note {
+  .header-notes {
     max-width: 42rem;
   }
 }
