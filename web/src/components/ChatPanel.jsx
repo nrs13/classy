@@ -18,6 +18,7 @@ import {
 import ReplyModeGroup from './ReplyModeGroup';
 import { acceptSend, capMessage, CHAT_COOLDOWN_MS, dropUnfinishedReply, retryTurn } from '../lib/chatLimits';
 import { isCooling, quotaMessage, startCountdown } from '../lib/quota';
+import { CUT_LABEL, OFFLINE_LABEL } from '../lib/streamFrame';
 
 const OFFLINE_REPLY =
   "classy isn't listening yet. try one of these instead:";
@@ -52,6 +53,8 @@ export default function ChatPanel({
   const [cooldownUntil, setCooldownUntil] = useState(0);
   const [quota, setQuota] = useState(null);
   const [quotaLeft, setQuotaLeft] = useState(0);
+  const [offline, setOffline] = useState(() => (typeof navigator !== 'undefined' ? !navigator.onLine : false));
+  const idemKey = useRef('');
   const sendGen = useRef(0);
   const busyRef = useRef(false);
   const suggestionKey = suggestionVideoIds.join('|');
@@ -92,6 +95,17 @@ export default function ChatPanel({
       checkChatBackend().then(setChatState);
     });
   }, [quota]);
+
+  useEffect(() => {
+    const markOff = () => setOffline(true);
+    const markOn = () => setOffline(false);
+    window.addEventListener('offline', markOff);
+    window.addEventListener('online', markOn);
+    return () => {
+      window.removeEventListener('offline', markOff);
+      window.removeEventListener('online', markOn);
+    };
+  }, []);
 
   useEffect(() => {
     setSuggestSeed(0);
@@ -236,6 +250,7 @@ export default function ChatPanel({
     setShowOfflineHints(false);
     stickRef.current = true;
     setShowJump(false);
+    if (!prior) idemKey.current = (globalThis.crypto?.randomUUID?.() || `send-${Date.now()}`);
     const priorMessages = prior ?? messages;
     const gen = sendGen.current + 1;
     sendGen.current = gen;
@@ -280,6 +295,7 @@ export default function ChatPanel({
           timeSec: viewMoment?.timeSec,
           modes: replyModes,
         },
+        idempotencyKey: idemKey.current,
       })) {
         if (gen !== sendGen.current) return;
         if (event.type === 'meta') {
@@ -328,6 +344,16 @@ export default function ChatPanel({
           if (last?.role !== 'assistant') return copy;
           if (!last.text) copy.pop();
           else copy[copy.length - 1] = { ...last, error: true };
+          return copy;
+        });
+        return;
+      }
+      if (err?.code === 'CUT') {
+        setRetryArmed(true);
+        setMessages((m) => {
+          const copy = [...m];
+          const last = copy[copy.length - 1];
+          if (last?.role === 'assistant') copy[copy.length - 1] = { ...last, incomplete: true };
           return copy;
         });
         return;
@@ -503,6 +529,9 @@ export default function ChatPanel({
                   ) : (
                     body
                   )}
+                  {msg.incomplete && (
+                    <div className="chat-cut">{CUT_LABEL}</div>
+                  )}
                   {isModel && msg.model && !msg.error && (msg.text || isStreamingTail) && (
                     <div className="chat-model-tag" title={`Model ${msg.model}`}>
                       {msg.model}
@@ -544,6 +573,9 @@ export default function ChatPanel({
         className={`chat-composer border-t hairline${mobile ? ' is-mobile' : ''}`}
         style={{ background: 'var(--bg-subtle)' }}
       >
+        {offline && (
+          <div className="chat-offline" role="status" aria-live="polite">{OFFLINE_LABEL}</div>
+        )}
         <div className="composer-shell">
           <ReplyModeGroup value={replyModes} onChange={toggleMode} disabled={busy || inputPaused || Boolean(quota)} />
           <div className="composer-entry">

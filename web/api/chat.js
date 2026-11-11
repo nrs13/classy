@@ -9,11 +9,23 @@ import { CANNED_ONLY, CHAT_PAUSED, chatStatus, effectiveChatMode, liveFallbackTe
 import { assertUnderCap, recordUsage } from '../server/chat/spend.js';
 import { MAX_CHAT_BODY_BYTES, MAX_HISTORY_MESSAGES, MAX_MESSAGE_CHARS, messageTooLong, messageTooShort } from '../src/lib/chatLimits.js';
 import { chatCacheKey, readChatCache, writeChatCache } from '../server/chat/cache.js';
+import { chatSends } from '../server/chat/idempotency.js';
 import { CHAT_TIMEOUT_MS, MAX_OUTPUT_TOKENS, chatGuardFor, clientIp } from '../server/chat/guard.js';
 import { nextPacificMidnight } from '../server/chat/resetAt.js';
 import { failureBody } from '../server/chat/classify.js';
 import { AppError, errorBody } from '../server/obs/errors.js';
 import { logEvent, requestIdFrom } from '../server/obs/log.js';
+
+export const maxDuration = 60;
+
+export function abortUpstreamOnDisconnect(req, res, abort) {
+  const stop = () => {
+    if (!res.writableEnded) abort.abort();
+  };
+  req.on?.('aborted', stop);
+  req.on?.('close', stop);
+  return stop;
+}
 
 function refuse(res, text) {
   res.writeHead(200, {
@@ -143,6 +155,29 @@ export default async function handler(req, res) {
     refuse(res, cached);
     return;
   }
+  const idemKey = String(req.headers?.['idempotency-key'] || req.headers?.['Idempotency-Key'] || '').slice(0, 80);
+  const claim = chatSends.claim(idemKey);
+  if (!claim.fresh) {
+    if (claim.replay?.kind === 'json') {
+      if (claim.replay.retryAfterSeconds) res.setHeader('Retry-After', String(claim.replay.retryAfterSeconds));
+      res.status(claim.replay.status).json(claim.replay.body);
+      return;
+    }
+    if (claim.replay?.kind === 'sse') {
+      res.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache, no-transform',
+        Connection: 'keep-alive',
+      });
+      if (claim.replay.text) send(res, { type: 'text', text: claim.replay.text });
+      send(res, { type: 'done' });
+      res.end();
+      return;
+    }
+    sendFailure(res, requestId, { scope: 'visitor_rate', retryAfterSeconds: 2, status: 429 });
+    return;
+  }
+  const finish = (record) => chatSends.finish(idemKey, record);
   try {
     chatGuardFor().take(clientIp(req));
   } catch (err) {
@@ -154,12 +189,23 @@ export default async function handler(req, res) {
       resetAt: scope === 'day_quota' || scope === 'own_daily_cap' ? (err.resetAt || nextPacificMidnight(Date.now())) : (err.resetAt ?? null),
       status: err.status,
     });
+    finish({
+      kind: 'json',
+      status: quotaStatus(scope, err.status),
+      retryAfterSeconds: err.retryAfterSeconds ?? null,
+      body: failureBody(requestId, {
+        scope,
+        retryAfterSeconds: err.retryAfterSeconds ?? null,
+        resetAt: scope === 'day_quota' || scope === 'own_daily_cap' ? (err.resetAt || nextPacificMidnight(Date.now())) : (err.resetAt ?? null),
+      }),
+    });
     return;
   }
   let system;
   try {
     const opened = await openKnowledge(focusNorm);
     if (opened.error) {
+      finish({ kind: 'sse', text: opened.error });
       refuse(res, opened.error);
       return;
     }
@@ -167,19 +213,21 @@ export default async function handler(req, res) {
     system = buildSystemPrompt(delivered, focusNorm);
   } catch (err) {
     logEvent({ level: 'error', requestId, route: 'chat', code: 'library_unavailable', error: String(err?.message || err) });
+    finish({ kind: 'json', status: 502, body: errorBody(requestId, 'library_unavailable') });
     res.status(502).json(errorBody(requestId, 'library_unavailable'));
     return;
   }
 
   const messages = toAnthropicMessages(history, message);
   const abort = new AbortController();
-  req.on?.('aborted', () => abort.abort());
+  abortUpstreamOnDisconnect(req, res, abort);
 
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
     'Cache-Control': 'no-cache, no-transform',
     Connection: 'keep-alive',
   });
+  send(res, { type: 'open' });
 
   let announced = false;
   let acc = '';
@@ -207,8 +255,10 @@ export default async function handler(req, res) {
     if (acc.trim()) writeChatCache(chatCacheKey(message, focusNorm), acc);
     send(res, { type: 'done' });
     res.end();
+    finish({ kind: 'sse', text: acc });
   } catch (err) {
     if (err?.name === 'AbortError' || err?.code === 'ABORTED') {
+      finish({ kind: 'sse', text: acc });
       if (!res.writableEnded) res.end();
       return;
     }
@@ -226,6 +276,12 @@ export default async function handler(req, res) {
     logChatFailure(requestId, chatConfig.provider, failure);
     if (!announced && !res.headersSent) {
       sendFailure(res, requestId, failure);
+      finish({
+        kind: 'json',
+        status: quotaStatus(failure.scope, failure.status),
+        retryAfterSeconds: failure.retryAfterSeconds,
+        body: failureBody(requestId, failure),
+      });
       return;
     }
     const fallback = announced ? null : liveFallbackText(failure.scope, message, focusNorm);
@@ -233,6 +289,7 @@ export default async function handler(req, res) {
       send(res, { type: 'text', text: fallback });
       send(res, { type: 'done' });
       res.end();
+      finish({ kind: 'sse', text: fallback });
       return;
     }
     send(res, {
@@ -242,9 +299,10 @@ export default async function handler(req, res) {
       retryAfterSeconds: failure.retryAfterSeconds,
       resetAt: failure.resetAt,
       requestId,
-      message: failure.scope === 'auth' ? CHAT_PAUSED : CHAT_PAUSED,
+      message: CHAT_PAUSED,
     });
     send(res, { type: 'done' });
     res.end();
+    finish({ kind: 'sse', text: acc });
   }
 }

@@ -1,6 +1,7 @@
 export { sanitizeAssistantText } from './sanitizeAssistantText.js';
 import { MAX_HISTORY_MESSAGES } from './chatLimits.js';
 import { isCooling, quotaMessage } from './quota.js';
+import { CUT_LABEL, readSseEvents } from './streamFrame.js';
 
 export async function checkChatBackend(signal) {
   try {
@@ -72,7 +73,7 @@ function aborted() {
   return err;
 }
 
-export async function* streamChatReply({ priorMessages = [], message, focus = null, signal } = {}) {
+export async function* streamChatReply({ priorMessages = [], message, focus = null, signal, idempotencyKey } = {}) {
   if (signal?.aborted) throw aborted();
   const history = priorMessages
     .filter((m) => m?.text && (m.role === 'user' || m.role === 'assistant') && !m.error)
@@ -83,7 +84,10 @@ export async function* streamChatReply({ priorMessages = [], message, focus = nu
   try {
     response = await fetch('/api/chat', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {}),
+      },
       body: JSON.stringify({ message, history, focus }),
       signal,
     });
@@ -117,50 +121,42 @@ export async function* streamChatReply({ priorMessages = [], message, focus = nu
   if (signal?.aborted) throw aborted();
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
-  let buffer = '';
   const onAbort = () => {
     reader.cancel().catch(() => {});
   };
   signal?.addEventListener('abort', onAbort);
   try {
-    while (true) {
-      if (signal?.aborted) throw aborted();
+    for await (const event of readSseEvents(async () => {
       const { done, value } = await reader.read();
+      return { done, value: done ? '' : decoder.decode(value, { stream: true }) };
+    })) {
       if (signal?.aborted) throw aborted();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n\n');
-      buffer = lines.pop();
-      for (const line of lines) {
-        if (!line.startsWith('data: ')) continue;
-        let event;
-        try {
-          event = JSON.parse(line.slice(6));
-        } catch {
-          continue;
-        }
-        if (event.type === 'meta' || event.type === 'text') {
-          yield event;
-        } else if (event.type === 'error') {
-          if (event.code === 'refusal') throw new Error(event.message || 'The model declined to answer that.');
-          if (event.scope) {
-            const failure = new Error(event.message || 'chat');
-            failure.scope = event.scope;
-            failure.retryAfterSeconds = event.retryAfterSeconds ?? null;
-            failure.resetAt = event.resetAt ?? null;
-            failure.status = event.scope === 'auth' ? 401 : 429;
-            failure.code = event.scope;
-            throw failure;
-          }
-          const failure = event.code === 'quota' ? new BothModelsQuotaError() : new Error(event.message || 'the assistant is unavailable right now');
-          if (event.code !== 'quota') failure.code = 'API_ERROR';
-          failure.status = event.code === 'quota' ? 429 : 503;
+      if (event.type === 'meta' || event.type === 'text') yield event;
+      else if (event.type === 'error') {
+        if (event.code === 'refusal') throw new Error(event.message || 'The model declined to answer that.');
+        if (event.scope) {
+          const failure = new Error(event.message || 'chat');
+          failure.scope = event.scope;
+          failure.retryAfterSeconds = event.retryAfterSeconds ?? null;
+          failure.resetAt = event.resetAt ?? null;
+          failure.status = event.scope === 'auth' ? 401 : 429;
+          failure.code = event.scope;
           throw failure;
-        } else if (event.type === 'done') {
-          return;
         }
+        const failure = event.code === 'quota' ? new BothModelsQuotaError() : new Error(event.message || 'the assistant is unavailable right now');
+        if (event.code !== 'quota') failure.code = 'API_ERROR';
+        failure.status = event.code === 'quota' ? 429 : 503;
+        throw failure;
       }
     }
+  } catch (err) {
+    if (err?.code === 'IDLE' || err?.code === 'CUT') {
+      reader.cancel().catch(() => {});
+      const cut = new Error(CUT_LABEL);
+      cut.code = 'CUT';
+      throw cut;
+    }
+    throw err;
   } finally {
     signal?.removeEventListener('abort', onAbort);
   }
