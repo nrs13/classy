@@ -231,10 +231,19 @@ export default function VideoStage({
     return () => ctrl.abort();
   }, [video.id, secondsTry]);
 
+  const [mediaTry, setMediaTry] = useState(0);
+
+  useEffect(() => {
+    setMediaTry(0);
+  }, [video.id]);
+
   useEffect(() => {
     const ctrl = new AbortController();
     setMediaSrc('');
-    fetch(`/api/media?id=${encodeURIComponent(video.id)}&kind=mp4`, { signal: ctrl.signal })
+    fetch(`/api/media?id=${encodeURIComponent(video.id)}&kind=mp4`, {
+      signal: ctrl.signal,
+      cache: 'no-store',
+    })
       .then((res) => (res.ok ? res.json() : null))
       .then((body) => {
         if (!ctrl.signal.aborted && body?.url) setMediaSrc(body.url);
@@ -243,7 +252,7 @@ export default function VideoStage({
         if (!ctrl.signal.aborted) setMediaSrc('');
       });
     return () => ctrl.abort();
-  }, [video.id]);
+  }, [video.id, mediaTry]);
 
   function applyProgress(p, { forceState = false } = {}) {
     const clamped = Math.max(0, Math.min(1, p));
@@ -497,6 +506,10 @@ export default function VideoStage({
         }}
         onError={() => {
           setHasVideo(false);
+          if (mediaTry < 1) {
+            setMediaTry(1);
+            return;
+          }
           setVideoFailed(true);
         }}
       />

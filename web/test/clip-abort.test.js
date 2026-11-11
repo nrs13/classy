@@ -58,6 +58,33 @@ test('a failed catalog load is an error the page can retry', async () => {
   }
 });
 
+test('loadActivation asks for a fresh link once when the file request fails', async () => {
+  const original = globalThis.fetch;
+  const calls = [];
+  globalThis.fetch = async (url) => {
+    calls.push(String(url));
+    if (String(url).includes('/api/media')) {
+      return { ok: true, json: async () => ({ url: 'https://example.test/act.bin' }) };
+    }
+    if (calls.length < 4) {
+      return { ok: false, status: 403, headers: { get: () => '' } };
+    }
+    return {
+      ok: true,
+      headers: { get: () => 'application/octet-stream' },
+      arrayBuffer: async () => new Uint8Array([1, 2, 3]).buffer,
+    };
+  };
+  try {
+    const result = await loadActivation({ id: 'v001' }, { synthetic: false, vertexCount: 3 });
+    assert.equal(result.frames, 1);
+    assert.equal(calls.length, 4);
+    assert.equal(calls.filter((url) => url.includes('/api/media')).length, 2);
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+
 test('loadActivation does not fetch when the signal is already aborted', async () => {
   const original = globalThis.fetch;
   let called = 0;

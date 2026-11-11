@@ -114,19 +114,26 @@ export async function loadCatalog(signal) {
 
 export async function loadActivation(video, brain, { signal } = {}) {
   if (!video?.id || !brain || brain.synthetic || signal?.aborted) return null;
-  try {
-    const meta = await fetch(`/api/media?id=${encodeURIComponent(video.id)}&kind=act`, { signal });
-    if (signal?.aborted || !meta.ok) return null;
-    const body = await meta.json();
-    if (!body?.url) return null;
-    const data = new Uint8Array(await fetchArrayBuffer(body.url, signal));
-    const n = brain.vertexCount;
-    const frames = n > 0 ? Math.round(data.length / n) : 0;
-    if (frames > 0 && data.length === frames * n) {
-      return { data, frames, vertexCount: n, synthetic: false };
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const meta = await fetch(`/api/media?id=${encodeURIComponent(video.id)}&kind=act`, {
+        signal,
+        cache: 'no-store',
+      });
+      if (signal?.aborted || !meta.ok) return null;
+      const body = await meta.json();
+      if (!body?.url) return null;
+      const data = new Uint8Array(await fetchArrayBuffer(body.url, signal));
+      const n = brain.vertexCount;
+      const frames = n > 0 ? Math.round(data.length / n) : 0;
+      if (frames > 0 && data.length === frames * n) {
+        return { data, frames, vertexCount: n, synthetic: false };
+      }
+      return null;
+    } catch (err) {
+      if (signal?.aborted || err?.name === 'AbortError') return null;
+      if (attempt === 1) return null;
     }
-  } catch {
-    return null;
   }
   return null;
 }
