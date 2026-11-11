@@ -3,6 +3,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { resolveChatConfig } from './provider.js';
 import { computedAnswer } from './computed.js';
+import { applyLenses } from './lenses.js';
 import { mockChatAllowed } from './mock.js';
 
 export const CHAT_PAUSED = 'Chat is paused in this demo.';
@@ -75,7 +76,9 @@ const FALLBACK_TYPES = new Set([
 
 export function liveFallbackText(errorType, message, focus, rows, clip, pack) {
   if (!FALLBACK_TYPES.has(errorType)) return null;
-  return matchCanned(message, focus, rows) || computedAnswer(message, clip, pack) || CHAT_PAUSED;
+  const stored = matchCanned(message, focus, rows) || computedAnswer(message, clip, pack);
+  if (!stored) return CHAT_PAUSED;
+  return applyLenses(stored, focus?.modes);
 }
 
 export function matchCanned(message, focus, rows = readCanned()) {

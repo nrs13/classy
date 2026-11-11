@@ -8,6 +8,7 @@ import { resolveChatConfig, streamProvider, ChatProviderError } from '../server/
 import { CANNED_ONLY, CHAT_PAUSED, chatStatus, effectiveChatMode, liveFallbackText, matchCanned, visitorCountry } from '../server/chat/mode.js';
 import { chatFault, mockFaultError, mockSlowMs } from '../server/chat/mock.js';
 import { computedAnswer } from '../server/chat/computed.js';
+import { applyLenses } from '../server/chat/lenses.js';
 import { assertUnderCap, recordUsage } from '../server/chat/spend.js';
 import { MAX_CHAT_BODY_BYTES, MAX_HISTORY_MESSAGES, MAX_MESSAGE_CHARS, messageTooLong, messageTooShort } from '../src/lib/chatLimits.js';
 import { chatCacheKey, readChatCache, writeChatCache } from '../server/chat/cache.js';
@@ -139,13 +140,14 @@ export default async function handler(req, res) {
   if (mode === 'canned') {
     const stored = matchCanned(message, focusNorm);
     if (stored) {
-      refuse(res, stored);
+      refuse(res, applyLenses(stored, focusNorm.modes));
       return;
     }
     try {
       const opened = await openKnowledge(focusNorm);
       const clip = opened.knowledge?.videos?.[0];
-      refuse(res, computedAnswer(message, clip, opened.pack) || CANNED_ONLY);
+      const computed = computedAnswer(message, clip, opened.pack);
+      refuse(res, computed ? applyLenses(computed, focusNorm.modes) : CANNED_ONLY);
     } catch {
       refuse(res, CANNED_ONLY);
     }
@@ -168,7 +170,8 @@ export default async function handler(req, res) {
     refuse(res, cached);
     return;
   }
-  const idemKey = String(req.headers?.['idempotency-key'] || req.headers?.['Idempotency-Key'] || '').slice(0, 80);
+  const supplied = String(req.headers?.['idempotency-key'] || req.headers?.['Idempotency-Key'] || '').slice(0, 80);
+  const idemKey = supplied ? `${supplied}|${focusNorm.modes.join(',')}`.slice(0, 120) : '';
   const claim = chatSends.claim(idemKey);
   if (!claim.fresh) {
     if (claim.replay?.kind === 'json') {

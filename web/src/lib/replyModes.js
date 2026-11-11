@@ -26,33 +26,36 @@ export const REPLY_MODES = [
 ];
 
 const REPLY_MODE_IDS = REPLY_MODES.map((m) => m.id);
-export const DEFAULT_REPLY_MODES = [REPLY_MODES[0].id];
+export const DEFAULT_REPLY_MODES = [];
 
-function getReplyMode(id) {
-  return REPLY_MODES.find((m) => m.id === id) || REPLY_MODES[0];
+function modeById(id) {
+  return REPLY_MODES.find((mode) => mode.id === id);
 }
 
 export function normalizeReplyModes(ids) {
-  const wanted = new Set(Array.isArray(ids) ? ids : []);
-  const kept = REPLY_MODE_IDS.filter((id) => wanted.has(id));
-  return kept.length ? kept : [...DEFAULT_REPLY_MODES];
+  const wanted = new Set(Array.isArray(ids) ? ids.filter((id) => typeof id === 'string') : []);
+  return REPLY_MODE_IDS.filter((id) => wanted.has(id));
 }
 
 export function toggleReplyMode(active, id) {
   const current = normalizeReplyModes(active);
   if (!REPLY_MODE_IDS.includes(id)) return current;
-  if (!current.includes(id)) return normalizeReplyModes([...current, id]);
-  if (current.length === 1) return current;
-  return current.filter((m) => m !== id);
+  if (current.includes(id)) return current.filter((mode) => mode !== id);
+  return normalizeReplyModes([...current, id]);
 }
 
 export function replyModeSummary(active) {
-  const modes = normalizeReplyModes(active).map(getReplyMode);
-  if (modes.length === 1) return `${modes[0].label} · ${modes[0].hint}`;
-  return modes.map((m) => m.label).join(' + ');
+  const modes = normalizeReplyModes(active);
+  if (!modes.length) return 'Ask classy';
+  if (modes.length === 1) {
+    const mode = modeById(modes[0]);
+    return `${mode.label} · ${mode.hint}`;
+  }
+  return modes.map((id) => modeById(id).label).join(' + ');
 }
 
 export function replyModePlaceholder(active) {
   const modes = normalizeReplyModes(active);
-  return modes.length === 1 ? getReplyMode(modes[0]).placeholder : 'ask classy…';
+  if (modes.length !== 1) return 'ask classy…';
+  return modeById(modes[0]).placeholder;
 }

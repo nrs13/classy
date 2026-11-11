@@ -11,6 +11,7 @@ import {
 import { buildSalientSuggestions } from '../lib/suggestedQuestions';
 import {
   DEFAULT_REPLY_MODES,
+  REPLY_MODES,
   replyModePlaceholder,
   replyModeSummary,
   toggleReplyMode,
@@ -51,6 +52,7 @@ export default function ChatPanel({
   const [suggestSeed, setSuggestSeed] = useState(0);
   const [chatState, setChatState] = useState(null);
   const [replyModes, setReplyModes] = useState(DEFAULT_REPLY_MODES);
+  const [lensNote, setLensNote] = useState('');
   const [retryArmed, setRetryArmed] = useState(false);
   const scrollRef = useRef(null);
   const textareaRef = useRef(null);
@@ -68,8 +70,13 @@ export default function ChatPanel({
   const clipSeen = useRef(suggestionKey);
 
   const toggleMode = useCallback((id) => {
-    setReplyModes((current) => toggleReplyMode(current, id));
-  }, []);
+    const next = toggleReplyMode(replyModes, id);
+    const mode = REPLY_MODES.find((item) => item.id === id);
+    if (mode && next.includes(id) !== replyModes.includes(id)) {
+      setLensNote(`${mode.label} is ${next.includes(id) ? 'on' : 'off'}.`);
+    }
+    setReplyModes(next);
+  }, [replyModes]);
 
   useEffect(() => {
     if (!quota) return undefined;
@@ -600,6 +607,7 @@ export default function ChatPanel({
         )}
         <div className="composer-shell">
           <ReplyModeGroup value={replyModes} onChange={toggleMode} disabled={busy || inputPaused || Boolean(quota)} />
+          <p className="composer-lens-note" role="status" aria-live="polite">{lensNote}</p>
           <div className="composer-entry">
             <textarea
               ref={textareaRef}
