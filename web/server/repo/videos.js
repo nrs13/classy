@@ -31,12 +31,23 @@ export async function clipsForChat(snapshotId, ids) {
   const result = await query(
     `SELECT video_id, duration, language, account, plays, likes, comments, followers,
             like_rate, amplification, hook_slope, peak_mean_abs, sustain_ratio,
-            timing_eligible, cuts, curve
+            timing_eligible, cuts, curve, networks
      FROM clip
      WHERE snapshot_id = $1 AND video_id = ANY($2::text[])`,
     [snapshotId, ids],
   );
   return result.rows;
+}
+
+export async function hookSlopes(snapshotId) {
+  const result = await query(
+    `SELECT hook_slope FROM clip WHERE snapshot_id = $1`,
+    [snapshotId],
+  );
+  return {
+    n: result.rows.length,
+    slopes: result.rows.map((row) => Number(row.hook_slope)).filter((n) => Number.isFinite(n)),
+  };
 }
 
 export async function secondsAt(snapshotId, ids, tSec) {

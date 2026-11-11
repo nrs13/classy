@@ -1,5 +1,5 @@
 import { currentSnapshot } from '../repo/snapshot.js';
-import { clipsForChat, secondsAt, VIDEO_ID } from '../repo/videos.js';
+import { clipsForChat, hookSlopes, secondsAt, VIDEO_ID } from '../repo/videos.js';
 
 /** Only the open video(s) and the open second reach the model. */
 export async function openKnowledge(focus) {
@@ -13,8 +13,15 @@ export async function openKnowledge(focus) {
   const t = Math.floor(Number(focus.timeSec) || 0);
   const seconds = await secondsAt(snapshot.id, ids, t);
   const at = new Map(seconds.map((row) => [row.video_id, row]));
+  let pack = null;
+  try {
+    pack = await hookSlopes(snapshot.id);
+  } catch {
+    pack = null;
+  }
   return {
     snapshotId: snapshot.id,
+    pack,
     knowledge: {
       product: 'Classy',
       videos: clips.map((clip) => {
@@ -45,6 +52,7 @@ export async function openKnowledge(focus) {
             peak_mean_abs: clip.peak_mean_abs,
             sustain_ratio: clip.sustain_ratio,
           },
+          networks: clip.networks || null,
           activation_timeline: { series: clip.curve || [] },
           story: second ? [{ t_sec: t, events }] : [],
           content_events: events,

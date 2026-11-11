@@ -2,6 +2,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { resolveChatConfig } from './provider.js';
+import { computedAnswer } from './computed.js';
 
 export const CHAT_PAUSED = 'Chat is paused in this demo.';
 export const CANNED_ONLY = 'Only the suggested questions are answered in this demo.';
@@ -68,9 +69,9 @@ const FALLBACK_TYPES = new Set([
   'minute_quota', 'day_quota', 'visitor_rate', 'own_daily_cap',
 ]);
 
-export function liveFallbackText(errorType, message, focus, rows) {
+export function liveFallbackText(errorType, message, focus, rows, clip, pack) {
   if (!FALLBACK_TYPES.has(errorType)) return null;
-  return matchCanned(message, focus, rows) || CHAT_PAUSED;
+  return matchCanned(message, focus, rows) || computedAnswer(message, clip, pack) || CHAT_PAUSED;
 }
 
 export function matchCanned(message, focus, rows = readCanned()) {

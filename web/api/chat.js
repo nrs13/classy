@@ -6,6 +6,7 @@ import { buildSystemPrompt } from '../server/chat/promptBlocks.js';
 import { openKnowledge } from '../server/chat/knowledge.js';
 import { resolveChatConfig, streamProvider, ChatProviderError } from '../server/chat/provider.js';
 import { CANNED_ONLY, CHAT_PAUSED, chatStatus, effectiveChatMode, liveFallbackText, matchCanned, visitorCountry } from '../server/chat/mode.js';
+import { computedAnswer } from '../server/chat/computed.js';
 import { assertUnderCap, recordUsage } from '../server/chat/spend.js';
 import { MAX_CHAT_BODY_BYTES, MAX_HISTORY_MESSAGES, MAX_MESSAGE_CHARS, messageTooLong, messageTooShort } from '../src/lib/chatLimits.js';
 import { chatCacheKey, readChatCache, writeChatCache } from '../server/chat/cache.js';
@@ -135,7 +136,18 @@ export default async function handler(req, res) {
   }
   const focusNorm = normalizeFocus(focus);
   if (mode === 'canned') {
-    refuse(res, matchCanned(message, focusNorm) || CANNED_ONLY);
+    const stored = matchCanned(message, focusNorm);
+    if (stored) {
+      refuse(res, stored);
+      return;
+    }
+    try {
+      const opened = await openKnowledge(focusNorm);
+      const clip = opened.knowledge?.videos?.[0];
+      refuse(res, computedAnswer(message, clip, opened.pack) || CANNED_ONLY);
+    } catch {
+      refuse(res, CANNED_ONLY);
+    }
     return;
   }
   if (!chatConfig.apiKey) {
@@ -201,6 +213,8 @@ export default async function handler(req, res) {
     });
     return;
   }
+  let openedClip = null;
+  let openedPack = null;
   let system;
   try {
     const opened = await openKnowledge(focusNorm);
@@ -210,6 +224,8 @@ export default async function handler(req, res) {
       return;
     }
     const delivered = deliverOpenClip(opened.knowledge, focusNorm);
+    openedClip = opened.knowledge?.videos?.[0] || null;
+    openedPack = opened.pack || null;
     system = buildSystemPrompt(delivered, focusNorm);
   } catch (err) {
     logEvent({ level: 'error', requestId, route: 'chat', code: 'library_unavailable', error: String(err?.message || err) });
@@ -284,7 +300,7 @@ export default async function handler(req, res) {
       });
       return;
     }
-    const fallback = announced ? null : liveFallbackText(failure.scope, message, focusNorm);
+    const fallback = announced ? null : liveFallbackText(failure.scope, message, focusNorm, undefined, openedClip, openedPack);
     if (fallback && failure.scope !== 'auth') {
       send(res, { type: 'text', text: fallback });
       send(res, { type: 'done' });
