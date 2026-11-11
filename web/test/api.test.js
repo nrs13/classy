@@ -224,7 +224,7 @@ test('service: hybrid when profiles match; speaker only with several speakers', 
   assert.equal(body.understanding, undefined);
 });
 
-test('service: embedding failure keeps exact matches and says so', async () => {
+test('service: embedding failure keeps keyword matches and says so', async () => {
   const provider = {
     name: 'fake',
     profile: PROFILE,
@@ -236,7 +236,19 @@ test('service: embedding failure keeps exact matches and says so', async () => {
   };
   const body = await service.searchLibrary({ q: 'SchoolGPT again', provider, understand: false });
   assert.equal(body.mode, 'exact');
-  assert.equal(body.notice, service.EXACT_NOTICE);
+  assert.equal(body.notice, service.KEYWORD_NOTICE);
+  assert.ok(Array.isArray(body.results));
+});
+
+test('service: a failed rerank keeps the keyword list', async () => {
+  const body = await service.searchLibrary({
+    q: 'SchoolGPT again',
+    understand: false,
+    mode: 'exact',
+    reranker: { name: 'boom', rerank: async () => { throw new Error('rerank down'); } },
+  });
+  assert.equal(body.notice, service.KEYWORD_NOTICE);
+  assert.ok(Array.isArray(body.results));
 });
 
 test('service: mode=exact skips the vector lane without a notice', async () => {

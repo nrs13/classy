@@ -14,6 +14,7 @@ import { keywordLane, vectorLane, videoLane } from './retrieve.js';
 import { understandQuery } from './understand.js';
 
 export const EXACT_NOTICE = 'Showing exact matches only right now.';
+export const KEYWORD_NOTICE = 'Showing keyword matches only.';
 const RERANK_TOP = 20;
 
 /** Whole-video documents stay off because they did not beat moment-only scoring. */
@@ -126,7 +127,9 @@ export async function searchLibrary(options, { requestId = '' } = {}) {
     ...englishPromises,
   ]);
   const hybrid = Array.isArray(meaning?.hits);
-  const notice = wantVector && !hybrid ? EXACT_NOTICE : null;
+  let notice = null;
+  if (embedErrors.length) notice = KEYWORD_NOTICE;
+  else if (wantVector && !hybrid) notice = EXACT_NOTICE;
 
   const lanes = {
     keyword: keywordHits,
@@ -161,15 +164,23 @@ export async function searchLibrary(options, { requestId = '' } = {}) {
     });
   });
 
-  const reranker = getReranker();
-  const ordered = await timer.stage('rerank', () =>
-    reranker.name === 'none'
-      ? fused
-      : reranker.rerank(parsed.text, fused.slice(0, RERANK_TOP).map(withPreview)).then((top) => [
-          ...top,
-          ...fused.slice(RERANK_TOP),
-        ]),
-  );
+  const reranker = options.reranker || getReranker();
+  let ordered = fused;
+  let rerankFailed = false;
+  try {
+    ordered = await timer.stage('rerank', () =>
+      reranker.name === 'none'
+        ? fused
+        : reranker.rerank(parsed.text, fused.slice(0, RERANK_TOP).map(withPreview)).then((top) => [
+            ...top,
+            ...fused.slice(RERANK_TOP),
+          ]),
+    );
+  } catch {
+    rerankFailed = true;
+    ordered = fused;
+  }
+  if (rerankFailed) notice = KEYWORD_NOTICE;
 
   const groups = ordered.slice(0, limit);
   const results = await timer.stage('explain', () => explainGroups(snapshot.id, groups));
