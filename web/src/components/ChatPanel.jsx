@@ -17,6 +17,7 @@ import {
 } from '../lib/replyModes';
 import ReplyModeGroup from './ReplyModeGroup';
 import { acceptSend, capMessage, CHAT_COOLDOWN_MS, dropUnfinishedReply, retryTurn } from '../lib/chatLimits';
+import { isCooling, quotaMessage, startCountdown } from '../lib/quota';
 
 const OFFLINE_REPLY =
   "classy isn't listening yet. try one of these instead:";
@@ -49,6 +50,8 @@ export default function ChatPanel({
   const chatAbort = useRef(null);
   const lastSentAt = useRef(0);
   const [cooldownUntil, setCooldownUntil] = useState(0);
+  const [quota, setQuota] = useState(null);
+  const [quotaLeft, setQuotaLeft] = useState(0);
   const sendGen = useRef(0);
   const busyRef = useRef(false);
   const suggestionKey = suggestionVideoIds.join('|');
@@ -57,6 +60,38 @@ export default function ChatPanel({
   const toggleMode = useCallback((id) => {
     setReplyModes((current) => toggleReplyMode(current, id));
   }, []);
+
+  useEffect(() => {
+    if (!quota) return undefined;
+    if (!isCooling(quota.scope)) {
+      const until = Date.parse(quota.resetAt || '');
+      if (!Number.isFinite(until)) return undefined;
+      const look = () => {
+        if (Date.now() < until && document.visibilityState === 'hidden') return;
+        if (Date.now() < until) return;
+        setQuota(null);
+        checkChatBackend().then((status) => {
+          setChatState(status);
+          if (status.state === 'exhausted') {
+            setQuota({ scope: 'own_daily_cap', resetAt: status.resetAt, retryAfterSeconds: null });
+          }
+        });
+      };
+      const id = setInterval(look, 1000);
+      document.addEventListener('visibilitychange', look);
+      return () => {
+        clearInterval(id);
+        document.removeEventListener('visibilitychange', look);
+      };
+    }
+    const until = Date.now() + Math.max(0, Number(quota.retryAfterSeconds) || 0) * 1000;
+    return startCountdown(until, (left) => {
+      setQuotaLeft(left);
+      if (left > 0) return;
+      setQuota(null);
+      checkChatBackend().then(setChatState);
+    });
+  }, [quota]);
 
   useEffect(() => {
     setSuggestSeed(0);
@@ -75,7 +110,13 @@ export default function ChatPanel({
   useEffect(() => {
     let cancelled = false;
     checkChatBackend().then((status) => {
-      if (!cancelled) setChatState(status);
+      if (cancelled) return;
+      setChatState(status);
+      if (status.state === 'exhausted') {
+        setQuota({ scope: 'own_daily_cap', resetAt: status.resetAt, retryAfterSeconds: null });
+      } else if (status.state === 'cooling') {
+        setQuota({ scope: 'visitor_rate', retryAfterSeconds: status.retryAfterSeconds, resetAt: null });
+      }
     });
     return () => {
       cancelled = true;
@@ -293,6 +334,22 @@ export default function ChatPanel({
       }
       if (chatPaused(err)) console.error('[ask classy] paused');
       else console.error('[ask classy]', err?.name || 'Error');
+      if (isCooling(err?.scope) || err?.scope === 'day_quota' || err?.scope === 'own_daily_cap') {
+        setInput(q);
+        setQuota({
+          scope: err.scope,
+          retryAfterSeconds: err.retryAfterSeconds,
+          resetAt: err.resetAt,
+        });
+        setRetryArmed(false);
+        setMessages((m) => {
+          const copy = [...m];
+          const last = copy[copy.length - 1];
+          if (last?.role === 'assistant' && !last.text) copy.pop();
+          return copy;
+        });
+        return;
+      }
       const text = formatChatError(err);
       setRetryArmed(true);
       setMessages((m) => {
@@ -488,7 +545,7 @@ export default function ChatPanel({
         style={{ background: 'var(--bg-subtle)' }}
       >
         <div className="composer-shell">
-          <ReplyModeGroup value={replyModes} onChange={toggleMode} disabled={busy || inputPaused} />
+          <ReplyModeGroup value={replyModes} onChange={toggleMode} disabled={busy || inputPaused || Boolean(quota)} />
           <div className="composer-entry">
             <textarea
               ref={textareaRef}
@@ -519,13 +576,18 @@ export default function ChatPanel({
             <button
               type="button"
               onClick={busy ? stop : () => send()}
-              disabled={inputPaused || (!busy && !acceptSend(false, input, Date.now(), cooldownUntil ? cooldownUntil - CHAT_COOLDOWN_MS : 0))}
+              disabled={inputPaused || Boolean(quota) || (!busy && !acceptSend(false, input, Date.now(), cooldownUntil ? cooldownUntil - CHAT_COOLDOWN_MS : 0))}
               className="chat-send-btn btn-primary text-[13px]"
               aria-label={busy ? 'Stop reply' : 'Send'}
               title={busy ? 'Stop' : 'Send message'}
             >
               {busy ? 'Stop' : 'Send'}
             </button>
+          </div>
+          <div className="chat-quota" role="status" aria-live="polite">
+            {quota
+              ? (isCooling(quota.scope) ? `You can send again in ${quotaLeft} s` : quotaMessage(quota))
+              : ''}
           </div>
         </div>
         {chatState?.privacy && (

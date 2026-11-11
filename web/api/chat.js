@@ -10,6 +10,7 @@ import { assertUnderCap, recordUsage } from '../server/chat/spend.js';
 import { MAX_CHAT_BODY_BYTES, MAX_HISTORY_MESSAGES, MAX_MESSAGE_CHARS, messageTooLong, messageTooShort } from '../src/lib/chatLimits.js';
 import { chatCacheKey, readChatCache, writeChatCache } from '../server/chat/cache.js';
 import { CHAT_TIMEOUT_MS, MAX_OUTPUT_TOKENS, chatGuardFor, clientIp } from '../server/chat/guard.js';
+import { nextPacificMidnight } from '../server/chat/resetAt.js';
 import { failureBody } from '../server/chat/classify.js';
 import { AppError, errorBody } from '../server/obs/errors.js';
 import { logEvent, requestIdFrom } from '../server/obs/log.js';
@@ -84,7 +85,14 @@ export default async function handler(req, res) {
   const mode = effectiveChatMode(process.env, country);
   if (req.method === 'GET') {
     res.setHeader('Cache-Control', 'no-store');
-    res.status(200).json(chatStatus(process.env, country));
+    const status = chatStatus(process.env, country);
+    const guard = chatGuardFor().inspect(clientIp(req));
+    res.status(200).json({
+      ...status,
+      state: guard.state,
+      resetAt: guard.resetAt,
+      retryAfterSeconds: guard.retryAfterSeconds,
+    });
     return;
   }
   if (req.method !== 'POST') {
@@ -139,10 +147,11 @@ export default async function handler(req, res) {
     chatGuardFor().take(clientIp(req));
   } catch (err) {
     if (!(err instanceof AppError)) throw err;
+    const scope = err.scope || err.code;
     sendFailure(res, requestId, {
-      scope: err.scope || err.code,
+      scope,
       retryAfterSeconds: err.retryAfterSeconds ?? null,
-      resetAt: err.resetAt ?? null,
+      resetAt: scope === 'day_quota' || scope === 'own_daily_cap' ? (err.resetAt || nextPacificMidnight(Date.now())) : (err.resetAt ?? null),
       status: err.status,
     });
     return;
@@ -211,6 +220,9 @@ export default async function handler(req, res) {
       resetAt: err instanceof ChatProviderError ? err.resetAt : null,
       status,
     };
+    if ((failure.scope === 'day_quota' || failure.scope === 'own_daily_cap') && !failure.resetAt) {
+      failure.resetAt = nextPacificMidnight(Date.now());
+    }
     logChatFailure(requestId, chatConfig.provider, failure);
     if (!announced && !res.headersSent) {
       sendFailure(res, requestId, failure);

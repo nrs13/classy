@@ -1,4 +1,5 @@
 import { AppError } from '../obs/errors.js';
+import { nextPacificMidnight } from './resetAt.js';
 
 export const VISITOR_PER_MINUTE = 4;
 export const VISITOR_PER_HOUR = 20;
@@ -31,6 +32,7 @@ export function createChatGuard({
       if (day.count >= dailyMax) {
         const err = new AppError('own_daily_cap', 429);
         err.scope = 'own_daily_cap';
+        err.resetAt = nextPacificMidnight(t);
         throw err;
       }
       const id = ip || 'local';
@@ -60,6 +62,30 @@ export function createChatGuard({
       bucket.hour += 1;
       day.count += 1;
       return day.count;
+    },
+    inspect(ip) {
+      const t = now();
+      const key = pacificDay(t);
+      if (key !== day.key) day = { key, count: 0 };
+      if (day.count >= dailyMax) {
+        return { state: 'exhausted', resetAt: nextPacificMidnight(t), retryAfterSeconds: null };
+      }
+      const bucket = visitors.get(ip || 'local');
+      if (bucket && t - bucket.minuteStart < 60_000 && bucket.minute >= perMinute) {
+        return {
+          state: 'cooling',
+          resetAt: null,
+          retryAfterSeconds: Math.max(1, Math.ceil((60_000 - (t - bucket.minuteStart)) / 1000)),
+        };
+      }
+      if (bucket && t - bucket.hourStart < 3_600_000 && bucket.hour >= perHour) {
+        return {
+          state: 'cooling',
+          resetAt: null,
+          retryAfterSeconds: Math.max(1, Math.ceil((3_600_000 - (t - bucket.hourStart)) / 1000)),
+        };
+      }
+      return { state: 'ok', resetAt: null, retryAfterSeconds: null };
     },
   };
 }

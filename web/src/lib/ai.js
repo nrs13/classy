@@ -1,5 +1,6 @@
 export { sanitizeAssistantText } from './sanitizeAssistantText.js';
 import { MAX_HISTORY_MESSAGES } from './chatLimits.js';
+import { isCooling, quotaMessage } from './quota.js';
 
 export async function checkChatBackend(signal) {
   try {
@@ -12,6 +13,9 @@ export async function checkChatBackend(signal) {
       ready: Boolean(body?.ready),
       privacy: Boolean(body?.privacy),
       notice: typeof body?.notice === 'string' ? body.notice : '',
+      state: body?.state === 'cooling' || body?.state === 'exhausted' ? body.state : 'ok',
+      resetAt: typeof body?.resetAt === 'string' ? body.resetAt : null,
+      retryAfterSeconds: Number.isFinite(body?.retryAfterSeconds) ? body.retryAfterSeconds : null,
     };
   } catch {
     if (signal?.aborted) return { mode: 'off', ready: false, privacy: false, notice: '', aborted: true };
@@ -47,6 +51,9 @@ export function chatPaused(err) {
 }
 
 export function formatChatError(err) {
+  if (err?.scope && (isCooling(err.scope) || err.scope === 'day_quota' || err.scope === 'own_daily_cap' || err.scope === 'auth')) {
+    return quotaMessage(err, Date.now(), CHAT_PAUSED);
+  }
   if (chatPaused(err)) return CHAT_PAUSED;
   const text = String(err?.message || err || 'unknown error');
   if (err?.code === 'NO_BACKEND' || text.includes('404')) {
@@ -88,15 +95,19 @@ export async function* streamChatReply({ priorMessages = [], message, focus = nu
   }
 
   if (!response.ok) {
-    let code = '';
+    let body = {};
     try {
-      code = (await response.json())?.error || '';
+      body = await response.json();
     } catch {
-      code = '';
+      body = {};
     }
+    const scope = body?.scope || body?.error || '';
     const err = new Error(`chat backend error (${response.status})`);
     err.status = response.status;
-    if (code) err.code = code;
+    err.scope = scope || undefined;
+    err.retryAfterSeconds = body?.retryAfterSeconds ?? null;
+    err.resetAt = body?.resetAt ?? null;
+    if (scope) err.code = scope;
     else if (response.status === 402) err.code = 'SPEND_CAP';
     else if (response.status === 503) err.code = 'NOT_CONFIGURED';
     else if (response.status === 404) err.code = 'NO_BACKEND';
@@ -132,6 +143,15 @@ export async function* streamChatReply({ priorMessages = [], message, focus = nu
           yield event;
         } else if (event.type === 'error') {
           if (event.code === 'refusal') throw new Error(event.message || 'The model declined to answer that.');
+          if (event.scope) {
+            const failure = new Error(event.message || 'chat');
+            failure.scope = event.scope;
+            failure.retryAfterSeconds = event.retryAfterSeconds ?? null;
+            failure.resetAt = event.resetAt ?? null;
+            failure.status = event.scope === 'auth' ? 401 : 429;
+            failure.code = event.scope;
+            throw failure;
+          }
           const failure = event.code === 'quota' ? new BothModelsQuotaError() : new Error(event.message || 'the assistant is unavailable right now');
           if (event.code !== 'quota') failure.code = 'API_ERROR';
           failure.status = event.code === 'quota' ? 429 : 503;

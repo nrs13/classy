@@ -54,6 +54,8 @@ export function chatStatus(env = process.env, country = '') {
     ready,
     privacy: mode === 'live' && ready,
     notice: gated ? REGION_CANNED_NOTICE : '',
+    state: 'ok',
+    resetAt: null,
   };
 }
 
