@@ -21,6 +21,12 @@ import { applyOnlineState } from '../lib/connection';
 import { coolingDeadline, isCooling, LIVE_REGION, onQuotaClock, quotaAnnouncement, startCountdown } from '../lib/quota';
 import { CUT_LABEL, OFFLINE_LABEL } from '../lib/streamFrame';
 
+function visitorModel(name) {
+  const text = String(name || '').trim();
+  if (!text || /gemini|azure|video indexer|content understanding|^mock$/i.test(text)) return '';
+  return text;
+}
+
 const OFFLINE_REPLY =
   "classy isn't listening yet. try one of these instead:";
 
@@ -548,9 +554,9 @@ export default function ChatPanel({
                   {msg.incomplete && (
                     <div className="chat-cut">{CUT_LABEL}</div>
                   )}
-                  {isModel && msg.model && !msg.error && (msg.text || isStreamingTail) && (
-                    <div className="chat-model-tag" title={`Model ${msg.model}`}>
-                      {msg.model}
+                  {isModel && visitorModel(msg.model) && !msg.error && (msg.text || isStreamingTail) && (
+                    <div className="chat-model-tag" title={`Model ${visitorModel(msg.model)}`}>
+                      {visitorModel(msg.model)}
                     </div>
                   )}
                   {isModel && msg.text && !isStreamingTail && (

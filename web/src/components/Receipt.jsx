@@ -41,7 +41,7 @@ export default function Receipt({ row, quoteFloor, searchNote }) {
         )}
         {understanding && (
           <div className="playhead-extract-note">
-            <p className="playhead-extract-kicker">Content understanding</p>
+            <p className="playhead-extract-kicker">What happens in this second</p>
             <p className="playhead-extract-line is-full">{understanding}</p>
           </div>
         )}
