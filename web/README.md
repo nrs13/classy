@@ -138,6 +138,26 @@ CLASSY_MEDIA_SECRET=
 
 Upload uses a different token, `CLASSY_R2_WRITE_ACCESS_KEY_ID` and `CLASSY_R2_WRITE_SECRET_ACCESS_KEY`, and only from this machine. `node scripts/upload-media.mjs` compares sizes and checksums. `node scripts/upload-media.mjs --upload` sends the files that differ. The script refuses to run when `VERCEL` is set or `NODE_ENV` is `production`.
 
+The bucket CORS policy lists exact origins. Video playback does not need CORS. The activation file is fetched by script, so the bucket must allow these origins and expose the range headers:
+
+```json
+[
+  {
+    "AllowedOrigins": [
+      "https://classy-v2.vercel.app",
+      "http://127.0.0.1:5173",
+      "http://localhost:5173",
+      "http://127.0.0.1:4173",
+      "http://localhost:4173"
+    ],
+    "AllowedMethods": ["GET", "HEAD"],
+    "AllowedHeaders": ["Range"],
+    "ExposeHeaders": ["Accept-Ranges", "Content-Range", "Content-Length", "Content-Type", "ETag"],
+    "MaxAgeSeconds": 600
+  }
+]
+```
+
 Live chat also reads the `x-vercel-ip-country` header. Visitors in the EEA, Switzerland, or the UK, and any request with that header missing, are served canned answers instead of Gemini. The privacy note is shown only for a live visitor outside that list.
 
 ## Rebuild the catalog database
