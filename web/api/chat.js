@@ -6,7 +6,7 @@ import { buildSystemPrompt } from '../server/chat/promptBlocks.js';
 import { openKnowledge } from '../server/chat/knowledge.js';
 import { resolveChatConfig, streamProvider, ChatProviderError } from '../server/chat/provider.js';
 import { CANNED_ONLY, CHAT_PAUSED, chatStatus, effectiveChatMode, liveFallbackText, matchCanned, visitorCountry } from '../server/chat/mode.js';
-import { chatFault } from '../server/chat/mock.js';
+import { chatFault, mockFaultError, mockSlowMs } from '../server/chat/mock.js';
 import { computedAnswer } from '../server/chat/computed.js';
 import { assertUnderCap, recordUsage } from '../server/chat/spend.js';
 import { MAX_CHAT_BODY_BYTES, MAX_HISTORY_MESSAGES, MAX_MESSAGE_CHARS, messageTooLong, messageTooShort } from '../src/lib/chatLimits.js';
@@ -235,6 +235,28 @@ export default async function handler(req, res) {
     return;
   }
 
+  const earlyFault = chatConfig.provider === 'mock' ? mockFaultError(chatFault(req)) : null;
+  if (earlyFault) {
+    const failure = {
+      scope: earlyFault.scope,
+      retryAfterSeconds: earlyFault.retryAfterSeconds,
+      resetAt: earlyFault.resetAt,
+      status: earlyFault.status,
+    };
+    if ((failure.scope === 'day_quota' || failure.scope === 'own_daily_cap') && !failure.resetAt) {
+      failure.resetAt = nextPacificMidnight(Date.now());
+    }
+    logChatFailure(requestId, chatConfig.provider, failure);
+    sendFailure(res, requestId, failure);
+    finish({
+      kind: 'json',
+      status: quotaStatus(failure.scope, failure.status),
+      retryAfterSeconds: failure.retryAfterSeconds,
+      body: failureBody(requestId, failure),
+    });
+    return;
+  }
+
   const messages = toAnthropicMessages(history, message);
   const abort = new AbortController();
   abortUpstreamOnDisconnect(req, res, abort);
@@ -256,6 +278,7 @@ export default async function handler(req, res) {
       timeoutMs: CHAT_TIMEOUT_MS,
       signal: abort.signal,
       fault: chatFault(req),
+      slowMs: mockSlowMs(req),
     })) {
       if (event.type === 'text') {
         if (!announced) {

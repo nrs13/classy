@@ -17,7 +17,8 @@ import {
 } from '../lib/replyModes';
 import ReplyModeGroup from './ReplyModeGroup';
 import { acceptSend, capMessage, CHAT_COOLDOWN_MS, dropUnfinishedReply, retryTurn } from '../lib/chatLimits';
-import { isCooling, quotaMessage, startCountdown } from '../lib/quota';
+import { applyOnlineState } from '../lib/connection';
+import { coolingDeadline, isCooling, LIVE_REGION, onQuotaClock, quotaAnnouncement, startCountdown } from '../lib/quota';
 import { CUT_LABEL, OFFLINE_LABEL } from '../lib/streamFrame';
 
 const OFFLINE_REPLY =
@@ -69,9 +70,7 @@ export default function ChatPanel({
     if (!isCooling(quota.scope)) {
       const until = Date.parse(quota.resetAt || '');
       if (!Number.isFinite(until)) return undefined;
-      const look = () => {
-        if (Date.now() < until && document.visibilityState === 'hidden') return;
-        if (Date.now() < until) return;
+      const release = () => {
         setQuota(null);
         checkChatBackend().then((status) => {
           setChatState(status);
@@ -80,14 +79,22 @@ export default function ChatPanel({
           }
         });
       };
+      const look = () => {
+        if (!onQuotaClock({ until, now: Date.now(), visibility: document.visibilityState, reason: 'timer' })) return;
+        release();
+      };
+      const onVisible = () => {
+        if (!onQuotaClock({ until, now: Date.now(), visibility: document.visibilityState, reason: 'visible' })) return;
+        release();
+      };
       const id = setInterval(look, 1000);
-      document.addEventListener('visibilitychange', look);
+      document.addEventListener('visibilitychange', onVisible);
       return () => {
         clearInterval(id);
-        document.removeEventListener('visibilitychange', look);
+        document.removeEventListener('visibilitychange', onVisible);
       };
     }
-    const until = Date.now() + Math.max(0, Number(quota.retryAfterSeconds) || 0) * 1000;
+    const until = coolingDeadline(quota.retryAfterSeconds);
     return startCountdown(until, (left) => {
       setQuotaLeft(left);
       if (left > 0) return;
@@ -97,8 +104,17 @@ export default function ChatPanel({
   }, [quota]);
 
   useEffect(() => {
-    const markOff = () => setOffline(true);
-    const markOn = () => setOffline(false);
+    let online = typeof navigator === 'undefined' ? true : navigator.onLine !== false;
+    const markOff = () => {
+      const next = applyOnlineState(online, 'offline');
+      online = next.online;
+      setOffline(!next.online);
+    };
+    const markOn = () => {
+      const next = applyOnlineState(online, 'online');
+      online = next.online;
+      setOffline(!next.online);
+    };
     window.addEventListener('offline', markOff);
     window.addEventListener('online', markOn);
     return () => {
@@ -574,7 +590,7 @@ export default function ChatPanel({
         style={{ background: 'var(--bg-subtle)' }}
       >
         {offline && (
-          <div className="chat-offline" role="status" aria-live="polite">{OFFLINE_LABEL}</div>
+          <div className="chat-offline" {...LIVE_REGION}>{OFFLINE_LABEL}</div>
         )}
         <div className="composer-shell">
           <ReplyModeGroup value={replyModes} onChange={toggleMode} disabled={busy || inputPaused || Boolean(quota)} />
@@ -616,10 +632,8 @@ export default function ChatPanel({
               {busy ? 'Stop' : 'Send'}
             </button>
           </div>
-          <div className="chat-quota" role="status" aria-live="polite">
-            {quota
-              ? (isCooling(quota.scope) ? `You can send again in ${quotaLeft} s` : quotaMessage(quota))
-              : ''}
+          <div className="chat-quota" {...LIVE_REGION}>
+            {quotaAnnouncement(quota, quotaLeft)}
           </div>
         </div>
         {chatState?.privacy && (

@@ -3,6 +3,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { resolveChatConfig } from './provider.js';
 import { computedAnswer } from './computed.js';
+import { mockChatAllowed } from './mock.js';
 
 export const CHAT_PAUSED = 'Chat is paused in this demo.';
 export const CANNED_ONLY = 'Only the suggested questions are answered in this demo.';
@@ -40,7 +41,10 @@ export function regionLimitsLive(country) {
 /** Live becomes canned for a restricted visitor, and when the country header is missing. */
 export function effectiveChatMode(env = process.env, country = '') {
   const configured = chatMode(env);
-  if (configured === 'live' && regionLimitsLive(country)) return 'canned';
+  if (configured === 'live' && regionLimitsLive(country)) {
+    const localMock = !country && String(env.CHAT_PROVIDER || '').trim().toLowerCase() === 'mock' && mockChatAllowed(env);
+    if (!localMock) return 'canned';
+  }
   return configured;
 }
 

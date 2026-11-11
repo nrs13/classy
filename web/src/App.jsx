@@ -9,6 +9,7 @@ import LibrarySearch from './components/LibrarySearch';
 import SearchView from './components/SearchView';
 import { useLibrarySearch } from './lib/useLibrarySearch';
 import { searchFromUrl, searchToUrl } from './lib/search';
+import { applyOnlineState } from './lib/connection';
 
 const TIER_CLASS = {
   breakout: 'tier-breakout',
@@ -170,9 +171,12 @@ export default function App() {
   }, [catalogAttempt]);
 
   useEffect(() => {
-    const markOff = () => setOffline(true);
-    const markOn = () => {
-      setOffline(false);
+    let online = typeof navigator === 'undefined' ? true : navigator.onLine !== false;
+    const mark = (event) => {
+      const next = applyOnlineState(online, event);
+      online = next.online;
+      setOffline(!next.online);
+      if (!next.refetch) return;
       loadCatalog().then((m) => {
         setManifest(m);
         setCatalogError(false);
@@ -180,6 +184,8 @@ export default function App() {
         setCatalogAttempt((n) => n + 1);
       });
     };
+    const markOff = () => mark('offline');
+    const markOn = () => mark('online');
     window.addEventListener('offline', markOff);
     window.addEventListener('online', markOn);
     return () => {

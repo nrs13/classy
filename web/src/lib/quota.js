@@ -20,6 +20,26 @@ export function secondsLeft(until, now = Date.now()) {
   return Math.max(0, Math.ceil((until - now) / 1000));
 }
 
+/** One deadline for the whole wait. Later ticks read this instant, they do not subtract one. */
+export function coolingDeadline(retryAfterSeconds, now = Date.now()) {
+  return now + Math.max(0, Number(retryAfterSeconds) || 0) * 1000;
+}
+
+/** Timer and the visible-tab recheck both wait for that same deadline. */
+export function onQuotaClock({ until, now, visibility = 'visible', reason = 'timer' }) {
+  if (!Number.isFinite(until) || now < until) return false;
+  if (reason === 'visible' && visibility !== 'visible') return false;
+  return true;
+}
+
+export const LIVE_REGION = { role: 'status', 'aria-live': 'polite' };
+
+export function quotaAnnouncement(quota, seconds, now = Date.now()) {
+  if (!quota) return '';
+  if (isCooling(quota.scope)) return `You can send again in ${seconds} s`;
+  return quotaMessage(quota, now);
+}
+
 export function isCooling(scope) {
   return COOLING.has(scope);
 }
