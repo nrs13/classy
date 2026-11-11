@@ -149,7 +149,12 @@ The source of a rebuild is the local socket database named `classy`. The target 
 NEON_BRANCH=dev scripts/rebuild-catalog.sh
 
 # Same copy, including chunk embeddings, once the target has room for them.
+# This truncates the target and reloads every snapshot.
 NEON_BRANCH=dev scripts/rebuild-catalog.sh --with-vectors
+
+# Copy embeddings for one snapshot that is already loaded, then rebuild the index.
+# This does not truncate and does not bring back other snapshots.
+NEON_BRANCH=dev scripts/rebuild-catalog.sh --vectors-only --snapshot ku-20261012T130045Z
 ```
 
 Set `DATABASE_URL` in the environment before either command. For local Neon work, use the `dev` branch and put that URL only in gitignored `web/.env.local`, with `NEON_BRANCH=dev`. `npm test` does not read that file. It builds a throwaway local database and overwrites `DATABASE_URL`. `web/scripts/search-cli.mjs`, `web/scripts/search-debug.mjs`, and `catalog/pack_snapshot.py` use the same production refusal.
