@@ -117,6 +117,9 @@ GEMINI_CHAT_API_KEY=
 CLASSY_CHAT_DAILY_CAP=
 DATABASE_URL=
 CLASSY_BUCKET=
+CLASSY_R2_ACCOUNT_ID=
+CLASSY_R2_ACCESS_KEY_ID=
+CLASSY_R2_SECRET_ACCESS_KEY=
 CLASSY_OBJECT_ROOT=
 CLASSY_MEDIA_SECRET=
 ```
@@ -127,9 +130,11 @@ CLASSY_MEDIA_SECRET=
 - `GEMINI_CHAT_API_KEY`: required for live Gemini. Leave empty to keep live mode unavailable.
 - `CLASSY_CHAT_DAILY_CAP`: empty uses 400 live requests per Pacific day, under the reported free daily limit for `gemini-3.5-flash-lite`.
 - `DATABASE_URL`: Postgres catalog. Empty off Vercel uses the local database. On Vercel an empty value leaves the catalog unconfigured.
-- `CLASSY_BUCKET`: object storage bucket for media. Empty serves files from disk.
+- `CLASSY_BUCKET`: private Cloudflare R2 bucket for media. Empty serves files from disk.
+- `CLASSY_R2_ACCOUNT_ID`: R2 account id. Used only to build the signed host.
+- `CLASSY_R2_ACCESS_KEY_ID` and `CLASSY_R2_SECRET_ACCESS_KEY`: read-only token for that bucket. The app signs GET links for 10 minutes. Leave both empty to keep reading files from disk.
 - `CLASSY_OBJECT_ROOT`: directory for those files. Empty uses `catalog/objects`.
-- `CLASSY_MEDIA_SECRET`: HMAC secret for signed media URLs. Set this in production. Empty uses the local development default.
+- `CLASSY_MEDIA_SECRET`: HMAC secret for the local disk links. Set this in production. Empty uses the local development default.
 
 Live chat also reads the `x-vercel-ip-country` header. Visitors in the EEA, Switzerland, or the UK, and any request with that header missing, are served canned answers instead of Gemini. The privacy note is shown only for a live visitor outside that list.
 

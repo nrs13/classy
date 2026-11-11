@@ -1,5 +1,5 @@
 import { route, searchParams } from '../server/http.js';
-import { signedGcsUrl, signMedia, MEDIA_TTL_MS } from '../server/media.js';
+import { signedMediaUrl, signMedia, MEDIA_TTL_MS } from '../server/media.js';
 import { AppError } from '../server/obs/errors.js';
 import { currentSnapshot } from '../server/repo/snapshot.js';
 import { mediaObjects, VIDEO_ID } from '../server/repo/videos.js';
@@ -16,8 +16,8 @@ export default route('media', { fallback: 'media_unavailable' }, async (req, res
   const clip = await mediaObjects(snapshot.id, id);
   const objectKey = clip?.[KEYS[kind]];
   if (!objectKey) throw new AppError('not_found', 404);
-  const gcs = await signedGcsUrl(objectKey).catch(() => null);
-  const url = gcs || `/api/object?token=${signMedia(id, kind, objectKey).token}`;
+  const remote = signedMediaUrl(objectKey);
+  const url = remote || `/api/object?token=${signMedia(id, kind, objectKey).token}`;
   if (kind === 'sprite') {
     // Used directly as an <img> source; the redirect may be reused while the signature is valid.
     res.setHeader('Cache-Control', `private, max-age=${Math.floor(MEDIA_TTL_MS / 2000)}`);

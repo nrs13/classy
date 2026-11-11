@@ -9,9 +9,9 @@ async function fetchArrayBuffer(url, signal) {
     err.name = 'AbortError';
     throw err;
   }
-  if (!res.ok) throw new Error(`${url}: ${res.status}`);
+  if (!res.ok) throw new Error(`media ${res.status}`);
   const ct = res.headers.get('content-type') || '';
-  if (ct.includes('text/html')) throw new Error(`${url}: not found (html fallback)`);
+  if (ct.includes('text/html')) throw new Error('media not found');
   return res.arrayBuffer();
 }
 
