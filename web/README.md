@@ -125,10 +125,12 @@ CLASSY_MEDIA_SECRET=
 ```
 
 - `CHAT_MODE`: `off`, `canned`, or `live`. A missing or any other value is `off`, which does not call a model.
-- `CHAT_PROVIDER`: `gemini` or `anthropic`. Empty uses Gemini.
-- `CHAT_MODEL`: empty uses `gemini-3.5-flash-lite`.
+- `CHAT_PROVIDER`: `gemini` or `anthropic`. Empty uses Gemini. `mock` simulates chat failures for local development only.
+- `CHAT_MODEL`: empty uses `gemini-3.5-flash-lite`. The chat route sets `maxDuration` to 60 seconds. On the Hobby plan the platform ceiling is 300 seconds.
 - `GEMINI_CHAT_API_KEY`: required for live Gemini. Leave empty to keep live mode unavailable.
 - `CLASSY_CHAT_DAILY_CAP`: empty uses 400 live requests per Pacific day, under the reported free daily limit for `gemini-3.5-flash-lite`.
+
+`CHAT_PROVIDER=mock` answers from this process instead of Gemini. Pick a fault with the `x-classy-chat-fault` header or the `chatFault` query: `minute_quota`, `day_quota`, `auth`, `server`, `timeout`, `slow_stream`, or `cut_stream`. The mock refuses to run when `NODE_ENV` is `production` or `VERCEL_ENV` is set, and the route then uses Gemini.
 - `DATABASE_URL`: Postgres catalog. Empty off Vercel uses the local database. On Vercel an empty value leaves the catalog unconfigured.
 - `CLASSY_BUCKET`: private Cloudflare R2 bucket for media. Empty serves files from disk.
 - `CLASSY_R2_ACCOUNT_ID`: R2 account id. Used only to build the signed host.

@@ -6,6 +6,7 @@ import { buildSystemPrompt } from '../server/chat/promptBlocks.js';
 import { openKnowledge } from '../server/chat/knowledge.js';
 import { resolveChatConfig, streamProvider, ChatProviderError } from '../server/chat/provider.js';
 import { CANNED_ONLY, CHAT_PAUSED, chatStatus, effectiveChatMode, liveFallbackText, matchCanned, visitorCountry } from '../server/chat/mode.js';
+import { chatFault } from '../server/chat/mock.js';
 import { computedAnswer } from '../server/chat/computed.js';
 import { assertUnderCap, recordUsage } from '../server/chat/spend.js';
 import { MAX_CHAT_BODY_BYTES, MAX_HISTORY_MESSAGES, MAX_MESSAGE_CHARS, messageTooLong, messageTooShort } from '../src/lib/chatLimits.js';
@@ -254,6 +255,7 @@ export default async function handler(req, res) {
       maxOutputTokens: MAX_OUTPUT_TOKENS,
       timeoutMs: CHAT_TIMEOUT_MS,
       signal: abort.signal,
+      fault: chatFault(req),
     })) {
       if (event.type === 'text') {
         if (!announced) {
@@ -262,6 +264,10 @@ export default async function handler(req, res) {
         }
         acc += event.text || '';
         send(res, { type: 'text', text: event.text });
+      } else if (event.type === 'cut') {
+        res.end();
+        finish({ kind: 'sse', text: acc });
+        return;
       } else if (event.type === 'usage' && chatConfig.provider === 'anthropic') {
         recordUsage(event.model, event.usage);
       } else if (event.type === 'refusal') {
