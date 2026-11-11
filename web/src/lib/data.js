@@ -1,4 +1,3 @@
-import { IcosahedronGeometry } from 'three';
 import { apiFetch } from './apiFetch.js';
 
 const DATA = '/data';
@@ -52,6 +51,7 @@ export async function loadBrain(manifest) {
     const atlas = await loadAtlas(manifest, vertexCount);
     return { positions, indices, vertexCount, atlas, synthetic: false };
   } catch {
+    const { IcosahedronGeometry } = await import('three');
     const geo = new IcosahedronGeometry(1.25, 4);
     const positions = Float32Array.from(geo.attributes.position.array);
     for (let i = 0; i < positions.length; i += 3) {

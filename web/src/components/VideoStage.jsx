@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import BrainViewer from './BrainViewer';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+const BrainViewer = lazy(() => import('./BrainViewer'));
 import { ErrorBoundary } from './ErrorBoundary';
 import { BRAIN_FALLBACK } from '../lib/boundary';
 import Receipt from './Receipt';
@@ -156,6 +156,9 @@ export default function VideoStage({
   const [progress, setProgress] = useState(0);
   const [hasVideo, setHasVideo] = useState(false);
   const [videoFailed, setVideoFailed] = useState(false);
+  const [buffering, setBuffering] = useState(false);
+  const [slowVideo, setSlowVideo] = useState(false);
+  const stallTimer = useRef(null);
   const [muted, setMuted] = useState(true);
   const [hovered, setHovered] = useState(false);
   const [hoverNetwork, setHoverNetwork] = useState(null);
@@ -204,13 +207,14 @@ export default function VideoStage({
   }, [video.id]);
 
   useEffect(() => {
+    if (!hasVideo) return undefined;
     const ctrl = new AbortController();
     setActivation(null);
     loadActivation(video, brain, { signal: ctrl.signal }).then((a) => {
       if (!ctrl.signal.aborted) setActivation(a);
     });
     return () => ctrl.abort();
-  }, [video.id, brain]);
+  }, [video.id, brain, hasVideo]);
 
   useEffect(() => {
     const ctrl = new AbortController();
@@ -233,6 +237,7 @@ export default function VideoStage({
   }, [video.id, secondsTry]);
 
   const [mediaTry, setMediaTry] = useState(0);
+  const [stallNonce, setStallNonce] = useState(0);
 
   useEffect(() => {
     setMediaTry(0);
@@ -250,7 +255,20 @@ export default function VideoStage({
         if (!ctrl.signal.aborted) setMediaSrc('');
       });
     return () => ctrl.abort();
-  }, [video.id, mediaTry]);
+  }, [video.id, mediaTry, stallNonce]);
+
+  function beginStall() {
+    setBuffering(true);
+    if (stallTimer.current) return;
+    stallTimer.current = setTimeout(() => setSlowVideo(true), 10_000);
+  }
+
+  function endStall() {
+    setBuffering(false);
+    setSlowVideo(false);
+    if (stallTimer.current) clearTimeout(stallTimer.current);
+    stallTimer.current = null;
+  }
 
   function applyProgress(p, { forceState = false } = {}) {
     const clamped = Math.max(0, Math.min(1, p));
@@ -481,6 +499,11 @@ export default function VideoStage({
         playsInline
         muted={muted}
         loop={!controlled}
+        preload="metadata"
+        onWaiting={beginStall}
+        onStalled={beginStall}
+        onPlaying={endStall}
+        onCanPlay={endStall}
         onLoadedData={(e) => {
           setHasVideo(true);
           setVideoFailed(false);
@@ -518,6 +541,16 @@ export default function VideoStage({
           aria-busy={!videoFailed}
         >
           {videoFailed ? 'unavailable' : 'loading'}
+        </div>
+      )}
+      {hasVideo && buffering && (
+        <div className="stage-video-loading" role="status">
+          {slowVideo ? 'Connection is slow' : 'Buffering'}
+          {slowVideo && (
+            <button type="button" className="chat-send-btn" onClick={() => { endStall(); setStallNonce((n) => n + 1); }}>
+              Retry
+            </button>
+          )}
         </div>
       )}
       {!stack && (
@@ -578,16 +611,18 @@ export default function VideoStage({
             </div>
           }
         >
-          <BrainViewer
-            brain={brain}
-            activation={activation}
-            progressRef={progressRef}
-            videoId={video.id}
-            timeSec={progress * (duration || video.duration || 0)}
-            onNetworkChange={handleNetworkChange}
-            compact={stack}
+          <Suspense fallback={null}>
+            <BrainViewer
+              brain={brain}
+              activation={activation}
+              progressRef={progressRef}
+              videoId={video.id}
+              timeSec={progress * (duration || video.duration || 0)}
+              onNetworkChange={handleNetworkChange}
+              compact={stack}
             masterCamera={masterCamera}
           />
+          </Suspense>
         </ErrorBoundary>
       )}
     </div>
