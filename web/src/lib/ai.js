@@ -2,10 +2,11 @@ export { sanitizeAssistantText } from './sanitizeAssistantText.js';
 import { MAX_HISTORY_MESSAGES } from './chatLimits.js';
 import { isCooling, quotaMessage } from './quota.js';
 import { CUT_LABEL, readSseEvents } from './streamFrame.js';
+import { apiFetch } from './apiFetch.js';
 
 export async function checkChatBackend(signal) {
   try {
-    const res = await fetch('/api/chat', { method: 'GET', signal });
+    const res = await apiFetch('/api/chat', { method: 'GET', signal, retries: 0 });
     if (!res.ok) return { mode: 'off', ready: false, privacy: false, notice: '' };
     const body = await res.json();
     const mode = body?.mode === 'live' || body?.mode === 'canned' ? body.mode : 'off';

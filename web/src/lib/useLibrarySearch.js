@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { addRecent, beginSearchState, dropRecent, ERROR_COPY, EXACT_COPY, loadRecent, resultCounts } from './search';
+import { apiFetch } from './apiFetch.js';
 
 /** Exact matches follow the keyboard; meaning and understanding wait for a pause or Enter. */
 const EXACT_DELAY_MS = 120;
@@ -38,7 +39,7 @@ function requestUrl(q, filters, { exact, literal }) {
 async function fetchSearch(url, signal) {
   let res;
   try {
-    res = await fetch(url, { signal });
+    res = await apiFetch(url, { signal });
   } catch (err) {
     if (err?.name === 'AbortError') throw err;
     const offline = typeof navigator !== 'undefined' && navigator.onLine === false;

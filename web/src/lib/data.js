@@ -1,9 +1,10 @@
 import { IcosahedronGeometry } from 'three';
+import { apiFetch } from './apiFetch.js';
 
 const DATA = '/data';
 
 async function fetchArrayBuffer(url, signal) {
-  const res = await fetch(url, { signal });
+  const res = await apiFetch(url, { signal, retries: 0, timeoutMs: 60_000 });
   if (signal?.aborted) {
     const err = new Error('aborted');
     err.name = 'AbortError';
@@ -81,7 +82,7 @@ export function catalogFailurePlan(err, aborted) {
 export async function loadCatalog(signal) {
   let res;
   try {
-    res = await fetch('/api/catalog', { signal });
+    res = await apiFetch('/api/catalog', { signal });
   } catch (err) {
     if (err?.name === 'AbortError' || signal?.aborted) {
       const aborted = new Error('aborted');
@@ -116,9 +117,8 @@ export async function loadActivation(video, brain, { signal } = {}) {
   if (!video?.id || !brain || brain.synthetic || signal?.aborted) return null;
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
-      const meta = await fetch(`/api/media?id=${encodeURIComponent(video.id)}&kind=act`, {
+      const meta = await apiFetch(`/api/media?id=${encodeURIComponent(video.id)}&kind=act`, {
         signal,
-        cache: 'no-store',
       });
       if (signal?.aborted || !meta.ok) return null;
       const body = await meta.json();

@@ -82,6 +82,7 @@ export default function App() {
   const [manifest, setManifest] = useState(null);
   const [catalogError, setCatalogError] = useState(false);
   const [catalogAttempt, setCatalogAttempt] = useState(0);
+  const [offline, setOffline] = useState(() => typeof navigator !== 'undefined' && navigator.onLine === false);
   const [brain, setBrain] = useState(null);
   const [knowledge, setKnowledge] = useState(null);
   const [mode, setMode] = useState(() => (initialSearch.view === 'search' ? 'search' : 'explore'));
@@ -167,6 +168,25 @@ export default function App() {
       });
     return () => ctrl.abort();
   }, [catalogAttempt]);
+
+  useEffect(() => {
+    const markOff = () => setOffline(true);
+    const markOn = () => {
+      setOffline(false);
+      loadCatalog().then((m) => {
+        setManifest(m);
+        setCatalogError(false);
+      }).catch(() => {
+        setCatalogAttempt((n) => n + 1);
+      });
+    };
+    window.addEventListener('offline', markOff);
+    window.addEventListener('online', markOn);
+    return () => {
+      window.removeEventListener('offline', markOff);
+      window.removeEventListener('online', markOn);
+    };
+  }, []);
 
   useEffect(() => {
     const timers = new WeakMap();
@@ -687,6 +707,11 @@ export default function App() {
 
   return (
     <div className="h-full flex flex-col app-shell">
+      {offline && (
+        <div className="offline-banner" role="status" style={{ padding: '6px 24px', fontSize: 13 }}>
+          You're offline.
+        </div>
+      )}
       <header
         className="app-header px-6 py-4 border-b hairline"
         style={{ background: 'var(--bg-subtle)' }}

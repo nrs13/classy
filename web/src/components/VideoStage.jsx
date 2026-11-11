@@ -5,6 +5,7 @@ import { BRAIN_FALLBACK } from '../lib/boundary';
 import Receipt from './Receipt';
 import VideoId from './VideoId';
 import { loadActivation, SECONDS_UNAVAILABLE, secondsFailed } from '../lib/data';
+import { apiFetch } from '../lib/apiFetch';
 import { cutMarks, sentencesAt, timingSource } from '../lib/forecast';
 import { whyLine } from '../lib/search';
 import { hasApp, hasAsk, hasOutcome, nextMark, receiptAt, receiptView, secondsFromRecord } from '../lib/receipt';
@@ -215,7 +216,7 @@ export default function VideoStage({
     const ctrl = new AbortController();
     setPackedSeconds(null);
     setSecondsError(false);
-    fetch(`/api/seconds?id=${encodeURIComponent(video.id)}`, { signal: ctrl.signal })
+    apiFetch(`/api/seconds?id=${encodeURIComponent(video.id)}`, { signal: ctrl.signal })
       .then((res) => {
         if (secondsFailed(ctrl.signal, res)) throw new Error('seconds');
         return res.json();
@@ -240,10 +241,7 @@ export default function VideoStage({
   useEffect(() => {
     const ctrl = new AbortController();
     setMediaSrc('');
-    fetch(`/api/media?id=${encodeURIComponent(video.id)}&kind=mp4`, {
-      signal: ctrl.signal,
-      cache: 'no-store',
-    })
+    apiFetch(`/api/media?id=${encodeURIComponent(video.id)}&kind=mp4`, { signal: ctrl.signal })
       .then((res) => (res.ok ? res.json() : null))
       .then((body) => {
         if (!ctrl.signal.aborted && body?.url) setMediaSrc(body.url);
