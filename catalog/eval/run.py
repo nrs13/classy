@@ -25,6 +25,9 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
 CLI = ROOT / "web" / "scripts" / "search-cli.mjs"
 RESULTS = HERE / "results"
+# Measured on the current live snapshot: first place 0.832, recall@5 0.972,
+# German 0.917, Spanish 0.875. x-08, x-13, and d-22 miss because the expected
+# clip is en-US and the exact-word AND finds no matching words after the English rewrite.
 BASELINE = HERE / "baseline.json"
 MOMENT_SLACK = 2
 LATENCY_BUDGET_MS = {"exact": 150, "cached": 150, "hybrid_new": 1500, "understood_new": 2200}
