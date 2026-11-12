@@ -70,8 +70,8 @@ test('the brief tells the model the tier, the brain, and the next agreed app in 
   assert.match(brief, /5,443×/);
   assert.match(brief, /97 videos/);
   assert.match(brief, /Visual \(seeing\)/);
-  assert.match(brief, /jumps to second 1/);
-  assert.match(brief, /does not name the app/);
+  assert.match(brief, /goes to second 1/);
+  assert.match(brief, /No app name is stored/);
   assert.match(brief, /She studies at a desk/);
   assert.match(brief, /like rate 1.20%/);
   assert.match(brief, /peak mean activation 0.0710 at second 6/);
