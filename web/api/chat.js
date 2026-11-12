@@ -3,6 +3,8 @@ import {
   normalizeFocus,
 } from '../src/lib/prompt.js';
 import { buildSystemPrompt } from '../server/chat/promptBlocks.js';
+import { asksToFind, findHits } from '../server/chat/find.js';
+import { searchLibrary } from '../server/search/service.js';
 import { openKnowledge } from '../server/chat/knowledge.js';
 import { resolveChatConfig, streamProvider, ChatProviderError } from '../server/chat/provider.js';
 import { CANNED_ONLY, CHAT_PAUSED, chatStatus, effectiveChatMode, liveFallbackText, matchCanned, visitorCountry } from '../server/chat/mode.js';
@@ -288,6 +290,13 @@ export default async function handler(req, res) {
       return;
     }
     const delivered = deliverOpenClip(opened.knowledge, focusNorm);
+    if (asksToFind(message)) {
+      try {
+        delivered.search = await findHits(message, (options) => searchLibrary(options, { requestId }));
+      } catch {
+        delivered.search = [];
+      }
+    }
     openedClip = opened.knowledge?.videos?.[0] || null;
     openedPack = opened.pack || null;
     system = buildSystemPrompt(delivered, focusNorm, storedFact);

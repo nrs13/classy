@@ -119,6 +119,16 @@ export function conversationBrief(knowledge, focus) {
     body.push('Directory of every reel. Name another reel only from this list.');
     for (const row of knowledge.directory) body.push(directoryLine(row));
   }
+  if (Array.isArray(knowledge?.search)) {
+    if (knowledge.search.length) {
+      for (const hit of knowledge.search) {
+        const bits = [hit.id, hit.account, hit.line].filter(Boolean);
+        body.push(`Search hit: ${bits.join(', ')}.`);
+      }
+    } else {
+      body.push('Search hits: none.');
+    }
+  }
   for (const extra of knowledge?.asked || []) {
     const plays = commas(extra.plays);
     const bits = [extra.id, extra.account, extra.tier, plays ? `${plays} plays` : '', extra.line].filter(Boolean);
