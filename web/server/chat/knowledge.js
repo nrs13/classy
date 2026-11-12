@@ -17,6 +17,22 @@ function nextAgreedApp(rows, timeSec) {
   };
 }
 
+function hookPackStats(slopes, value) {
+  const nums = (Array.isArray(slopes) ? slopes : []).filter((n) => Number.isFinite(n)).slice().sort((a, b) => a - b);
+  const slope = Number(value);
+  if (!nums.length || !Number.isFinite(slope)) return null;
+  const mid = nums.length % 2 === 1
+    ? nums[(nums.length - 1) / 2]
+    : (nums[nums.length / 2 - 1] + nums[nums.length / 2]) / 2;
+  return {
+    n: nums.length,
+    min: nums[0],
+    median: mid,
+    max: nums[nums.length - 1],
+    rank: nums.filter((n) => n > slope).length + 1,
+  };
+}
+
 function appEvidence(app) {
   const value = typeof app === 'string'
     ? (() => { try { return JSON.parse(app); } catch { return null; } })()
@@ -86,6 +102,7 @@ export async function openKnowledge(focus) {
             peak_mean_abs: clip.peak_mean_abs,
             sustain_ratio: clip.sustain_ratio,
           },
+          hook_pack: hookPackStats(pack?.slopes, clip.hook_slope),
           networks: clip.networks || null,
           activation_timeline: { series: clip.curve || [] },
           story: second ? [{ t_sec: t, events }] : [],

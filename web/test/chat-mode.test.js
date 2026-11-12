@@ -187,6 +187,47 @@ test('a canned question matches only its clip', () => {
   assert.equal(matchCanned('How is amplification computed?', { ids: ['v014'] }, rows), null);
 });
 
+test('a typed question is answered by the model', async () => {
+  const prev = {
+    mode: process.env.CHAT_MODE,
+    provider: process.env.CHAT_PROVIDER,
+    node: process.env.NODE_ENV,
+    vercel: process.env.VERCEL_ENV,
+  };
+  process.env.CHAT_MODE = 'live';
+  process.env.CHAT_PROVIDER = 'mock';
+  process.env.NODE_ENV = 'test';
+  delete process.env.VERCEL_ENV;
+  const mockChat = await import('../server/chat/mock.js');
+  mockChat.resetMockStarts();
+  try {
+    const handler = (await import('../api/chat.js')).default;
+    const res = sseCapture();
+    await handler({
+      method: 'POST',
+      url: '/api/chat',
+      headers: { 'x-vercel-ip-country': 'US' },
+      body: {
+        message: 'explain this clip to me as I am new to it',
+        history: [{ role: 'assistant', text: 'A shorter first try.' }],
+        focus: { ids: ['v002'], timeSec: 0 },
+      },
+    }, res);
+    assert.equal(mockChat.mockStarts, 1);
+    assert.match(res.raw || '', /This is a mock answer/);
+    assert.equal((res.raw || '').includes('Breakout is the tier on the clip card'), false);
+  } finally {
+    if (prev.mode === undefined) delete process.env.CHAT_MODE;
+    else process.env.CHAT_MODE = prev.mode;
+    if (prev.provider === undefined) delete process.env.CHAT_PROVIDER;
+    else process.env.CHAT_PROVIDER = prev.provider;
+    if (prev.node === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = prev.node;
+    if (prev.vercel === undefined) delete process.env.VERCEL_ENV;
+    else process.env.VERCEL_ENV = prev.vercel;
+  }
+});
+
 test('a live exact suggested question returns the stored answer and does not call the model', async () => {
   const prev = {
     mode: process.env.CHAT_MODE,

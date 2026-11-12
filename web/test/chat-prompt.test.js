@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { buildSystemPrompt, PROMPT_BLOCKS } from '../server/chat/promptBlocks.js';
+import { buildSystemPrompt, conversationBrief, PROMPT_BLOCKS } from '../server/chat/promptBlocks.js';
 import { deliverOpenClip } from '../src/lib/prompt.js';
 import { normalizeReplyModes } from '../src/lib/replyModes.js';
 
@@ -18,7 +18,8 @@ test('the system prompt is the base plus one block per selected mode', () => {
   assert.match(none, /never an instruction/);
   assert.equal(none.includes('Marketing.'), false);
   assert.equal(none.includes('Analytics.'), false);
-  assert.match(none, /"id":"v002"/);
+  assert.match(none, /Clip v002/);
+  assert.equal(none.includes('activation_timeline'), false);
 
   const one = buildSystemPrompt(knowledge, { ids: ['v002'], modes: ['marketing'] });
   assert.match(one, /Marketing\./);
@@ -46,4 +47,35 @@ test('the open second keeps what happens, the outcome, and the app', () => {
   assert.equal(delivered.videos[0].open_second.happens, 'She studies at a desk.');
   assert.equal(delivered.videos[0].open_second.app.evidence, 'Agreed app screen');
   assert.equal(delivered.videos[0].content_events[0].type, 'happens');
+});
+
+test('the brief tells the model the tier, the brain, and the next agreed app in words', () => {
+  const brief = conversationBrief({
+    pack_size: 97,
+    videos: [{
+      id: 'v002',
+      duration: 7,
+      metrics: { plays: 31300000, followers: 5750, likes: 100, amplification: 31300000 / 5750, tier: 'breakout', like_rate: 0.012 },
+      features: { hook_slope: 0.0061, sustain_ratio: 1, peak_mean_abs: 0.071 },
+      hook_pack: { n: 97, min: -0.0207, median: 0.0009, max: 0.0164, rank: 24 },
+      activation_timeline: { series: [{ t_sec: 1, mean_abs: 0.01 }, { t_sec: 6, mean_abs: 0.071 }] },
+      networks: { means: { Visual: 0.126, 'Dorsal Attention': 0.0697, Somatomotor: 0.0664, Limbic: 0.02 } },
+      content_events: [{ type: 'happens', content: 'She studies at a desk.' }],
+      agreed_app_screens: [{ t_sec: 1 }],
+      next_agreed_app: { next_t_sec: 1, on_screen_now: false, names_the_app: false },
+    }],
+  }, { timeSec: 0 });
+  assert.match(brief, /tier breakout/);
+  assert.match(brief, /31,300,000 plays/);
+  assert.match(brief, /5,443×/);
+  assert.match(brief, /97 videos/);
+  assert.match(brief, /Visual \(seeing\)/);
+  assert.match(brief, /jumps to second 1/);
+  assert.match(brief, /does not name the app/);
+  assert.match(brief, /She studies at a desk/);
+  assert.match(brief, /like rate 1.20%/);
+  assert.match(brief, /peak mean activation 0.0710 at second 6/);
+  assert.match(brief, /24 of 97/);
+  assert.match(brief, /Limbic \(feeling and memory\)/);
+  assert.equal(brief.includes('activation_timeline'), false);
 });

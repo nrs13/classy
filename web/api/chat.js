@@ -7,7 +7,7 @@ import { openKnowledge } from '../server/chat/knowledge.js';
 import { resolveChatConfig, streamProvider, ChatProviderError } from '../server/chat/provider.js';
 import { CANNED_ONLY, CHAT_PAUSED, chatStatus, effectiveChatMode, liveFallbackText, matchCanned, visitorCountry } from '../server/chat/mode.js';
 import { chatFault, mockFaultError, mockSlowMs } from '../server/chat/mock.js';
-import { agreedAppAnswer, clipControlsAnswer, computedAnswer, unfinishedQuestion } from '../server/chat/computed.js';
+import { agreedAppAnswer, clipControlsAnswer, computedAnswer } from '../server/chat/computed.js';
 import { applyLenses } from '../server/chat/lenses.js';
 import { assertUnderCap, recordUsage } from '../server/chat/spend.js';
 import { MAX_CHAT_BODY_BYTES, MAX_HISTORY_MESSAGES, MAX_MESSAGE_CHARS, messageTooLong, messageTooShort } from '../src/lib/chatLimits.js';
@@ -26,7 +26,6 @@ export function abortUpstreamOnDisconnect(req, res, abort) {
     if (!res.writableEnded) abort.abort();
   };
   req.on?.('aborted', stop);
-  req.on?.('close', stop);
   return stop;
 }
 
@@ -171,24 +170,20 @@ export default async function handler(req, res) {
     refuse(res, applyLenses(stored, focusNorm.modes));
     return;
   }
-  const unfinished = unfinishedQuestion(message);
-  if (unfinished) {
-    refuse(res, unfinished);
-    return;
-  }
   if (!chatConfig.apiKey) {
     fail(res, 503, 'not_configured', requestId);
     return;
   }
   if (chatConfig.provider === 'anthropic') {
-  try {
-    assertUnderCap();
-  } catch {
-    fail(res, 402, 'spend_cap', requestId);
-    return;
+    try {
+      assertUnderCap();
+    } catch {
+      fail(res, 402, 'spend_cap', requestId);
+      return;
+    }
   }
-  }
-  const cached = readChatCache(chatCacheKey(message, focusNorm));
+  const threaded = Array.isArray(history) && history.some((item) => item && item.text);
+  const cached = threaded ? null : readChatCache(chatCacheKey(message, focusNorm));
   if (cached) {
     refuse(res, cached);
     return;
@@ -252,16 +247,6 @@ export default async function handler(req, res) {
     const delivered = deliverOpenClip(opened.knowledge, focusNorm);
     openedClip = opened.knowledge?.videos?.[0] || null;
     openedPack = opened.pack || null;
-    const known = computedAnswer(message, openedClip, openedPack)
-      || clipControlsAnswer(message, openedClip, focusNorm.timeSec)
-      || agreedAppAnswer(message, openedClip, focusNorm.timeSec);
-    if (known) {
-      const text = applyLenses(known, focusNorm.modes);
-      finish({ kind: 'sse', text });
-      writeChatCache(chatCacheKey(message, focusNorm), text);
-      refuse(res, text);
-      return;
-    }
     system = buildSystemPrompt(delivered, focusNorm);
   } catch (err) {
     logEvent({ level: 'error', requestId, route: 'chat', ...safeErrorFields(err), code: 'library_unavailable' });
@@ -332,7 +317,7 @@ export default async function handler(req, res) {
         send(res, { type: 'error', code: 'refusal', message: 'the model declined to answer that.' });
       }
     }
-    if (acc.trim()) writeChatCache(chatCacheKey(message, focusNorm), acc);
+    if (!threaded && acc.trim()) writeChatCache(chatCacheKey(message, focusNorm), acc);
     send(res, { type: 'done' });
     res.end();
     finish({ kind: 'sse', text: acc });
