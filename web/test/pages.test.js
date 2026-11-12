@@ -40,8 +40,10 @@ test('unknown static paths answer 404 and real files stay 200', async () => {
     assert.match(await missing.text(), /This page is not here\./);
     const sheet = await fetch(`http://127.0.0.1:${port}/404.css`);
     assert.equal(sheet.status, 200);
-    const font = await fetch(`http://127.0.0.1:${port}/fonts/doto-700.woff2`);
+    const font = await fetch(`http://127.0.0.1:${port}/fonts/source-serif-4-400.woff2`);
     assert.equal(font.status, 200);
+    assert.match(missingHtml, /Back home/);
+    assert.match(missingHtml, /<title>Not found - NRS<\/title>/);
   } finally {
     server.close();
   }

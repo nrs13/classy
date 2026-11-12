@@ -63,6 +63,22 @@
   unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
 }
 @font-face {
+  font-family: "Source Serif 4";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/source-serif-4-400.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Source Serif 4";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/source-serif-4-400-ext.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
   font-family: "Inter";
   font-style: normal;
   font-weight: 400;
@@ -4459,39 +4475,60 @@ select {
 }
 
 .app-error {
+  box-sizing: border-box;
   min-height: 100%;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 12px;
-  padding: 32px 24px;
-  color: var(--text-primary);
-  background: var(--bg);
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 150px 24px 140px;
+  background: #ffffff;
+  color: #000000;
 }
 
 .app-error p {
-  margin: 0;
-  max-width: 28rem;
-  font-size: 14px;
-  line-height: 1.45;
+  margin: 0 0 32px;
+  max-width: none;
+  color: #000000;
+  font: 400 56px/60px "Source Serif 4", Georgia, serif;
+  letter-spacing: 0;
 }
 
-.app-error-id {
-  color: var(--text-tertiary);
-  font-family: var(--font-mono);
-  font-size: 12px;
+.app-error p.app-error-id {
+  margin: 22px 0 0;
+  color: #6e6e6e;
+  font: 400 11px/14px "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  letter-spacing: 0.01em;
+  text-transform: none;
 }
 
 .app-error button {
-  align-self: flex-start;
+  margin: 64px 0 0;
   min-height: 44px;
-  padding: 0 16px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: transparent;
-  color: inherit;
-  font: inherit;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: #6e6e6e;
+  font: 400 11px/14px "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-decoration: underline;
+  text-underline-offset: 3px;
   cursor: pointer;
+}
+
+.app-error button:hover {
+  color: #7a1fa2;
+}
+
+@media (max-width: 800px) {
+  .app-error {
+    padding: 110px 18px 120px;
+  }
+
+  .app-error p {
+    font-size: 40px;
+    line-height: 44px;
+  }
 }
 
 .brain-fallback {

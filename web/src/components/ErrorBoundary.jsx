@@ -23,10 +23,10 @@ export class ErrorBoundary extends Component {
     return (
       <div className="app-error" role="alert">
         <p>{APP_FALLBACK}</p>
-        {requestId ? <p className="app-error-id">Request id {requestId}</p> : null}
         <button type="button" onClick={() => window.location.reload()}>
           Reload
         </button>
+        {requestId ? <p className="app-error-id">Request id {requestId}</p> : null}
       </div>
     );
   }
