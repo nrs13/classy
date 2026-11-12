@@ -266,3 +266,82 @@ test('a live exact suggested question is answered by the model with the stored f
     else process.env.VERCEL_ENV = prev.vercel;
   }
 });
+
+test('a stored suggested question is returned without calling the model', async () => {
+  const prev = {
+    mode: process.env.CHAT_MODE,
+    provider: process.env.CHAT_PROVIDER,
+    node: process.env.NODE_ENV,
+    vercel: process.env.VERCEL_ENV,
+  };
+  process.env.CHAT_MODE = 'live';
+  process.env.CHAT_PROVIDER = 'mock';
+  process.env.NODE_ENV = 'test';
+  delete process.env.VERCEL_ENV;
+  const mockChat = await import('../server/chat/mock.js');
+  mockChat.resetMockStarts();
+  try {
+    const handler = (await import('../api/chat.js')).default;
+    const res = sseCapture();
+    await handler({
+      method: 'POST',
+      url: '/api/chat',
+      headers: { 'x-vercel-ip-country': 'US', 'x-forwarded-for': '203.0.113.45' },
+      body: {
+        message: 'What are the biggest caveats of this analysis at N=97?',
+        suggested: true,
+        focus: { ids: ['v002'], timeSec: 1, view: 'explore' },
+      },
+    }, res);
+    assert.equal(mockChat.mockStarts, 0);
+    assert.match(res.raw || '', /The pack is 97 videos/);
+  } finally {
+    if (prev.mode === undefined) delete process.env.CHAT_MODE;
+    else process.env.CHAT_MODE = prev.mode;
+    if (prev.provider === undefined) delete process.env.CHAT_PROVIDER;
+    else process.env.CHAT_PROVIDER = prev.provider;
+    if (prev.node === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = prev.node;
+    if (prev.vercel === undefined) delete process.env.VERCEL_ENV;
+    else process.env.VERCEL_ENV = prev.vercel;
+  }
+});
+
+test('compare with one reel does not call the model', async () => {
+  const prev = {
+    mode: process.env.CHAT_MODE,
+    provider: process.env.CHAT_PROVIDER,
+    node: process.env.NODE_ENV,
+    vercel: process.env.VERCEL_ENV,
+  };
+  process.env.CHAT_MODE = 'live';
+  process.env.CHAT_PROVIDER = 'mock';
+  process.env.NODE_ENV = 'test';
+  delete process.env.VERCEL_ENV;
+  const mockChat = await import('../server/chat/mock.js');
+  mockChat.resetMockStarts();
+  try {
+    const handler = (await import('../api/chat.js')).default;
+    const res = sseCapture();
+    await handler({
+      method: 'POST',
+      url: '/api/chat',
+      headers: { 'x-vercel-ip-country': 'US', 'x-forwarded-for': '203.0.113.46' },
+      body: {
+        message: 'Compare these reels for me',
+        focus: { ids: ['v002'], timeSec: 1, view: 'compare' },
+      },
+    }, res);
+    assert.equal(mockChat.mockStarts, 0);
+    assert.match(res.raw || '', /Another reel is needed before Classy can compare/);
+  } finally {
+    if (prev.mode === undefined) delete process.env.CHAT_MODE;
+    else process.env.CHAT_MODE = prev.mode;
+    if (prev.provider === undefined) delete process.env.CHAT_PROVIDER;
+    else process.env.CHAT_PROVIDER = prev.provider;
+    if (prev.node === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = prev.node;
+    if (prev.vercel === undefined) delete process.env.VERCEL_ENV;
+    else process.env.VERCEL_ENV = prev.vercel;
+  }
+});

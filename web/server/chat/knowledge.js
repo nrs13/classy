@@ -3,6 +3,49 @@ import { agreedAppMarks, clipsForChat, hookSlopes, peerClips, secondsAt, seconds
 import { secondText } from '../../src/lib/secondText.js';
 import { tierFor } from '../../api/catalog.js';
 
+const MEMORY_MS = 15000;
+let snapshotCache = { at: 0, value: null };
+const slopeCache = new Map();
+
+export function clearKnowledgeCache() {
+  snapshotCache = { at: 0, value: null };
+  slopeCache.clear();
+}
+
+async function snapshotOnce() {
+  const now = Date.now();
+  if (snapshotCache.value && now - snapshotCache.at < MEMORY_MS) return snapshotCache.value;
+  const value = await currentSnapshot();
+  if (value) snapshotCache = { at: now, value };
+  return value;
+}
+
+async function slopesOnce(snapshotId) {
+  const now = Date.now();
+  const hit = slopeCache.get(snapshotId);
+  if (hit && now - hit.at < MEMORY_MS) return hit.value;
+  try {
+    const value = await hookSlopes(snapshotId);
+    slopeCache.set(snapshotId, { at: now, value });
+    return value;
+  } catch {
+    return null;
+  }
+}
+
+export function windowTimeline(rows, playhead, askedSeconds) {
+  const t = Math.floor(Number(playhead) || 0);
+  const wanted = new Set([t - 2, t - 1, t, t + 1, t + 2].filter((n) => n >= 0));
+  if (askedSeconds && typeof askedSeconds.forEach === 'function') {
+    askedSeconds.forEach((sec) => {
+      const n = Number(sec);
+      if (Number.isFinite(n) && n >= 0) wanted.add(Math.floor(n));
+    });
+  }
+  const list = Array.isArray(rows) ? rows : [];
+  return list.filter((row) => wanted.has(Number(row?.t_sec)));
+}
+
 function nextAgreedApp(rows, timeSec) {
   const times = rows
     .map((row) => Number(row?.t_sec))
@@ -96,64 +139,39 @@ function appEvidence(app) {
   return String(evidence || 'Agreed app screen');
 }
 
-/** The open clip, this second, and a few other high-play clips reach the model. */
+/** The open clip, a short window around the playhead, and a few other high-play clips reach the model. */
 export async function openKnowledge(focus, message = '') {
   if (!focus.ids.length) return { error: 'Open a video first.' };
-  const snapshot = await currentSnapshot();
+  const snapshot = await snapshotOnce();
   if (!snapshot) return { error: 'Your Library is not available right now.' };
   const ids = focus.ids.filter((id) => VIDEO_ID.test(id));
   if (!ids.length || ids.length !== focus.ids.length) return { error: 'That video is not in your Library.' };
-  const clips = await clipsForChat(snapshot.id, ids);
-  if (clips.length !== ids.length) return { error: 'That video is not in your Library.' };
   const t = Math.floor(Number(focus.timeSec) || 0);
-  const seconds = await secondsAt(snapshot.id, ids, t);
-  const at = new Map(seconds.map((row) => [row.video_id, row]));
-  let pack = null;
-  let marks = [];
-  let peers = [];
-  let timelineRows = [];
-  let asked = [];
-  try {
-    pack = await hookSlopes(snapshot.id);
-  } catch {
-    pack = null;
-  }
-  try {
-    marks = await agreedAppMarks(snapshot.id, ids);
-  } catch {
-    marks = [];
-  }
-  try {
-    peers = await peerClips(snapshot.id, ids, 5);
-  } catch {
-    peers = [];
-  }
-  try {
-    timelineRows = await secondsFor(snapshot.id, ids[0]);
-  } catch {
-    timelineRows = [];
-  }
   const extraIds = askedVideoIds(message, ids);
-  if (extraIds.length) {
-    try {
-      const extra = await clipsForChat(snapshot.id, extraIds);
-      const sec = firstAskedSecond(message);
-      const rows = await secondsAt(snapshot.id, extraIds, sec);
-      const atExtra = new Map(rows.map((row) => [row.video_id, row]));
-      asked = extra.map((clip) => ({
-        id: clip.video_id,
-        account: clip.account,
-        plays: clip.plays,
-        tier: tierFor(clip.plays),
-        t_sec: sec,
-        line: secondText(atExtra.get(clip.video_id)) || '',
-      }));
-    } catch {
-      asked = [];
-    }
-  }
   const askedSeconds = askedSecondSet(message);
-  const timeline = timelineLines(timelineRows, askedSeconds);
+  const sec = firstAskedSecond(message);
+  const [clips, seconds, pack, marks, peers, timelineRows, extra, extraRows] = await Promise.all([
+    clipsForChat(snapshot.id, ids),
+    secondsAt(snapshot.id, ids, t),
+    slopesOnce(snapshot.id),
+    agreedAppMarks(snapshot.id, ids).catch(() => []),
+    peerClips(snapshot.id, ids, 5).catch(() => []),
+    secondsFor(snapshot.id, ids[0]).catch(() => []),
+    extraIds.length ? clipsForChat(snapshot.id, extraIds).catch(() => []) : Promise.resolve([]),
+    extraIds.length ? secondsAt(snapshot.id, extraIds, sec).catch(() => []) : Promise.resolve([]),
+  ]);
+  if (clips.length !== ids.length) return { error: 'That video is not in your Library.' };
+  const at = new Map(seconds.map((row) => [row.video_id, row]));
+  const atExtra = new Map((extraRows || []).map((row) => [row.video_id, row]));
+  const asked = (extra || []).map((clip) => ({
+    id: clip.video_id,
+    account: clip.account,
+    plays: clip.plays,
+    tier: tierFor(clip.plays),
+    t_sec: sec,
+    line: secondText(atExtra.get(clip.video_id)) || '',
+  }));
+  const timeline = timelineLines(windowTimeline(timelineRows, t, askedSeconds), askedSeconds);
   return {
     snapshotId: snapshot.id,
     pack,

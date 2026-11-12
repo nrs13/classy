@@ -21,6 +21,7 @@ import { acceptSend, capMessage, CHAT_COOLDOWN_MS, composerHold, dropUnfinishedR
 import { applyOnlineState } from '../lib/connection';
 import { coolingDeadline, isCooling, LIVE_REGION, onQuotaClock, quotaAnnouncement, startCountdown } from '../lib/quota';
 import { CUT_LABEL, OFFLINE_LABEL } from '../lib/streamFrame';
+import { answerSubject, reelLabel } from '../lib/answerSubject';
 
 function visitorModel(name) {
   const text = String(name || '').trim();
@@ -39,6 +40,10 @@ export default function ChatPanel({
   mobile = false,
   onToggleCollapse,
   onCloseMobile,
+  mode = 'explore',
+  onMode,
+  reels = [],
+  onPickReel,
 }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
@@ -55,6 +60,10 @@ export default function ChatPanel({
   const textareaRef = useRef(null);
   const stickRef = useRef(true);
   const chatAbort = useRef(null);
+  const paintedRef = useRef('');
+  const targetRef = useRef('');
+  const paceRaf = useRef(0);
+  const modelRef = useRef('');
   const lastSentAt = useRef(0);
   const [cooldownUntil, setCooldownUntil] = useState(0);
   const [cooldownLeft, setCooldownLeft] = useState(0);
@@ -65,6 +74,10 @@ export default function ChatPanel({
   const sendGen = useRef(0);
   const busyRef = useRef(false);
   const suggestionKey = suggestionVideoIds.join('|');
+  const subject = useMemo(
+    () => answerSubject(mode, reels, suggestionVideoIds),
+    [mode, reels, suggestionVideoIds],
+  );
   const clipSeen = useRef(suggestionKey);
 
   const toggleMode = useCallback((id) => {
@@ -142,6 +155,9 @@ export default function ChatPanel({
     if (clipSeen.current === suggestionKey) return;
     clipSeen.current = suggestionKey;
     sendGen.current += 1;
+    if (paceRaf.current) cancelAnimationFrame(paceRaf.current);
+    paceRaf.current = 0;
+    targetRef.current = paintedRef.current;
     chatAbort.current?.abort();
     busyRef.current = false;
     setBusy(false);
@@ -231,8 +247,60 @@ export default function ChatPanel({
     setShowJump(false);
   }
 
+  function stopPace() {
+    if (paceRaf.current) cancelAnimationFrame(paceRaf.current);
+    paceRaf.current = 0;
+    targetRef.current = paintedRef.current;
+  }
+
+  function paintTail(gen, text) {
+    setMessages((m) => {
+      if (gen !== sendGen.current) return m;
+      const copy = [...m];
+      const last = copy[copy.length - 1];
+      if (last?.role !== 'assistant') return m;
+      copy[copy.length - 1] = { ...last, text, model: modelRef.current || last.model };
+      return copy;
+    });
+  }
+
+  function pump(gen) {
+    if (paceRaf.current) return;
+    const tick = () => {
+      paceRaf.current = 0;
+      if (gen !== sendGen.current) return;
+      const target = targetRef.current;
+      const painted = paintedRef.current;
+      if (target.startsWith(painted) && target.length > painted.length) {
+        paintedRef.current = painted + target[painted.length];
+        paintTail(gen, paintedRef.current);
+        paceRaf.current = requestAnimationFrame(tick);
+        return;
+      }
+      if (!target.startsWith(painted)) {
+        paintedRef.current = target;
+        paintTail(gen, target);
+      }
+    };
+    paceRaf.current = requestAnimationFrame(tick);
+  }
+
+  function drainPaint(gen) {
+    return new Promise((resolve) => {
+      const watch = () => {
+        if (gen !== sendGen.current || paintedRef.current === targetRef.current) {
+          resolve();
+          return;
+        }
+        requestAnimationFrame(watch);
+      };
+      watch();
+    });
+  }
+
   function clearChat() {
     sendGen.current += 1;
+    stopPace();
     chatAbort.current?.abort();
     busyRef.current = false;
     setBusy(false);
@@ -256,6 +324,7 @@ export default function ChatPanel({
   }
 
   function stop() {
+    stopPace();
     chatAbort.current?.abort();
   }
 
@@ -272,8 +341,9 @@ export default function ChatPanel({
     setBusy(false);
   }
 
-  async function send(text, { prior } = {}) {
+  async function send(text, { prior, suggested } = {}) {
     const q = (text ?? input).trim();
+    if (!subject.ready) return;
     if (!acceptSend(busyRef.current, q, Date.now(), lastSentAt.current)) return;
     lastSentAt.current = Date.now();
     setCooldownUntil(lastSentAt.current + CHAT_COOLDOWN_MS);
@@ -288,6 +358,11 @@ export default function ChatPanel({
     const priorMessages = prior ?? messages;
     const gen = sendGen.current + 1;
     sendGen.current = gen;
+    if (paceRaf.current) cancelAnimationFrame(paceRaf.current);
+    paceRaf.current = 0;
+    paintedRef.current = '';
+    targetRef.current = '';
+    modelRef.current = '';
     chatAbort.current?.abort();
     const ctrl = new AbortController();
     chatAbort.current = ctrl;
@@ -319,55 +394,33 @@ export default function ChatPanel({
     }
     try {
       let acc = '';
-      let usedModel = null;
       for await (const event of streamChatReply({
         priorMessages,
         message: q,
         signal: ctrl.signal,
+        suggested: suggested === true,
         focus: {
           ids: suggestionVideoIds,
           timeSec: viewMoment?.timeSec,
           modes: replyModes,
+          view: mode,
         },
         idempotencyKey: idemKey.current,
       })) {
         if (gen !== sendGen.current) return;
         if (event.type === 'meta') {
-          usedModel = event.model;
-          setMessages((m) => {
-            const copy = [...m];
-            copy[copy.length - 1] = {
-              role: 'assistant',
-              text: acc ? sanitizeAssistantText(acc) : '',
-              model: usedModel,
-            };
-            return copy;
-          });
+          modelRef.current = event.model || '';
+          if (paintedRef.current) paintTail(gen, paintedRef.current);
           continue;
         }
         acc += event.text || '';
-        const cleaned = sanitizeAssistantText(acc);
-        setMessages((m) => {
-          const copy = [...m];
-          copy[copy.length - 1] = {
-            role: 'assistant',
-            text: cleaned,
-            model: usedModel,
-          };
-          return copy;
-        });
+        targetRef.current = sanitizeAssistantText(acc);
+        pump(gen);
       }
       if (gen !== sendGen.current) return;
-      const finalText = sanitizeAssistantText(acc);
-      setMessages((m) => {
-        const copy = [...m];
-        copy[copy.length - 1] = {
-          role: 'assistant',
-          text: finalText,
-          model: usedModel,
-        };
-        return copy;
-      });
+      targetRef.current = sanitizeAssistantText(acc);
+      pump(gen);
+      await drainPaint(gen);
     } catch (err) {
       if (gen !== sendGen.current) return;
       if (err?.name === 'AbortError' || err?.code === 'ABORTED') {
@@ -377,7 +430,6 @@ export default function ChatPanel({
           const last = copy[copy.length - 1];
           if (last?.role !== 'assistant') return copy;
           if (!last.text) copy.pop();
-          else copy[copy.length - 1] = { ...last, error: true };
           return copy;
         });
         return;
@@ -471,8 +523,8 @@ export default function ChatPanel({
         <button
           key={`${keyPrefix}${i}`}
           type="button"
-          onClick={() => send(s)}
-          disabled={inputPaused || busy || Boolean(quota) || cooldownLeft > 0}
+          onClick={() => send(s, { suggested: true })}
+          disabled={inputPaused || busy || Boolean(quota) || cooldownLeft > 0 || !subject.ready}
           className="text-left text-[13px] px-3 py-2.5 suggest-chip leading-snug"
         >
           {s}
@@ -484,9 +536,10 @@ export default function ChatPanel({
   return (
     <div className="flex flex-col h-full min-h-0 relative">
       <div
-        className="chat-header px-4 py-3 border-b hairline flex items-start justify-between gap-3"
+        className="chat-header px-4 py-3 border-b hairline flex flex-col gap-3"
         style={{ background: 'var(--bg-subtle)' }}
       >
+        <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="chat-title tracking-[0.04em]">ask classy</div>
           <div className="chat-subtitle text-[11px] tracking-[0.05em] mt-1">
@@ -500,10 +553,10 @@ export default function ChatPanel({
               type="button"
               className="chat-text-btn"
               onClick={clearChat}
-              title="Clear chat"
-              aria-label="Clear chat"
+              title="Start a new chat. Closing this panel keeps this one."
+              aria-label="New chat"
             >
-              clear chat
+              New chat
             </button>
           )}
           <div className="chat-header-icons">
@@ -531,6 +584,44 @@ export default function ChatPanel({
             )}
           </div>
         </div>
+        </div>
+        {mobile && onMode && (
+          <div className="chat-context">
+            <div className="flex shrink-0 gap-1 mode-toggle p-1 text-[12px]" role="group" aria-label="Section">
+              {['explore', 'compare', 'search'].map((mo) => (
+                <button
+                  key={mo}
+                  type="button"
+                  onClick={() => onMode(mo)}
+                  className={`mode-tab px-3.5 py-1.5 capitalize ${mode === mo ? 'active' : ''}`}
+                  aria-pressed={mode === mo}
+                >
+                  {mo}
+                </button>
+              ))}
+            </div>
+            <p className="chat-subject">{subject.text}</p>
+            {reels.length > 0 && (
+              <div className="chat-reels" role="listbox" aria-label="Reels">
+                {reels.map((reel) => {
+                  const on = suggestionVideoIds.includes(reel.id);
+                  return (
+                    <button
+                      key={reel.id}
+                      type="button"
+                      role="option"
+                      aria-selected={on}
+                      className={`chat-reel${on ? ' is-on' : ''}`}
+                      onClick={() => onPickReel?.(reel.id)}
+                    >
+                      {reelLabel(reel, reels)}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="relative flex-1 min-h-0">
@@ -556,12 +647,15 @@ export default function ChatPanel({
                   }`}
                 >
                   {showThinking ? (
-                    <span className="chat-thinking" aria-live="polite" aria-label="Generating reply">
-                      <span className="chat-thinking-pulse" aria-hidden />
-                      thinking
+                    <span className="chat-thinking" aria-live="polite" aria-label={subject.text}>
+                      {subject.text}
+                      <span className="chat-caret" aria-hidden />
                     </span>
                   ) : (
-                    body
+                    <>
+                      {body}
+                      {isStreamingTail && msg.text ? <span className="chat-caret" aria-hidden /> : null}
+                    </>
                   )}
                   {msg.incomplete && (
                     <div className="chat-cut">{CUT_LABEL}</div>
@@ -643,7 +737,7 @@ export default function ChatPanel({
             <button
               type="button"
               onClick={busy ? stop : () => send()}
-              disabled={inputPaused || Boolean(quota) || (!busy && !acceptSend(false, input, Date.now(), cooldownUntil ? cooldownUntil - CHAT_COOLDOWN_MS : 0))}
+              disabled={inputPaused || Boolean(quota) || (!busy && (!subject.ready || !acceptSend(false, input, Date.now(), cooldownUntil ? cooldownUntil - CHAT_COOLDOWN_MS : 0)))}
               className="chat-send-btn btn-primary text-[13px]"
               aria-label={busy ? 'Stop reply' : 'Send'}
               title={busy ? 'Stop' : 'Send message'}

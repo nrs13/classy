@@ -118,7 +118,7 @@ export default async function handler(req, res) {
     fail(res, 413, 'payload_too_large', requestId);
     return;
   }
-  const { message, history, focus } = req.body || {};
+  const { message, history, focus, suggested } = req.body || {};
   if (!message || typeof message !== 'string' || !message.trim()) {
     fail(res, 400, 'empty_message', requestId);
     return;
@@ -147,6 +147,10 @@ export default async function handler(req, res) {
     return;
   }
   const focusNorm = normalizeFocus(focus);
+  if (focusNorm.view === 'compare' && focusNorm.ids.length < 2) {
+    refuse(res, 'Another reel is needed before Classy can compare.');
+    return;
+  }
   if (mode === 'canned') {
     const stored = matchCanned(message, focusNorm);
     if (stored) {
@@ -164,6 +168,13 @@ export default async function handler(req, res) {
       refuse(res, CANNED_ONLY);
     }
     return;
+  }
+  if (suggested === true) {
+    const stored = matchCanned(message, focusNorm);
+    if (stored) {
+      refuse(res, applyLenses(stored, focusNorm.modes));
+      return;
+    }
   }
   const storedFact = matchCanned(message, focusNorm);
   if (!chatConfig.apiKey) {
@@ -230,27 +241,6 @@ export default async function handler(req, res) {
     });
     return;
   }
-  let openedClip = null;
-  let openedPack = null;
-  let system;
-  try {
-    const opened = await openKnowledge(focusNorm, message);
-    if (opened.error) {
-      finish({ kind: 'sse', text: opened.error });
-      refuse(res, opened.error);
-      return;
-    }
-    const delivered = deliverOpenClip(opened.knowledge, focusNorm);
-    openedClip = opened.knowledge?.videos?.[0] || null;
-    openedPack = opened.pack || null;
-    system = buildSystemPrompt(delivered, focusNorm, storedFact);
-  } catch (err) {
-    logEvent({ level: 'error', requestId, route: 'chat', ...safeErrorFields(err), code: 'library_unavailable' });
-    finish({ kind: 'json', status: 502, body: errorBody(requestId, 'library_unavailable') });
-    res.status(502).json(errorBody(requestId, 'library_unavailable'));
-    return;
-  }
-
   const earlyFault = chatConfig.provider === 'mock' ? mockFaultError(chatFault(req)) : null;
   if (earlyFault) {
     const failure = {
@@ -283,6 +273,32 @@ export default async function handler(req, res) {
     Connection: 'keep-alive',
   });
   send(res, { type: 'open' });
+
+  let openedClip = null;
+  let openedPack = null;
+  let system;
+  try {
+    const opened = await openKnowledge(focusNorm, message);
+    if (opened.error) {
+      send(res, { type: 'text', text: opened.error });
+      send(res, { type: 'done' });
+      res.end();
+      finish({ kind: 'sse', text: opened.error });
+      return;
+    }
+    const delivered = deliverOpenClip(opened.knowledge, focusNorm);
+    openedClip = opened.knowledge?.videos?.[0] || null;
+    openedPack = opened.pack || null;
+    system = buildSystemPrompt(delivered, focusNorm, storedFact);
+  } catch (err) {
+    logEvent({ level: 'error', requestId, route: 'chat', ...safeErrorFields(err), code: 'library_unavailable' });
+    const text = 'Your Library is not available right now.';
+    send(res, { type: 'text', text });
+    send(res, { type: 'done' });
+    res.end();
+    finish({ kind: 'sse', text });
+    return;
+  }
 
   let announced = false;
   let acc = '';

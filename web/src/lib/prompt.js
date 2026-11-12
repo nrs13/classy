@@ -10,10 +10,12 @@ export function normalizeFocus(raw) {
     : typeof raw?.mode === 'string'
       ? [raw.mode]
       : [];
+  const view = raw?.view === 'explore' || raw?.view === 'compare' || raw?.view === 'search' ? raw.view : '';
   return {
     ids,
     timeSec: Number.isFinite(t) && t >= 0 ? t : null,
     modes: normalizeReplyModes(requested),
+    view,
   };
 }
 
@@ -51,7 +53,7 @@ export function deliverOpenClip(knowledge, focus) {
     n: videos.length,
     scope:
       videos.length > 1
-        ? 'The compared clips, a line for each second of the first, and any clip the question names.'
-        : 'The open clip, a line for each of its seconds, and any clip the question names.',
+        ? 'The compared clips, a short window around the playhead, and any moment the question names.'
+        : 'The open clip, a short window around the playhead, and any moment the question names.',
   };
 }

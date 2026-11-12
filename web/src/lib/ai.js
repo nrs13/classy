@@ -75,7 +75,7 @@ function aborted() {
   return err;
 }
 
-export async function* streamChatReply({ priorMessages = [], message, focus = null, signal, idempotencyKey } = {}) {
+export async function* streamChatReply({ priorMessages = [], message, focus = null, signal, idempotencyKey, suggested = false } = {}) {
   if (signal?.aborted) throw aborted();
   const history = priorMessages
     .filter((m) => m?.text && (m.role === 'user' || m.role === 'assistant') && !m.error)
@@ -90,7 +90,7 @@ export async function* streamChatReply({ priorMessages = [], message, focus = nu
         'Content-Type': 'application/json',
         ...(idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {}),
       },
-      body: JSON.stringify({ message, history, focus }),
+      body: JSON.stringify({ message, history, focus, suggested: suggested === true }),
       signal,
     });
     requestIdFromResponse(response);

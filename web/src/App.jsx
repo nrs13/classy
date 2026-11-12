@@ -323,6 +323,10 @@ export default function App() {
   }, [manifest]);
 
   const videos = useMemo(() => manifest?.videos || [], [manifest]);
+  const reels = useMemo(
+    () => videos.map((video) => ({ id: video.id, account: video.account || '' })),
+    [videos],
+  );
   const networksById = useMemo(() => {
     const map = {};
     (knowledge?.videos || []).forEach((video) => {
@@ -386,10 +390,24 @@ export default function App() {
       setSearchHit(null);
       setSearchReturn(null);
       if (mode === 'compare') toggleCompare(id);
-      else setSelId(id);
+      else {
+        setSelId(id);
+        setViewMoment((prev) => ({
+          videoId: id,
+          timeSec: prev?.videoId === id ? Number(prev.timeSec) || 0 : 0,
+        }));
+      }
     },
     [mode, toggleCompare],
   );
+
+  const chooseMode = useCallback((mo) => {
+    setMode(mo);
+    if (mo === 'compare' && compareIds.length === 0 && selId) {
+      setCompareIds([selId]);
+    }
+    setCompareCapMsg(false);
+  }, [compareIds.length, selId]);
 
   const openSearchHit = useCallback((hit) => {
     setSearchHit(hit);
@@ -621,6 +639,10 @@ export default function App() {
     suggestionVideoIds,
     collapsed: chatCollapsed,
     onToggleCollapse: toggleCollapse,
+    mode,
+    onMode: chooseMode,
+    reels,
+    onPickReel: onVideoActivate,
   };
 
   const compareControls = (
@@ -733,13 +755,7 @@ export default function App() {
             <button
               key={mo}
               type="button"
-              onClick={() => {
-                setMode(mo);
-                if (mo === 'compare' && compareIds.length === 0 && selId) {
-                  setCompareIds([selId]);
-                }
-                setCompareCapMsg(false);
-              }}
+              onClick={() => chooseMode(mo)}
               className={`mode-tab px-3.5 py-1.5 capitalize ${mode === mo ? 'active' : ''}`}
             >
               {mo}
@@ -942,58 +958,57 @@ export default function App() {
           )}
         </main>
 
-        {!isMobile && (
-          <aside
-            className={`chat-column border-l hairline min-h-0 min-w-0 relative ${resizing ? 'is-resizing' : ''}`}
-            style={{ background: 'var(--bg)' }}
-          >
-            {!chatCollapsed && (
-              <div
-                className="chat-resize-handle"
-                role="separator"
-                aria-orientation="vertical"
-                aria-label="Resize ask classy panel"
-                aria-valuemin={CHAT_W_MIN}
-                aria-valuemax={Math.floor(typeof window !== 'undefined' ? window.innerWidth * 0.5 : 800)}
-                aria-valuenow={chatW}
-                tabIndex={0}
-                onPointerDown={(e) => {
-                  e.preventDefault();
-                  beginResize(e.clientX);
-                }}
-                onKeyDown={onResizeKeyDown}
-                title="Drag to resize"
-              />
-            )}
-            <ChatPanel {...chatPanelProps} mobile={false} />
-          </aside>
-        )}
+        <aside
+          className={
+            isMobile
+              ? 'chat-mobile-overlay'
+              : `chat-column border-l hairline min-h-0 min-w-0 relative ${resizing ? 'is-resizing' : ''}`
+          }
+          style={{ background: 'var(--bg)' }}
+          hidden={isMobile && !mobileChatOpen}
+          role={isMobile && mobileChatOpen ? 'dialog' : undefined}
+          aria-modal={isMobile && mobileChatOpen ? 'true' : undefined}
+          aria-label={isMobile ? 'Ask classy' : undefined}
+        >
+          {!isMobile && !chatCollapsed && (
+            <div
+              className="chat-resize-handle"
+              role="separator"
+              aria-orientation="vertical"
+              aria-label="Resize ask classy panel"
+              aria-valuemin={CHAT_W_MIN}
+              aria-valuemax={Math.floor(typeof window !== 'undefined' ? window.innerWidth * 0.5 : 800)}
+              aria-valuenow={chatW}
+              tabIndex={0}
+              onPointerDown={(e) => {
+                e.preventDefault();
+                beginResize(e.clientX);
+              }}
+              onKeyDown={onResizeKeyDown}
+              title="Drag to resize"
+            />
+          )}
+          <ChatPanel
+            {...chatPanelProps}
+            mobile={isMobile}
+            onCloseMobile={() => setMobileChatOpen(false)}
+          />
+        </aside>
         </div>
 
+      {isMobile && !mobileChatOpen && (
+        <button
+          type="button"
+          className="chat-fab"
+          onClick={() => setMobileChatOpen(true)}
+          title="Ask classy"
+          aria-label="Open ask classy"
+        >
+          <span className="ask-glyph" aria-hidden>?</span>
+        </button>
+      )}
       {isMobile && (
         <>
-          {!mobileChatOpen && (
-            <button
-              type="button"
-              className="chat-fab"
-              onClick={() => setMobileChatOpen(true)}
-              title="Ask classy"
-              aria-label="Open ask classy"
-            >
-              <span className="ask-glyph" aria-hidden>?</span>
-            </button>
-          )}
-          {mobileChatOpen && (
-            <div className="chat-mobile-overlay" role="dialog" aria-modal="true" aria-label="Ask classy">
-              <ChatPanel
-                knowledge={knowledge}
-                viewMoment={viewMoment}
-                suggestionVideoIds={suggestionVideoIds}
-                mobile
-                onCloseMobile={() => setMobileChatOpen(false)}
-              />
-            </div>
-          )}
           {libraryOpen && (
             <div
               className="library-drawer-root"

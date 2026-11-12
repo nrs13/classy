@@ -2088,6 +2088,55 @@ select {
   animation: sync-tick 1s steps(1, end) infinite;
 }
 
+.chat-caret {
+  display: inline-block;
+  width: 7px;
+  height: 1em;
+  margin-left: 2px;
+  background: currentColor;
+  vertical-align: text-bottom;
+  animation: chat-caret-blink 1s steps(1, end) infinite;
+}
+
+@keyframes chat-caret-blink {
+  50% { opacity: 0; }
+}
+
+.chat-context {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.chat-subject {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-secondary);
+}
+
+.chat-reels {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.chat-reel {
+  flex: 0 0 auto;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 12px;
+}
+
+.chat-reel.is-on {
+  border-color: var(--text-primary);
+}
+
 .chat-jump-btn {
   position: absolute;
   left: 50%;
@@ -2353,6 +2402,10 @@ select {
   flex-direction: column;
   overflow: hidden;
   animation: classy-fade-in var(--dur) var(--ease) both;
+}
+
+.chat-mobile-overlay[hidden] {
+  display: none;
 }
 
 .chat-mobile-overlay > * {
@@ -4591,7 +4644,8 @@ select {
   .sf.is-busy .sf-progress::after,
   .sf-spinner,
   .sr-skeleton .sk-line,
-  .chat-thinking-pulse {
+  .chat-thinking-pulse,
+  .chat-caret {
     animation: none;
   }
 

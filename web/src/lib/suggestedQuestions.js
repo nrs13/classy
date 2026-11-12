@@ -331,8 +331,7 @@ export function suggestionFocusIds({ mode, selId, compareIds, viewMoment }) {
     const ids = (compareIds || []).filter(Boolean);
     if (ids.length) return ids;
   }
-  const fromView = viewMoment?.videoId;
-  if (fromView) return [fromView];
   if (selId) return [selId];
+  if (viewMoment?.videoId) return [viewMoment.videoId];
   return [];
 }

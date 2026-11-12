@@ -95,8 +95,11 @@ export function conversationBrief(knowledge, focus) {
   const videos = Array.isArray(knowledge?.videos) ? knowledge.videos : [];
   const video = videos[0];
   if (!video) return 'No clip is open. Ask them to open one.';
-  const lines = clipLines(video, knowledge, focus);
-  for (const other of videos.slice(1)) lines.push(shortClip(other));
+  const compared = focus?.view === 'compare' && videos.length > 1;
+  const lines = [];
+  if (compared) lines.push('These clips are compared together. Answer about the set.');
+  lines.push(...clipLines(video, knowledge, focus));
+  for (const other of videos.slice(1)) lines.push(shortClip(other, compared));
   for (const extra of knowledge?.asked || []) {
     const plays = commas(extra.plays);
     const bits = [extra.id, extra.account, extra.tier, plays ? `${plays} plays` : '', extra.line].filter(Boolean);
@@ -105,14 +108,16 @@ export function conversationBrief(knowledge, focus) {
   return lines.join(' ');
 }
 
-function shortClip(video) {
+function shortClip(video, compared) {
   const metrics = video.metrics || {};
+  const lead = compared ? 'Compared' : 'Also open';
   const bits = [
-    `Also open: ${video.id || 'clip'}`,
+    `${lead}: ${video.id || 'clip'}`,
     video.account || '',
     metrics.tier || '',
     commas(metrics.plays) ? `${commas(metrics.plays)} plays` : '',
     amplification(metrics.amplification) ? amplification(metrics.amplification) : '',
+    compared ? String(video.open_second?.happens || '').replace(/\s+/g, ' ').trim().slice(0, 140) : '',
   ].filter(Boolean);
   return `${bits.join(', ')}.`;
 }
