@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
-import { agreedAppAnswer, computedAnswer, questionsFor } from '../server/chat/computed.js';
+import { agreedAppAnswer, clipControlsAnswer, computedAnswer, questionsFor, unfinishedQuestion } from '../server/chat/computed.js';
 
 const canned = JSON.parse(readFileSync(new URL('../server/chat/canned.json', import.meta.url), 'utf8'));
 
@@ -53,4 +53,19 @@ test('the next agreed app is the later screen, and it is not named', () => {
   assert.match(agreedAppAnswer('what is the next agreed app', clip, 6), /no later agreed app screen/);
   assert.match(agreedAppAnswer('what is the next agreed app', { agreed_app_screens: [] }, 0), /no agreed app screen/);
   assert.equal(agreedAppAnswer('what is on screen right now', clip, 1), null);
+});
+
+test('breakout and the next agreed app are answered together, including a typo', () => {
+  const clip = {
+    id: 'v002',
+    metrics: { plays: 31_300_000, followers: 5750, amplification: 31_300_000 / 5750 },
+    agreed_app_screens: [{ t_sec: 0 }, { t_sec: 4 }],
+  };
+  const text = clipControlsAnswer('what is the breakout and next agrred app', clip, 0);
+  assert.match(text, /v002 is breakout/);
+  assert.match(text, /31,300,000/);
+  assert.match(text, /jumps to second 4/);
+  assert.match(text, /does not name the app/);
+  assert.match(unfinishedQuestion('what is the'), /Finish the question/);
+  assert.equal(unfinishedQuestion('what is the breakout'), null);
 });

@@ -97,10 +97,42 @@ export function agreedAppAnswer(question, clip, timeSec) {
   }
   const now = Number(timeSec) || 0;
   const upcoming = times.find((t) => t > now + 0.04);
+  const here = times.find((t) => Math.abs(t - now) <= 0.2);
+  if (upcoming == null && here != null) {
+    return `This second, ${Math.round(here)}, is already an agreed app screen, which is what the Next agreed app button jumps to. There is no later agreed app screen. The record does not name the app.`;
+  }
   if (upcoming == null) {
     return `There is no later agreed app screen. The last one in this clip is at second ${times[times.length - 1]}. The record marks it as an agreed app screen and does not name the app.`;
   }
-  return `The next agreed app screen is at second ${upcoming}. The record marks that moment as an agreed app screen and does not name the app.`;
+  return `The Next agreed app button jumps to second ${upcoming}. The record marks that moment as an agreed app screen and does not name the app.`;
+}
+
+export function unfinishedQuestion(question) {
+  const q = String(question || '').trim().toLowerCase().replace(/\s+/g, ' ');
+  if (/^(what|who|where|when|why|how)( is| are| was|'s)?( the| a| an)?$/.test(q)) {
+    return 'Finish the question. You can ask what the breakout tier is, where the next agreed app screen is, or pick a suggested question.';
+  }
+  return null;
+}
+
+export function clipControlsAnswer(question, clip, timeSec) {
+  const q = String(question || '').toLowerCase();
+  const wantsBreakout = q.includes('breakout');
+  const wantsApp = /\bapps?\b/.test(q) && (q.includes('next') || q.includes('agre'));
+  if (!wantsBreakout && !wantsApp) return null;
+  const parts = [];
+  if (wantsBreakout) {
+    const row = playsFollowers(clip);
+    const id = clip?.id || clip?.video_id || 'This clip';
+    if (row?.tier) {
+      parts.push(`Breakout is the tier on the clip card. ${id} is ${row.tier} because it has ${commas(row.plays)} plays. Amplification is ${commas(row.amp)}×, plays divided by ${commas(row.followers)} followers. The tier comes from the public play count, not from the picture.`);
+    }
+  }
+  if (wantsApp) {
+    const app = agreedAppAnswer('what is the next agreed app', clip, timeSec);
+    if (app) parts.push(app);
+  }
+  return parts.length ? parts.join(' ') : null;
 }
 
 export function computedAnswer(question, clip, pack) {

@@ -1,6 +1,21 @@
 import { currentSnapshot } from '../repo/snapshot.js';
 import { agreedAppMarks, clipsForChat, hookSlopes, secondsAt, VIDEO_ID } from '../repo/videos.js';
 import { secondText } from '../../src/lib/secondText.js';
+import { tierFor } from '../../api/catalog.js';
+
+function nextAgreedApp(rows, timeSec) {
+  const times = rows
+    .map((row) => Number(row?.t_sec))
+    .filter((t) => Number.isFinite(t))
+    .sort((a, b) => a - b);
+  const now = Number(timeSec) || 0;
+  const next = times.find((t) => t > now + 0.04);
+  return {
+    on_screen_now: times.some((t) => Math.abs(t - now) <= 0.2),
+    next_t_sec: next == null ? null : next,
+    names_the_app: false,
+  };
+}
 
 function appEvidence(app) {
   const value = typeof app === 'string'
@@ -64,6 +79,7 @@ export async function openKnowledge(focus) {
             followers: clip.followers,
             like_rate: clip.like_rate,
             amplification: clip.amplification,
+            tier: tierFor(clip.plays),
           },
           features: {
             hook_slope: clip.hook_slope,
@@ -81,6 +97,10 @@ export async function openKnowledge(focus) {
               t_sec: Number(row.t_sec),
               evidence: appEvidence(row.app),
             })),
+          next_agreed_app: nextAgreedApp(
+            marks.filter((row) => row.video_id === clip.video_id),
+            t,
+          ),
         };
       }),
     },

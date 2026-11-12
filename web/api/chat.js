@@ -7,7 +7,7 @@ import { openKnowledge } from '../server/chat/knowledge.js';
 import { resolveChatConfig, streamProvider, ChatProviderError } from '../server/chat/provider.js';
 import { CANNED_ONLY, CHAT_PAUSED, chatStatus, effectiveChatMode, liveFallbackText, matchCanned, visitorCountry } from '../server/chat/mode.js';
 import { chatFault, mockFaultError, mockSlowMs } from '../server/chat/mock.js';
-import { agreedAppAnswer, computedAnswer } from '../server/chat/computed.js';
+import { agreedAppAnswer, clipControlsAnswer, computedAnswer, unfinishedQuestion } from '../server/chat/computed.js';
 import { applyLenses } from '../server/chat/lenses.js';
 import { assertUnderCap, recordUsage } from '../server/chat/spend.js';
 import { MAX_CHAT_BODY_BYTES, MAX_HISTORY_MESSAGES, MAX_MESSAGE_CHARS, messageTooLong, messageTooShort } from '../src/lib/chatLimits.js';
@@ -158,6 +158,7 @@ export default async function handler(req, res) {
       const opened = await openKnowledge(focusNorm);
       const clip = opened.knowledge?.videos?.[0];
       const computed = computedAnswer(message, clip, opened.pack)
+        || clipControlsAnswer(message, clip, focusNorm.timeSec)
         || agreedAppAnswer(message, clip, focusNorm.timeSec);
       refuse(res, computed ? applyLenses(computed, focusNorm.modes) : CANNED_ONLY);
     } catch {
@@ -168,6 +169,11 @@ export default async function handler(req, res) {
   const stored = matchCanned(message, focusNorm);
   if (stored) {
     refuse(res, applyLenses(stored, focusNorm.modes));
+    return;
+  }
+  const unfinished = unfinishedQuestion(message);
+  if (unfinished) {
+    refuse(res, unfinished);
     return;
   }
   if (!chatConfig.apiKey) {
@@ -246,7 +252,9 @@ export default async function handler(req, res) {
     const delivered = deliverOpenClip(opened.knowledge, focusNorm);
     openedClip = opened.knowledge?.videos?.[0] || null;
     openedPack = opened.pack || null;
-    const known = computedAnswer(message, openedClip, openedPack);
+    const known = computedAnswer(message, openedClip, openedPack)
+      || clipControlsAnswer(message, openedClip, focusNorm.timeSec)
+      || agreedAppAnswer(message, openedClip, focusNorm.timeSec);
     if (known) {
       const text = applyLenses(known, focusNorm.modes);
       finish({ kind: 'sse', text });
