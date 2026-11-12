@@ -132,6 +132,12 @@ export default async function handler(req, res) {
     fail(res, 400, 'message_too_short', requestId);
     return;
   }
+  // A newline would split a log line. Longer than 80 is not a client id.
+  const supplied = String(req.headers?.['idempotency-key'] || req.headers?.['Idempotency-Key'] || '').trim();
+  if (supplied && (supplied.length > 80 || /[\u0000-\u001f\u007f]/.test(supplied))) {
+    fail(res, 400, 'bad_request', requestId);
+    return;
+  }
   if (mode === 'off') {
     refuse(res, CHAT_PAUSED);
     return;
@@ -170,7 +176,6 @@ export default async function handler(req, res) {
     refuse(res, cached);
     return;
   }
-  const supplied = String(req.headers?.['idempotency-key'] || req.headers?.['Idempotency-Key'] || '').slice(0, 80);
   const idemKey = supplied ? `${supplied}|${focusNorm.modes.join(',')}`.slice(0, 120) : '';
   const claim = chatSends.claim(idemKey);
   if (!claim.fresh) {

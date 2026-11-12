@@ -55,6 +55,36 @@ test('the server rejects an over-length message instead of sending it', async ()
   assert.equal(res.body.message, 'That message is too long.');
 });
 
+test('an idempotency key with an unexpected character is rejected', async () => {
+  const handler = (await import('../api/chat.js')).default;
+  const res = {
+    statusCode: 200,
+    headers: {},
+    body: undefined,
+    setHeader() {},
+    status(code) {
+      this.statusCode = code;
+      return this;
+    },
+    json(payload) {
+      this.body = payload;
+    },
+  };
+  await handler(
+    {
+      method: 'POST',
+      headers: { 'x-forwarded-for': '203.0.113.46', 'idempotency-key': 'bad\nkey' },
+      url: '/api/chat',
+      body: { message: 'hello there' },
+    },
+    res,
+  );
+  assert.equal(res.statusCode, 400);
+  assert.equal(res.body.error, 'bad_request');
+  assert.equal(res.body.message, 'That request is not valid.');
+  assert.equal(JSON.stringify(res.body).includes('\n'), false);
+});
+
 test('an oversized chat body is rejected before the model is called', async () => {
   const handler = (await import('../api/chat.js')).default;
   const res = {
