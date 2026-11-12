@@ -54,6 +54,8 @@ test('the shell names JavaScript and shows a loading line', () => {
   assert.match(indexHtml, /<title>Classy \(Demo\) - NRS<\/title>/);
   assert.match(indexHtml, /href="\/favicon-32\.png"/);
   assert.equal(indexHtml.includes('icon-192.png'), false);
+  assert.match(indexHtml, /rel="canonical" href="https:\/\/classy\.nrsharan\.com\/"/);
+  assert.equal(/<head>[\s\S]*Knowunity[\s\S]*<\/head>/.test(indexHtml), false);
   assert.equal(/<noscript>[^]*style=/i.test(indexHtml), false);
 });
 
