@@ -73,10 +73,11 @@ test('the shell names JavaScript and shows a loading line', () => {
 
 test('robots allows crawlers and the page stays noindex', () => {
   const robots = readFileSync(new URL('../public/robots.txt', import.meta.url), 'utf8');
-  assert.match(robots, /User-agent: \*/);
-  assert.match(robots, /Allow: \//);
-  assert.equal(/Disallow/.test(robots), false);
+  assert.match(robots, /^User-agent: \*\nAllow: \/\n/);
   assert.equal(/sitemap/i.test(robots), false);
+  for (const bot of ['GPTBot', 'ClaudeBot', 'CCBot', 'Google-Extended', 'PerplexityBot', 'Applebot-Extended', 'Bytespider']) {
+    assert.match(robots, new RegExp(`User-agent: ${bot}\\nDisallow: /`));
+  }
   assert.match(indexHtml, /noindex, nofollow/);
   assert.match(missingHtml, /noindex, nofollow/);
 });
