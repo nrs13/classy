@@ -61,14 +61,22 @@ export async function agreedAppMarks(snapshotId, ids) {
   return result.rows;
 }
 
+const SECOND_AT = `video_id, t_sec, speech, speech_score, text_on_screen, speaker, scenes, outcomes, app, ask`;
+
 export async function secondsAt(snapshotId, ids, tSec) {
-  const result = await query(
-    `SELECT video_id, t_sec, speech, speech_score, text_on_screen, speaker, scenes, outcomes, app, ask
-     FROM second
-     WHERE snapshot_id = $1 AND video_id = ANY($2::text[]) AND t_sec = $3`,
-    [snapshotId, ids, tSec],
-  );
-  return result.rows;
+  const params = [snapshotId, ids, tSec];
+  const where = `snapshot_id = $1 AND video_id = ANY($2::text[]) AND t_sec = $3`;
+  try {
+    const result = await query(
+      `SELECT ${SECOND_AT}, happens FROM second WHERE ${where}`,
+      params,
+    );
+    return result.rows;
+  } catch (err) {
+    if (err?.code !== '42703') throw err;
+    const result = await query(`SELECT ${SECOND_AT} FROM second WHERE ${where}`, params);
+    return result.rows;
+  }
 }
 
 export async function clipDetail(snapshotId, id) {

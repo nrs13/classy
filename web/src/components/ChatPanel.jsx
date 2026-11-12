@@ -17,7 +17,7 @@ import {
   toggleReplyMode,
 } from '../lib/replyModes';
 import ReplyModeGroup from './ReplyModeGroup';
-import { acceptSend, capMessage, CHAT_COOLDOWN_MS, dropUnfinishedReply, retryTurn } from '../lib/chatLimits';
+import { acceptSend, capMessage, CHAT_COOLDOWN_MS, composerHold, dropUnfinishedReply, retryTurn } from '../lib/chatLimits';
 import { applyOnlineState } from '../lib/connection';
 import { coolingDeadline, isCooling, LIVE_REGION, onQuotaClock, quotaAnnouncement, startCountdown } from '../lib/quota';
 import { CUT_LABEL, OFFLINE_LABEL } from '../lib/streamFrame';
@@ -57,6 +57,7 @@ export default function ChatPanel({
   const chatAbort = useRef(null);
   const lastSentAt = useRef(0);
   const [cooldownUntil, setCooldownUntil] = useState(0);
+  const [cooldownLeft, setCooldownLeft] = useState(0);
   const [quota, setQuota] = useState(null);
   const [quotaLeft, setQuotaLeft] = useState(0);
   const [offline, setOffline] = useState(() => (typeof navigator !== 'undefined' ? !navigator.onLine : false));
@@ -169,11 +170,18 @@ export default function ChatPanel({
     [knowledge, suggestionKey, suggestSeed],
   );
   useEffect(() => {
-    if (!cooldownUntil) return undefined;
-    const left = cooldownUntil - Date.now();
-    if (left <= 0) return undefined;
-    const id = setTimeout(() => setCooldownUntil(0), left);
-    return () => clearTimeout(id);
+    if (!cooldownUntil) {
+      setCooldownLeft(0);
+      return undefined;
+    }
+    const tick = () => {
+      const left = Math.max(0, Math.ceil((cooldownUntil - Date.now()) / 1000));
+      setCooldownLeft(left);
+      if (left <= 0) setCooldownUntil(0);
+    };
+    tick();
+    const id = setInterval(tick, 250);
+    return () => clearInterval(id);
   }, [cooldownUntil]);
 
   const chatReady = Boolean(knowledge && chatState?.ready);
@@ -423,7 +431,7 @@ export default function ChatPanel({
     if (mobile) return;
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      send();
+      send(e.currentTarget.value);
     }
   }
 
@@ -464,7 +472,7 @@ export default function ChatPanel({
           key={`${keyPrefix}${i}`}
           type="button"
           onClick={() => send(s)}
-          disabled={inputPaused || busy}
+          disabled={inputPaused || busy || Boolean(quota) || cooldownLeft > 0}
           className="text-left text-[13px] px-3 py-2.5 suggest-chip leading-snug"
         >
           {s}
@@ -644,7 +652,11 @@ export default function ChatPanel({
             </button>
           </div>
           <div className="chat-quota" {...LIVE_REGION}>
-            {quotaAnnouncement(quota, quotaLeft)}
+            {composerHold({
+              text: input,
+              cooldownLeft,
+              quotaText: quotaAnnouncement(quota, quotaLeft),
+            })}
           </div>
         </div>
         {chatState?.privacy && (

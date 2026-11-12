@@ -246,8 +246,7 @@ export default async function handler(req, res) {
     const delivered = deliverOpenClip(opened.knowledge, focusNorm);
     openedClip = opened.knowledge?.videos?.[0] || null;
     openedPack = opened.pack || null;
-    const known = computedAnswer(message, openedClip, openedPack)
-      || agreedAppAnswer(message, openedClip, focusNorm.timeSec);
+    const known = computedAnswer(message, openedClip, openedPack);
     if (known) {
       const text = applyLenses(known, focusNorm.modes);
       finish({ kind: 'sse', text });

@@ -41,7 +41,6 @@ export function deliverOpenClip(knowledge, focus) {
       );
       const clip = {
         ...video,
-        open_second: best,
         story: best ? [best] : [],
         content_events: events,
       };
@@ -56,7 +55,7 @@ export function deliverOpenClip(knowledge, focus) {
     n: videos.length,
     scope:
       videos.length > 1
-        ? 'The compared videos at the shared second. The rest of the Library is not in this payload.'
-        : 'The open video and the open second. The rest of the Library is not in this payload.',
+        ? 'The compared videos at the shared second, plus the pack size. Other videos are not in this payload.'
+        : 'The open video, this second, and the pack size. Other videos are not in this payload.',
   };
 }

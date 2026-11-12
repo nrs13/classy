@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { acceptSend, capMessage, dropUnfinishedReply, MAX_CHAT_BODY_BYTES, MAX_MESSAGE_CHARS, messageLength, messageTooLong, retryTurn } from '../src/lib/chatLimits.js';
+import { acceptSend, capMessage, composerHold, dropUnfinishedReply, MAX_CHAT_BODY_BYTES, MAX_MESSAGE_CHARS, messageLength, messageTooLong, retryTurn } from '../src/lib/chatLimits.js';
 
 process.env.CLASSY_LOG = 'off';
 
@@ -12,6 +12,10 @@ test('a second send is refused while one reply is in flight', () => {
   assert.equal(acceptSend(false, 'short'), false);
   assert.equal(acceptSend(false, 'hello there', 10_000, 9_000), false);
   assert.equal(acceptSend(false, 'hello there', 20_000, 9_000), true);
+  assert.equal(composerHold({ text: 'hi' }), 'Type at least 8 characters.');
+  assert.equal(composerHold({ text: 'hello there', cooldownLeft: 2 }), 'You can send again in 2 s');
+  assert.equal(composerHold({ quotaText: 'You can send again in 40 s', cooldownLeft: 2 }), 'You can send again in 40 s');
+  assert.equal(composerHold({ text: '' }), '');
 });
 
 test('the client cap matches 4000 code points and does not split an emoji', () => {

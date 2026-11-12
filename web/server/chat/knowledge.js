@@ -1,5 +1,6 @@
 import { currentSnapshot } from '../repo/snapshot.js';
 import { agreedAppMarks, clipsForChat, hookSlopes, secondsAt, VIDEO_ID } from '../repo/videos.js';
+import { secondText } from '../../src/lib/secondText.js';
 
 function appEvidence(app) {
   const value = typeof app === 'string'
@@ -38,9 +39,12 @@ export async function openKnowledge(focus) {
     pack,
     knowledge: {
       product: 'Classy',
+      pack_size: pack?.n || null,
       videos: clips.map((clip) => {
         const second = at.get(clip.video_id);
         const events = [];
+        const happens = secondText(second);
+        if (happens) events.push({ type: 'happens', content: happens, t_sec: t });
         if (second?.speech) events.push({ type: 'speech', content: second.speech, t_sec: t });
         for (const line of second?.text_on_screen || []) {
           const text = typeof line === 'string' ? line : line?.text;

@@ -2,7 +2,7 @@ export const MAX_MESSAGE_CHARS = 4000;
 const MIN_MESSAGE_CHARS = 8;
 export const MAX_HISTORY_MESSAGES = 40;
 export const MAX_CHAT_BODY_BYTES = 512 * 1024;
-export const CHAT_COOLDOWN_MS = 8000;
+export const CHAT_COOLDOWN_MS = 2000;
 
 /** Code points, so an emoji counts as one and is never split. */
 export function messageLength(text) {
@@ -22,6 +22,15 @@ export function messageTooLong(text) {
 export function messageTooShort(text) {
   const q = String(text ?? '').trim();
   return messageLength(q) > 0 && messageLength(q) < MIN_MESSAGE_CHARS;
+}
+
+/** Why the composer will not send, or an empty string when it will. */
+export function composerHold({ text = '', cooldownLeft = 0, quotaText = '' } = {}) {
+  if (quotaText) return quotaText;
+  const left = Math.ceil(Number(cooldownLeft) || 0);
+  if (left > 0) return `You can send again in ${left} s`;
+  if (messageTooShort(text)) return 'Type at least 8 characters.';
+  return '';
 }
 
 /** True when a send may start. A second click, a short note, or a cooldown is refused. */
