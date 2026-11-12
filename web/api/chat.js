@@ -134,7 +134,12 @@ export default async function handler(req, res) {
   }
   // A newline would split a log line. Longer than 80 is not a client id.
   const supplied = String(req.headers?.['idempotency-key'] || req.headers?.['Idempotency-Key'] || '').trim();
-  if (supplied && (supplied.length > 80 || /[\u0000-\u001f\u007f]/.test(supplied))) {
+  let badKey = supplied.length > 80;
+  for (let i = 0; i < supplied.length && !badKey; i += 1) {
+    const code = supplied.charCodeAt(i);
+    if (code < 32 || code === 127) badKey = true;
+  }
+  if (supplied && badKey) {
     fail(res, 400, 'bad_request', requestId);
     return;
   }
