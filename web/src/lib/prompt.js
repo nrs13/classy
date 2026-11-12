@@ -1,5 +1,4 @@
 import { normalizeReplyModes } from './replyModes.js';
-import { sentencesAt } from './forecast.js';
 
 export function normalizeFocus(raw) {
   const ids = Array.isArray(raw?.ids)
@@ -39,14 +38,11 @@ export function deliverOpenClip(knowledge, focus) {
       const events = (video.content_events || []).filter(
         (event) => Math.floor(Number(event?.t_sec)) === sec,
       );
-      const clip = {
+      return {
         ...video,
         story: best ? [best] : [],
         content_events: events,
       };
-      const lines = sentencesAt(video, t);
-      if (lines.length) clip.forecast_at_second = lines;
-      return clip;
     });
   return {
     ...knowledge,
@@ -55,7 +51,7 @@ export function deliverOpenClip(knowledge, focus) {
     n: videos.length,
     scope:
       videos.length > 1
-        ? 'The compared videos at the shared second, plus the pack size. Other videos are not in this payload.'
-        : 'The open video, this second, and the pack size. Other videos are not in this payload.',
+        ? 'The compared clips, a line for each second of the first, and any clip the question names.'
+        : 'The open clip, a line for each of its seconds, and any clip the question names.',
   };
 }

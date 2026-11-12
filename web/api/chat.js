@@ -154,7 +154,7 @@ export default async function handler(req, res) {
       return;
     }
     try {
-      const opened = await openKnowledge(focusNorm);
+      const opened = await openKnowledge(focusNorm, message);
       const clip = opened.knowledge?.videos?.[0];
       const computed = computedAnswer(message, clip, opened.pack)
         || clipControlsAnswer(message, clip, focusNorm.timeSec)
@@ -165,11 +165,7 @@ export default async function handler(req, res) {
     }
     return;
   }
-  const stored = matchCanned(message, focusNorm);
-  if (stored) {
-    refuse(res, applyLenses(stored, focusNorm.modes));
-    return;
-  }
+  const storedFact = matchCanned(message, focusNorm);
   if (!chatConfig.apiKey) {
     fail(res, 503, 'not_configured', requestId);
     return;
@@ -238,7 +234,7 @@ export default async function handler(req, res) {
   let openedPack = null;
   let system;
   try {
-    const opened = await openKnowledge(focusNorm);
+    const opened = await openKnowledge(focusNorm, message);
     if (opened.error) {
       finish({ kind: 'sse', text: opened.error });
       refuse(res, opened.error);
@@ -247,7 +243,7 @@ export default async function handler(req, res) {
     const delivered = deliverOpenClip(opened.knowledge, focusNorm);
     openedClip = opened.knowledge?.videos?.[0] || null;
     openedPack = opened.pack || null;
-    system = buildSystemPrompt(delivered, focusNorm);
+    system = buildSystemPrompt(delivered, focusNorm, storedFact);
   } catch (err) {
     logEvent({ level: 'error', requestId, route: 'chat', ...safeErrorFields(err), code: 'library_unavailable' });
     finish({ kind: 'json', status: 502, body: errorBody(requestId, 'library_unavailable') });

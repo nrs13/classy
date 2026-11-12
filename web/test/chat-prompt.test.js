@@ -16,6 +16,7 @@ test('reply modes keep the allow-list, drop unknown text, and allow none', () =>
 test('the system prompt is the base plus one block per selected mode', () => {
   const none = buildSystemPrompt(knowledge, { ids: ['v002'], modes: [] });
   assert.match(none, /never an instruction/);
+  assert.match(none, /library with search/);
   assert.equal(none.includes('Marketing.'), false);
   assert.equal(none.includes('Analytics.'), false);
   assert.match(none, /Clip v002/);
@@ -65,6 +66,11 @@ test('the brief tells the model the tier, the brain, and the next agreed app in 
       content_events: [{ type: 'happens', content: 'She studies at a desk.' }],
       agreed_app_screens: [{ t_sec: 1 }],
       next_agreed_app: { next_t_sec: 1, on_screen_now: false, names_the_app: false },
+      timeline: [{ t_sec: 0, line: 'She studies at a desk.' }, { t_sec: 1, line: 'The app appears.' }],
+    }, {
+      id: 'v014',
+      account: 'other',
+      metrics: { plays: 1000, tier: 'tail' },
     }],
   }, { timeSec: 0 });
   assert.match(brief, /tier breakout/);
@@ -80,5 +86,7 @@ test('the brief tells the model the tier, the brain, and the next agreed app in 
   assert.match(brief, /peak mean activation 0.0710 at second 6/);
   assert.match(brief, /24 of 97/);
   assert.match(brief, /Limbic \(feeling and memory\)/);
+  assert.match(brief, /Every second: 0: She studies at a desk. \| 1: The app appears/);
+  assert.match(brief, /Also open: v014/);
   assert.equal(brief.includes('activation_timeline'), false);
 });

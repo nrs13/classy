@@ -1,3 +1,5 @@
+import { amplificationLabel } from './figures.js';
+
 function fmtNum(n) {
   if (n == null || Number.isNaN(Number(n))) return 'n/a';
   const x = Number(n);
@@ -11,10 +13,7 @@ function fmtNum(n) {
 }
 
 function fmtAmp(n) {
-  if (n == null || Number.isNaN(Number(n))) return 'n/a';
-  const x = Number(n);
-  if (x >= 100) return `${Math.round(x).toLocaleString('en-US')}×`;
-  return `${x.toFixed(2)}×`;
+  return amplificationLabel(n) || 'n/a';
 }
 
 function peakTiming(video) {

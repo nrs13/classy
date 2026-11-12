@@ -4,24 +4,18 @@ export const REPLY_MODES = [
     label: 'Marketing',
     hint: 'hooks & creative',
     placeholder: 'ask about hooks…',
-    register:
-      'Marketing. Give practical hook and creative advice, and what to try next, in plain language.',
   },
   {
     id: 'analytics',
     label: 'Analytics',
     hint: 'metrics & rankings',
     placeholder: 'ask about rankings…',
-    register:
-      'Analytics. Give exact numbers, comparisons between clips, ranges, and caveats. Make no claim beyond the data.',
   },
   {
     id: 'research',
     label: 'Research',
     hint: 'brain & method',
     placeholder: 'ask about networks…',
-    register:
-      'Research. Explain how the metric is computed, the assumptions and limits, and what the data cannot show.',
   },
 ];
 

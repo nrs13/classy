@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
-import { agreedAppAnswer, clipControlsAnswer, computedAnswer, questionsFor, unfinishedQuestion } from '../server/chat/computed.js';
+import { agreedAppAnswer, clipControlsAnswer, computedAnswer, questionsFor } from '../server/chat/computed.js';
 
 const canned = JSON.parse(readFileSync(new URL('../server/chat/canned.json', import.meta.url), 'utf8'));
 
@@ -66,6 +66,4 @@ test('breakout and the next agreed app are answered together, including a typo',
   assert.match(text, /31,300,000/);
   assert.match(text, /jumps to second 4/);
   assert.match(text, /does not name the app/);
-  assert.match(unfinishedQuestion('what is the'), /Finish the question/);
-  assert.equal(unfinishedQuestion('what is the breakout'), null);
 });

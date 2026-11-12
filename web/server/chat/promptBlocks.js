@@ -1,11 +1,11 @@
 import { normalizeReplyModes } from '../../src/lib/replyModes.js';
+import { amplificationLabel, fixed4, wholeCount } from '../../src/lib/figures.js';
 
 // How Classy talks, then one block per selected lens.
 export const PROMPT_BLOCKS = {
   base: [
-    'You are Classy. You are in a chat with someone watching one short video. Talk like a good teacher to a smart 14-year-old: warm, specific, and short.',
-    'Answer the question they asked. Two to five sentences is enough unless they ask you to go through everything.',
-    'Read through typos. If they are confused, or say huh, drop the jargon and try again with an everyday picture. Do not repeat your last wording.',
+    'You are Classy, in a chat with someone watching this demo. Answer the question they asked, in plain sentences, and match their length. If they ask you to explain everything, walk through it.',
+    'Read through typos. If they are confused, or say huh, say so and use one everyday picture. Do not repeat your last wording.',
     'If they ask what you can help with, offer two or three things about this clip and invite a question.',
     'If they ask you to explain the words, teach one idea at a time and give a picture for the hard one. Do not define every term in a single list.',
     'If they ask which videos to learn from, name two or three of the other clips listed below. Use only the account, the reach, and the topics written for them. Do not invent how a clip was filmed. If none are listed, teach from the open clip only. Never invent a clip id.',
@@ -28,6 +28,12 @@ export const PROMPT_BLOCKS = {
     'Several lenses are on. Fold them into one spoken answer. Do not use headings.',
 };
 
+export const SITE_BRIEF = [
+  'Classy is a reduced demo of short study videos. Around this chat are a library with search, the player, the clip card, the predicted brain, and compare.',
+  'Some internal features are left out. Do not invent a feature, a score, or an app name that is not described below.',
+  'Tiers come from public plays: breakout from 1,000,000, strong from 50,000, mid from 10,000, and tail below that.',
+].join(' ');
+
 const AREA = {
   Visual: 'seeing',
   'Dorsal Attention': 'staying on a task',
@@ -39,21 +45,15 @@ const AREA = {
 };
 
 function commas(n) {
-  const x = Number(n);
-  if (!Number.isFinite(x)) return null;
-  return Math.round(x).toLocaleString('en-US');
+  return wholeCount(n);
 }
 
 function amplification(n) {
-  const x = Number(n);
-  if (!Number.isFinite(x)) return null;
-  if (Math.abs(x) >= 100) return `${Math.round(x).toLocaleString('en-US')}×`;
-  return `${x.toFixed(2)}×`;
+  return amplificationLabel(n);
 }
 
 function fixed(n) {
-  const x = Number(n);
-  return Number.isFinite(x) ? x.toFixed(4) : null;
+  return fixed4(n);
 }
 
 function networkRows(networks) {
@@ -77,7 +77,11 @@ function peakAt(video) {
     if (!Number.isFinite(abs) || !Number.isFinite(t)) continue;
     if (!best || abs > best.abs) best = { abs, t };
   }
-  return best;
+  if (best) return best;
+  const t = Number(video?.features?.peak_t_sec);
+  const abs = Number(video?.features?.peak_mean_abs);
+  if (Number.isFinite(t) && Number.isFinite(abs)) return { abs, t };
+  return null;
 }
 
 function sentenceList(items) {
@@ -88,8 +92,32 @@ function sentenceList(items) {
 }
 
 export function conversationBrief(knowledge, focus) {
-  const video = Array.isArray(knowledge?.videos) ? knowledge.videos[0] : null;
+  const videos = Array.isArray(knowledge?.videos) ? knowledge.videos : [];
+  const video = videos[0];
   if (!video) return 'No clip is open. Ask them to open one.';
+  const lines = clipLines(video, knowledge, focus);
+  for (const other of videos.slice(1)) lines.push(shortClip(other));
+  for (const extra of knowledge?.asked || []) {
+    const plays = commas(extra.plays);
+    const bits = [extra.id, extra.account, extra.tier, plays ? `${plays} plays` : '', extra.line].filter(Boolean);
+    lines.push(`Asked clip ${bits.join(', ')}.`);
+  }
+  return lines.join(' ');
+}
+
+function shortClip(video) {
+  const metrics = video.metrics || {};
+  const bits = [
+    `Also open: ${video.id || 'clip'}`,
+    video.account || '',
+    metrics.tier || '',
+    commas(metrics.plays) ? `${commas(metrics.plays)} plays` : '',
+    amplification(metrics.amplification) ? amplification(metrics.amplification) : '',
+  ].filter(Boolean);
+  return `${bits.join(', ')}.`;
+}
+
+function clipLines(video, knowledge, focus) {
   const metrics = video.metrics || {};
   const features = video.features || {};
   const lines = [];
@@ -161,13 +189,21 @@ export function conversationBrief(knowledge, focus) {
   if (screens.length) lines.push(`Agreed app screens at second ${screens.join(', ')}. No app name is stored.`);
   if (next && next.next_t_sec != null) lines.push(`Next agreed app control goes to second ${next.next_t_sec}.`);
   else if (next?.on_screen_now) lines.push('The playhead is already on an agreed app screen. There is no later one.');
-  return lines.join(' ');
+  const timeline = Array.isArray(video.timeline) ? video.timeline : [];
+  if (timeline.length) {
+    const text = timeline.slice(0, 90).map((row) => `${row.t_sec}: ${row.line}`).join(' | ');
+    lines.push(`Every second: ${text}`);
+  }
+  return lines;
 }
 
-export function buildSystemPrompt(knowledge, focus) {
+export function buildSystemPrompt(knowledge, focus, storedFact) {
   const modes = normalizeReplyModes(focus?.modes);
-  const parts = [PROMPT_BLOCKS.base, ...modes.map((id) => PROMPT_BLOCKS[id])];
+  const parts = [PROMPT_BLOCKS.base, SITE_BRIEF, ...modes.map((id) => PROMPT_BLOCKS[id])];
   if (modes.length > 1) parts.push(PROMPT_BLOCKS.several);
+  if (storedFact) {
+    parts.push(`Exact figures for this question. Rewrite them as a spoken answer and do not change the numbers: ${storedFact}`);
+  }
   parts.push(conversationBrief(knowledge, focus));
   return parts.filter(Boolean).join('\n\n');
 }

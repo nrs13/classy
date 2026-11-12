@@ -10,6 +10,7 @@ import { cutMarks, sentencesAt, timingSource } from '../lib/forecast';
 import { whyLine } from '../lib/search';
 import { hasApp, hasAsk, hasOutcome, nextMark, receiptAt, receiptView, secondsFromRecord } from '../lib/receipt';
 import { YEO7_ROLES } from '../lib/yeo7';
+import { amplificationLabel, compactCount } from '../lib/figures';
 
 const TIER_CLASS = {
   breakout: 'tier-breakout',
@@ -19,17 +20,11 @@ const TIER_CLASS = {
 };
 
 function fmt(n) {
-  if (n == null) return '-';
-  if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
-  if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
-  return String(n);
+  return compactCount(n) || '-';
 }
 
 function fmtAmp(n) {
-  if (n == null || Number.isNaN(Number(n))) return '-';
-  const x = Number(n);
-  if (x >= 100) return `${Math.round(x).toLocaleString('en-US')}×`;
-  return `${x.toFixed(2)}×`;
+  return amplificationLabel(n) || '-';
 }
 
 function fmtTime(sec) {

@@ -1,7 +1,8 @@
 import { tierFor } from '../../api/catalog.js';
+import { wholeCount } from '../../src/lib/figures.js';
 
 function commas(n) {
-  return Math.round(Number(n)).toLocaleString('en-US');
+  return wholeCount(n) || '';
 }
 
 function fixed(n) {
@@ -105,14 +106,6 @@ export function agreedAppAnswer(question, clip, timeSec) {
     return `There is no later agreed app screen. The last one in this clip is at second ${times[times.length - 1]}. The record marks it as an agreed app screen and does not name the app.`;
   }
   return `The Next agreed app button jumps to second ${upcoming}. The record marks that moment as an agreed app screen and does not name the app.`;
-}
-
-export function unfinishedQuestion(question) {
-  const q = String(question || '').trim().toLowerCase().replace(/\s+/g, ' ');
-  if (/^(what|who|where|when|why|how)( is| are| was|'s)?( the| a| an)?$/.test(q)) {
-    return 'Finish the question. You can ask what the breakout tier is, where the next agreed app screen is, or pick a suggested question.';
-  }
-  return null;
 }
 
 export function clipControlsAnswer(question, clip, timeSec) {

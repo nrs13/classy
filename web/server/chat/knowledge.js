@@ -1,5 +1,5 @@
 import { currentSnapshot } from '../repo/snapshot.js';
-import { agreedAppMarks, clipsForChat, hookSlopes, peerClips, secondsAt, VIDEO_ID } from '../repo/videos.js';
+import { agreedAppMarks, clipsForChat, hookSlopes, peerClips, secondsAt, secondsFor, VIDEO_ID } from '../repo/videos.js';
 import { secondText } from '../../src/lib/secondText.js';
 import { tierFor } from '../../api/catalog.js';
 
@@ -45,6 +45,49 @@ function topicNames(raw) {
     .slice(0, 2);
 }
 
+function askedVideoIds(message, openIds) {
+  const open = new Set(openIds);
+  const found = String(message || '').match(/\bv\d+\b/g) || [];
+  return [...new Set(found)].filter((id) => VIDEO_ID.test(id) && !open.has(id)).slice(0, 2);
+}
+
+function askedSecondSet(message) {
+  const set = new Set();
+  const re = /\b(?:second|sec)\s+(\d{1,4})\b|\bat\s+(\d{1,4})\s*(?:s|sec|seconds?)\b/gi;
+  for (const match of String(message || '').matchAll(re)) {
+    const n = Number(match[1] || match[2]);
+    if (Number.isFinite(n)) set.add(n);
+  }
+  return set;
+}
+
+function firstAskedSecond(message) {
+  const set = askedSecondSet(message);
+  return set.size ? [...set][0] : 0;
+}
+
+function peakFromCurve(curve) {
+  let best = null;
+  for (const point of Array.isArray(curve) ? curve : []) {
+    const abs = Number(point?.mean_abs ?? point?.meanAbs);
+    const t = Number(point?.t_sec ?? point?.t);
+    if (!Number.isFinite(abs) || !Number.isFinite(t)) continue;
+    if (!best || abs > best.abs) best = { abs, t };
+  }
+  return best;
+}
+
+function timelineLines(rows, asked) {
+  return (Array.isArray(rows) ? rows : []).slice(0, 90).map((row) => {
+    const t = Number(row?.t_sec);
+    const happens = secondText(row).replace(/\s+/g, ' ').trim();
+    const speech = String(row?.speech || '').replace(/\s+/g, ' ').trim();
+    let line = (happens || speech).slice(0, 140);
+    if (asked.has(t) && speech) line = `${line} Said: ${speech.slice(0, 180)}`.trim().slice(0, 320);
+    return { t_sec: t, line };
+  }).filter((row) => Number.isFinite(row.t_sec) && row.line);
+}
+
 function appEvidence(app) {
   const value = typeof app === 'string'
     ? (() => { try { return JSON.parse(app); } catch { return null; } })()
@@ -54,7 +97,7 @@ function appEvidence(app) {
 }
 
 /** The open clip, this second, and a few other high-play clips reach the model. */
-export async function openKnowledge(focus) {
+export async function openKnowledge(focus, message = '') {
   if (!focus.ids.length) return { error: 'Open a video first.' };
   const snapshot = await currentSnapshot();
   if (!snapshot) return { error: 'Your Library is not available right now.' };
@@ -68,6 +111,8 @@ export async function openKnowledge(focus) {
   let pack = null;
   let marks = [];
   let peers = [];
+  let timelineRows = [];
+  let asked = [];
   try {
     pack = await hookSlopes(snapshot.id);
   } catch {
@@ -83,6 +128,32 @@ export async function openKnowledge(focus) {
   } catch {
     peers = [];
   }
+  try {
+    timelineRows = await secondsFor(snapshot.id, ids[0]);
+  } catch {
+    timelineRows = [];
+  }
+  const extraIds = askedVideoIds(message, ids);
+  if (extraIds.length) {
+    try {
+      const extra = await clipsForChat(snapshot.id, extraIds);
+      const sec = firstAskedSecond(message);
+      const rows = await secondsAt(snapshot.id, extraIds, sec);
+      const atExtra = new Map(rows.map((row) => [row.video_id, row]));
+      asked = extra.map((clip) => ({
+        id: clip.video_id,
+        account: clip.account,
+        plays: clip.plays,
+        tier: tierFor(clip.plays),
+        t_sec: sec,
+        line: secondText(atExtra.get(clip.video_id)) || '',
+      }));
+    } catch {
+      asked = [];
+    }
+  }
+  const askedSeconds = askedSecondSet(message);
+  const timeline = timelineLines(timelineRows, askedSeconds);
   return {
     snapshotId: snapshot.id,
     pack,
@@ -96,6 +167,7 @@ export async function openKnowledge(focus) {
         tier: tierFor(row.plays),
         topics: topicNames(row.topics),
       })),
+      asked,
       videos: clips.map((clip) => {
         const second = at.get(clip.video_id);
         const events = [];
@@ -124,12 +196,13 @@ export async function openKnowledge(focus) {
           },
           features: {
             hook_slope: clip.hook_slope,
-            peak_mean_abs: clip.peak_mean_abs,
+            peak_mean_abs: peakFromCurve(clip.curve)?.abs ?? clip.peak_mean_abs,
+            peak_t_sec: peakFromCurve(clip.curve)?.t ?? null,
             sustain_ratio: clip.sustain_ratio,
           },
           hook_pack: hookPackStats(pack?.slopes, clip.hook_slope),
           networks: clip.networks || null,
-          activation_timeline: { series: clip.curve || [] },
+          timeline: clip.video_id === ids[0] ? timeline : [],
           story: second ? [{ t_sec: t, events }] : [],
           content_events: events,
           open_second: second || null,
