@@ -105,7 +105,3 @@ export function chatGuardFor(env = process.env) {
   }
   return guards.get(key);
 }
-
-export function resetChatGuards() {
-  guards.clear();
-}
