@@ -9,6 +9,7 @@ import { CANNED_ONLY, CHAT_PAUSED, chatStatus, effectiveChatMode, liveFallbackTe
 import { chatFault, mockFaultError, mockSlowMs } from '../server/chat/mock.js';
 import { agreedAppAnswer, clipControlsAnswer, computedAnswer } from '../server/chat/computed.js';
 import { applyLenses } from '../server/chat/lenses.js';
+import { asksToCompare } from '../src/lib/answerSubject.js';
 import { assertUnderCap, recordUsage } from '../server/chat/spend.js';
 import { MAX_CHAT_BODY_BYTES, MAX_HISTORY_MESSAGES, MAX_MESSAGE_CHARS, messageTooLong, messageTooShort } from '../src/lib/chatLimits.js';
 import { chatCacheKey, readChatCache, writeChatCache } from '../server/chat/cache.js';
@@ -147,7 +148,7 @@ export default async function handler(req, res) {
     return;
   }
   const focusNorm = normalizeFocus(focus);
-  if (focusNorm.view === 'compare' && focusNorm.ids.length < 2) {
+  if (focusNorm.view === 'compare' && focusNorm.ids.length < 2 && asksToCompare(message)) {
     refuse(res, 'Another reel is needed before Classy can compare.');
     return;
   }

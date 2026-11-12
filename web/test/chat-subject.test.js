@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { answerSubject } from '../src/lib/answerSubject.js';
+import { answerSubject, asksToCompare, canAsk } from '../src/lib/answerSubject.js';
 import { windowTimeline } from '../server/chat/knowledge.js';
 import { conversationBrief } from '../server/chat/promptBlocks.js';
 
@@ -10,15 +10,18 @@ test('the next answer names the open reel and refuses a one-reel comparison', ()
     { id: 'v002', account: 'Bea' },
     { id: 'v003', account: 'Ada' },
   ];
-  assert.equal(answerSubject('explore', reels, ['v002']).text, 'Answering Bea');
-  assert.equal(answerSubject('search', reels, ['v001']).text, 'Answering Ada (v001)');
+  assert.equal(answerSubject('explore', reels, ['v002']).text, 'Bea');
+  assert.equal(answerSubject('search', reels, ['v001']).text, 'Ada (v001)');
   assert.equal(answerSubject('explore', reels, []).ready, false);
   const one = answerSubject('compare', reels, ['v002']);
   assert.equal(one.ready, false);
   assert.equal(one.text, 'Another reel is needed before Classy can compare.');
   const set = answerSubject('compare', reels, ['v001', 'v002']);
   assert.equal(set.ready, true);
-  assert.equal(set.text, 'Answering Ada (v001), Bea');
+  assert.equal(set.text, 'Ada (v001), Bea');
+  assert.equal(canAsk('compare', reels, ['v002'], 'what is a hook slope').ready, true);
+  assert.equal(canAsk('compare', reels, ['v002'], 'compare these reels').ready, false);
+  assert.equal(asksToCompare('what is Classy'), false);
 });
 
 test('the timeline sent to the model is the playhead window plus a named second', () => {

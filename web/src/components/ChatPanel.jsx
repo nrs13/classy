@@ -21,7 +21,7 @@ import { acceptSend, capMessage, CHAT_COOLDOWN_MS, composerHold, dropUnfinishedR
 import { applyOnlineState } from '../lib/connection';
 import { coolingDeadline, isCooling, LIVE_REGION, onQuotaClock, quotaAnnouncement, startCountdown } from '../lib/quota';
 import { CUT_LABEL, OFFLINE_LABEL } from '../lib/streamFrame';
-import { answerSubject, reelLabel } from '../lib/answerSubject';
+import { answerSubject, canAsk, reelLabel } from '../lib/answerSubject';
 
 function visitorModel(name) {
   const text = String(name || '').trim();
@@ -343,7 +343,7 @@ export default function ChatPanel({
 
   async function send(text, { prior, suggested } = {}) {
     const q = (text ?? input).trim();
-    if (!subject.ready) return;
+    if (!canAsk(mode, reels, suggestionVideoIds, q).ready) return;
     if (!acceptSend(busyRef.current, q, Date.now(), lastSentAt.current)) return;
     lastSentAt.current = Date.now();
     setCooldownUntil(lastSentAt.current + CHAT_COOLDOWN_MS);
@@ -524,7 +524,7 @@ export default function ChatPanel({
           key={`${keyPrefix}${i}`}
           type="button"
           onClick={() => send(s, { suggested: true })}
-          disabled={inputPaused || busy || Boolean(quota) || cooldownLeft > 0 || !subject.ready}
+          disabled={inputPaused || busy || Boolean(quota) || cooldownLeft > 0 || !canAsk(mode, reels, suggestionVideoIds, s).ready}
           className="text-left text-[13px] px-3 py-2.5 suggest-chip leading-snug"
         >
           {s}
@@ -647,9 +647,9 @@ export default function ChatPanel({
                   }`}
                 >
                   {showThinking ? (
-                    <span className="chat-thinking" aria-live="polite" aria-label={subject.text}>
-                      {subject.text}
-                      <span className="chat-caret" aria-hidden />
+                    <span className="chat-thinking" aria-live="polite" aria-label="thinking">
+                      <span className="chat-thinking-pulse" aria-hidden />
+                      thinking
                     </span>
                   ) : (
                     <>
@@ -681,7 +681,6 @@ export default function ChatPanel({
             );
           })}
           {showOfflineHints && suggestList('hint-', false)}
-          {!empty && !busy && !showOfflineHints && suggestList(`next-${suggestSeed}-`, true)}
         </div>
 
         {showJump && (
@@ -737,7 +736,7 @@ export default function ChatPanel({
             <button
               type="button"
               onClick={busy ? stop : () => send()}
-              disabled={inputPaused || Boolean(quota) || (!busy && (!subject.ready || !acceptSend(false, input, Date.now(), cooldownUntil ? cooldownUntil - CHAT_COOLDOWN_MS : 0)))}
+              disabled={inputPaused || Boolean(quota) || (!busy && (!canAsk(mode, reels, suggestionVideoIds, input).ready || !acceptSend(false, input, Date.now(), cooldownUntil ? cooldownUntil - CHAT_COOLDOWN_MS : 0)))}
               className="chat-send-btn btn-primary text-[13px]"
               aria-label={busy ? 'Stop reply' : 'Send'}
               title={busy ? 'Stop' : 'Send message'}
