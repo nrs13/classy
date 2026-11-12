@@ -219,7 +219,6 @@ select {
 }
 
 .font-display,
-.brand-mark,
 .chat-title,
 .stat-tile-value,
 .tier-label {
@@ -2008,10 +2007,10 @@ select {
 }
 
 .brand-mark {
-  font-family: var(--font-display);
-  font-weight: var(--weight-display);
+  font-family: var(--font-brand);
+  font-weight: 700;
   color: var(--text-primary);
-  letter-spacing: 0.06em;
+  letter-spacing: 0.04em;
 }
 
 .time-readout {
