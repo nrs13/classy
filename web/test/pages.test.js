@@ -18,6 +18,13 @@ test('the 404 page is a real page with no inline code', () => {
   assert.equal(/<script/i.test(missingHtml), false);
   assert.equal(/style=/i.test(missingHtml), false);
   assert.match(missingHtml, /href="\/404\.css"/);
+  assert.match(missingHtml, /rel="preload" href="\/fonts\/source-serif-4-400\.woff2"/);
+  assert.match(missingHtml, /rel="preload" href="\/fonts\/ibm-plex-mono-400\.woff2"/);
+  const headers = JSON.parse(readFileSync(new URL('../vercel.json', import.meta.url), 'utf8')).headers;
+  const fontCache = headers.find((group) => group.source === '/fonts/(.*)');
+  const sheetCache = headers.find((group) => group.source === '/404.css');
+  assert.equal(fontCache.headers[0].value, 'public, max-age=31536000, immutable');
+  assert.equal(sheetCache.headers[0].value, 'public, max-age=31536000, immutable');
 });
 
 test('unknown static paths answer 404 and real files stay 200', async () => {
