@@ -25,7 +25,8 @@ test('the gemini request keeps the key in a header and streams text', async () =
   const fetchImpl = async (url, options) => {
     seen.push({ url, options });
     const body = `data: ${JSON.stringify({
-      candidates: [{ content: { parts: [{ text: 'Hello' }] } }],
+      candidates: [{ content: { parts: [{ text: 'Hello' }] }, finishReason: 'STOP' }],
+      usageMetadata: { promptTokenCount: 20, candidatesTokenCount: 2, thoughtsTokenCount: 1 },
     })}\n\n`;
     return {
       ok: true,
@@ -59,6 +60,10 @@ test('the gemini request keeps the key in a header and streams text', async () =
     chunks.push(event);
   }
   assert.equal(chunks[0].text, 'Hello');
+  assert.equal(chunks[1].finishReason, 'STOP');
+  assert.equal(chunks[1].inputTokens, 20);
+  assert.equal(chunks[1].outputTokens, 2);
+  assert.equal(chunks[1].thinkingTokens, 1);
   assert.equal(seen.length, 1);
   assert.equal(seen[0].options.headers['x-goog-api-key'], 'test-gemini-key');
   assert.equal(seen[0].url.includes('key='), false);

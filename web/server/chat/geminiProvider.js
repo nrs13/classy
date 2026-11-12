@@ -1,9 +1,21 @@
 import { classifyProviderFailure } from './classify.js';
 import { ChatProviderError } from './providerError.js';
 
+// GenerateContent usageMetadata: https://ai.google.dev/gemini-api/docs/tokens
+// Candidate.finishReason: https://ai.google.dev/api/generate-content#FinishReason
+
 function failureError(status, raw, kind) {
   const failure = classifyProviderFailure(status, raw, kind);
   return new ChatProviderError(failure.scope, failure.status, failure);
+}
+
+function tokenCount(value) {
+  const n = Number(value);
+  return Number.isInteger(n) && n >= 0 ? n : null;
+}
+
+function cleanFinishReason(value) {
+  return String(value || '').replace(/[^\w]/g, '').slice(0, 40);
 }
 
 export async function* streamGemini({
@@ -22,6 +34,30 @@ export async function* streamGemini({
   signal?.addEventListener('abort', onAbort);
   const timer = timeoutMs > 0 ? setTimeout(() => controller.abort(), timeoutMs) : null;
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse`;
+  let finishReason = '';
+  let inputTokens = null;
+  let thinkingTokens = null;
+  let outputTokens = null;
+  const note = (payload) => {
+    const reason = cleanFinishReason(payload?.candidates?.[0]?.finishReason);
+    if (reason) finishReason = reason;
+    const usage = payload?.usageMetadata;
+    if (!usage || typeof usage !== 'object') return;
+    const input = tokenCount(usage.promptTokenCount);
+    const output = tokenCount(usage.candidatesTokenCount);
+    const thinking = tokenCount(usage.thoughtsTokenCount);
+    if (input != null) inputTokens = input;
+    if (output != null) outputTokens = output;
+    if (thinking != null) thinkingTokens = thinking;
+  };
+  const usageEvent = () => ({
+    type: 'usage',
+    model,
+    finishReason,
+    inputTokens,
+    thinkingTokens,
+    outputTokens,
+  });
   try {
     const res = await fetchImpl(url, {
       method: 'POST',
@@ -69,13 +105,18 @@ export async function* streamGemini({
         } catch {
           continue;
         }
+        note(payload);
         const parts = payload?.candidates?.[0]?.content?.parts || [];
         for (const part of parts) {
           if (typeof part.text === 'string' && part.text) yield { type: 'text', text: part.text, model };
         }
       }
     }
+    yield usageEvent();
   } catch (err) {
+    if (finishReason || inputTokens != null || thinkingTokens != null || outputTokens != null) {
+      yield usageEvent();
+    }
     if (err instanceof ChatProviderError) throw err;
     if (signal?.aborted) {
       const aborted = new Error('aborted');

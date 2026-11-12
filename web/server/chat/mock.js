@@ -67,10 +67,19 @@ export async function* streamMock({ fault, signal, slowMs = 8000 } = {}) {
   if (!mockChatAllowed()) throw new ChatProviderError('server', 503, { scope: 'server' });
   const early = mockFaultError(fault);
   if (early) throw early;
+  const usage = {
+    type: 'usage',
+    model: 'mock',
+    finishReason: 'STOP',
+    inputTokens: 11,
+    thinkingTokens: 0,
+    outputTokens: 5,
+  };
   if (fault === 'slow_stream') {
     yield { type: 'text', text: '', model: 'mock' };
     await wait(slowMs, signal);
     yield { type: 'text', text: 'This is a slow mock answer.', model: 'mock' };
+    yield usage;
     return;
   }
   if (fault === 'cut_stream') {
@@ -79,4 +88,5 @@ export async function* streamMock({ fault, signal, slowMs = 8000 } = {}) {
     return;
   }
   yield { type: 'text', text: 'This is a mock answer.', model: 'mock' };
+  yield usage;
 }

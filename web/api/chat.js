@@ -303,6 +303,30 @@ export default async function handler(req, res) {
 
   let announced = false;
   let acc = '';
+  const started = Date.now();
+  let firstTokenMs = null;
+  let finishReason = '';
+  let inputTokens = null;
+  let thinkingTokens = null;
+  let outputTokens = null;
+  let modelName = chatConfig.model;
+  const logTurn = () => {
+    logEvent({
+      level: 'info',
+      requestId,
+      route: 'chat',
+      provider: chatConfig.provider,
+      model: modelName,
+      finishReason,
+      inputTokens,
+      thinkingTokens,
+      outputTokens,
+      firstTokenMs,
+      totalMs: Date.now() - started,
+      mode: focusNorm.view || '',
+      reels: focusNorm.ids.length,
+    });
+  };
   try {
     for await (const event of streamProvider(chatConfig, {
       system,
@@ -319,6 +343,7 @@ export default async function handler(req, res) {
           send(res, { type: 'meta', model: event.model });
         }
         acc += event.text || '';
+        if (event.text && firstTokenMs == null) firstTokenMs = Date.now() - started;
         send(res, { type: 'text', text: event.text });
       } else if (event.type === 'cut') {
         res.end();
@@ -326,6 +351,12 @@ export default async function handler(req, res) {
         return;
       } else if (event.type === 'usage' && chatConfig.provider === 'anthropic') {
         recordUsage(event.model, event.usage);
+      } else if (event.type === 'usage') {
+        if (event.model) modelName = event.model;
+        if (event.finishReason) finishReason = event.finishReason;
+        if (event.inputTokens != null) inputTokens = event.inputTokens;
+        if (event.thinkingTokens != null) thinkingTokens = event.thinkingTokens;
+        if (event.outputTokens != null) outputTokens = event.outputTokens;
       } else if (event.type === 'refusal') {
         send(res, { type: 'error', code: 'refusal', message: 'the model declined to answer that.' });
       }
@@ -382,5 +413,7 @@ export default async function handler(req, res) {
     send(res, { type: 'done' });
     res.end();
     finish({ kind: 'sse', text: acc });
+  } finally {
+    logTurn();
   }
 }
