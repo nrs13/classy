@@ -60,21 +60,3 @@ export function deliverOpenClip(knowledge, focus) {
         : 'The open video and the open second. The rest of the Library is not in this payload.',
   };
 }
-
-export function openClipPreamble(knowledge, focus) {
-  const t = Number(focus?.timeSec);
-  const at = Number.isFinite(t) ? ` The playhead is at about ${t.toFixed(1)} seconds.` : '';
-  return `You are the analyst inside Classy. The DATA below is the open clip and the open second, not the rest of the library.${at}
-
-Answer from that record.
-- This is predicted TRIBE V2 cortical encoding, not a measured brain.
-- Do not say a cut, a face, speech, an app screen, or an ask earned saves or caused the activation.
-- Do not invent a save score or a virality score. Counts on the clip are the public record.
-- If forecast_at_second is present, those sentences are the only cut result. Quote their shared ranges. Do not swap in a mean, and do not describe limbic cortex as that result.
-- If a field is missing, say it was not extracted at this second.
-- Plain text only. No markdown, no asterisks, no LaTeX.
-- Two or three short sentences.
-
-DATA (JSON):
-${JSON.stringify(knowledge)}`;
-}

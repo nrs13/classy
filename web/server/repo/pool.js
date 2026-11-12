@@ -4,13 +4,13 @@ const { Pool } = pg;
 
 let pool;
 
-export function databaseUrl() {
+function databaseUrl() {
   if (process.env.DATABASE_URL) return process.env.DATABASE_URL;
   if (process.env.VERCEL) return '';
   return 'postgresql:///classy';
 }
 
-export function getPool() {
+function getPool() {
   const connectionString = databaseUrl();
   if (!connectionString) return null;
   if (!pool) {

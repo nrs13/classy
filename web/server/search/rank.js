@@ -1,7 +1,7 @@
 import { containsWholeWords } from './query.js';
 
 export const RRF_K = 60;
-export const COLLAPSE_SEC = 3;
+const COLLAPSE_SEC = 3;
 
 /**
  * Field weights start empty: plain reciprocal rank fusion. Add a weight here only with the
@@ -10,7 +10,7 @@ export const COLLAPSE_SEC = 3;
  */
 export const FIELD_WEIGHTS = Object.freeze({});
 
-export function hitKey(hit) {
+function hitKey(hit) {
   return `${hit.videoId}|${hit.tSec}|${hit.field}|${hit.text}`;
 }
 

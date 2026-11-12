@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { query } from './pool.js';
 
 /** embedding_cache profile for query vectors: the document profile's space plus the query model. */
-export function queryProfile(provider) {
+function queryProfile(provider) {
   return `${String(provider.profile).replace(/\|document$/, '')}|query|${provider.queryModel}`;
 }
 

@@ -8,7 +8,6 @@
  */
 
 const DAY = /perday|per_day|daily|requestsperday/i;
-const MINUTE = /perminute|per_minute|requestsperminute/i;
 
 export function parseRetryDelay(value) {
   if (value == null) return null;

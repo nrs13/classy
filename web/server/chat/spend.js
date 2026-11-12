@@ -31,7 +31,7 @@ function readSpend() {
   }
 }
 
-export function remainingUsd() {
+function remainingUsd() {
   if (!isLocal()) return Infinity;
   const cap = Number(process.env.CLASSY_MAX_SPEND_USD);
   const limit = Number.isFinite(cap) && cap > 0 ? cap : LIMIT_USD;

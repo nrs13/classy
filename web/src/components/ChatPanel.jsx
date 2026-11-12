@@ -28,9 +28,6 @@ function visitorModel(name) {
   return text;
 }
 
-const OFFLINE_REPLY =
-  "classy isn't listening yet. try one of these instead:";
-
 const NEAR_BOTTOM_PX = 64;
 const TEXTAREA_MAX_LINES = 6;
 

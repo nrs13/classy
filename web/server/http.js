@@ -1,5 +1,5 @@
 import { AppError, sendError } from './obs/errors.js';
-import { logEvent, requestIdFrom } from './obs/log.js';
+import { logEvent, requestIdFrom, safeErrorFields } from './obs/log.js';
 
 const buckets = new Map();
 
@@ -39,7 +39,7 @@ export function route(name, { methods = ['GET'], fallback = 'library_unavailable
       await handler(req, res, { requestId });
     } catch (err) {
       if (res.headersSent) {
-        logEvent({ level: 'error', requestId, route: name, error: String(err?.message || err) });
+        logEvent({ level: 'error', requestId, route: name, ...safeErrorFields(err) });
         return;
       }
       sendError(res, { requestId, route: name, err, fallback });

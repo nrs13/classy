@@ -1,14 +1,14 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { assertUnderCap, recordUsage } from '../chat/spend.js';
-import { logEvent } from '../obs/log.js';
+import { logEvent, safeErrorFields } from '../obs/log.js';
 import { createQueryCache } from '../providers/embedding/index.js';
 import { query } from '../repo/pool.js';
 
-export const UNDERSTAND_TIMEOUT_MS = 1200;
+const UNDERSTAND_TIMEOUT_MS = 1200;
 const BACKGROUND_TIMEOUT_MS = 8000;
 const KINDS = ['said', 'on_screen', 'scene', 'any'];
 
-export function understandModel(env = process.env) {
+function understandModel(env = process.env) {
   return env.CLASSY_UNDERSTAND_MODEL || 'claude-haiku-4-5';
 }
 
@@ -161,7 +161,7 @@ export async function understandQuery(parsed, { timeoutMs = UNDERSTAND_TIMEOUT_M
         return result;
       })
       .catch((err) => {
-        logEvent({ level: 'warn', requestId, route: 'search', event: 'understand_failed', model, code: err?.code || err?.status, error: String(err?.message || err).slice(0, 300) });
+        logEvent({ level: 'warn', requestId, route: 'search', event: 'understand_failed', model, ...safeErrorFields(err) });
         return null;
       })
       .finally(() => inflight.delete(key));

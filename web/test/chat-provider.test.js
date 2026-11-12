@@ -85,7 +85,6 @@ test('a gemini 401 is an auth failure and does not keep the response body', asyn
         maxOutputTokens: 32,
         fetchImpl,
       })) {
-        // drain
       }
     },
     (err) => {
@@ -121,7 +120,6 @@ test('gemini maps quota, auth, server, and timeout without keeping the body', as
             },
           }),
         })) {
-          // drain
         }
       },
       (err) => err instanceof ChatProviderError && err.errorType === item.errorType && !String(err.message).includes('key'),

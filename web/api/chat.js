@@ -17,7 +17,7 @@ import { CHAT_TIMEOUT_MS, MAX_OUTPUT_TOKENS, chatGuardFor, clientIp } from '../s
 import { nextPacificMidnight } from '../server/chat/resetAt.js';
 import { failureBody } from '../server/chat/classify.js';
 import { AppError, errorBody } from '../server/obs/errors.js';
-import { logEvent, requestIdFrom } from '../server/obs/log.js';
+import { logEvent, requestIdFrom, safeErrorFields } from '../server/obs/log.js';
 
 export const maxDuration = 60;
 
@@ -132,6 +132,17 @@ export default async function handler(req, res) {
     fail(res, 400, 'message_too_short', requestId);
     return;
   }
+  // A newline would split a log line. Longer than 80 is not a client id.
+  const supplied = String(req.headers?.['idempotency-key'] || req.headers?.['Idempotency-Key'] || '').trim();
+  let badKey = supplied.length > 80;
+  for (let i = 0; i < supplied.length && !badKey; i += 1) {
+    const code = supplied.charCodeAt(i);
+    if (code < 32 || code === 127) badKey = true;
+  }
+  if (supplied && badKey) {
+    fail(res, 400, 'bad_request', requestId);
+    return;
+  }
   if (mode === 'off') {
     refuse(res, CHAT_PAUSED);
     return;
@@ -170,7 +181,6 @@ export default async function handler(req, res) {
     refuse(res, cached);
     return;
   }
-  const supplied = String(req.headers?.['idempotency-key'] || req.headers?.['Idempotency-Key'] || '').slice(0, 80);
   const idemKey = supplied ? `${supplied}|${focusNorm.modes.join(',')}`.slice(0, 120) : '';
   const claim = chatSends.claim(idemKey);
   if (!claim.fresh) {
@@ -232,7 +242,7 @@ export default async function handler(req, res) {
     openedPack = opened.pack || null;
     system = buildSystemPrompt(delivered, focusNorm);
   } catch (err) {
-    logEvent({ level: 'error', requestId, route: 'chat', code: 'library_unavailable', error: String(err?.message || err) });
+    logEvent({ level: 'error', requestId, route: 'chat', ...safeErrorFields(err), code: 'library_unavailable' });
     finish({ kind: 'json', status: 502, body: errorBody(requestId, 'library_unavailable') });
     res.status(502).json(errorBody(requestId, 'library_unavailable'));
     return;

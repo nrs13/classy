@@ -14,7 +14,7 @@ function moveFocus(container, event) {
   return true;
 }
 
-export function SearchHit({ result, onOpen }) {
+function SearchHit({ result, onOpen }) {
   const moment = result.best;
   return (
     <button

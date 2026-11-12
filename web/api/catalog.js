@@ -134,7 +134,7 @@ function metaNotes(videoId) {
   return notes;
 }
 
-export function clipNotes(videoId) {
+function clipNotes(videoId) {
   const row = notesTable().get(videoId) || {};
   const meta = metaNotes(videoId);
   return {

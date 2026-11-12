@@ -5,7 +5,7 @@ import { ChatProviderError } from './providerError.js';
 
 export { ChatProviderError };
 
-export const DEFAULT_GEMINI_MODEL = 'gemini-3.5-flash-lite';
+const DEFAULT_GEMINI_MODEL = 'gemini-3.5-flash-lite';
 
 export function resolveChatConfig(env = process.env) {
   const requested = String(env.CHAT_PROVIDER || 'gemini').trim().toLowerCase();

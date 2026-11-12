@@ -27,7 +27,7 @@ function packSize(pack) {
   return Number.isInteger(n) && n > 0 ? n : null;
 }
 
-export function hookPack(slopes, value) {
+function hookPack(slopes, value) {
   const nums = (Array.isArray(slopes) ? slopes : []).map(finite).filter((n) => n != null).sort((a, b) => a - b);
   const slope = finite(value);
   if (!nums.length || slope == null) return null;
