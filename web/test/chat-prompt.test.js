@@ -29,10 +29,11 @@ test('the system prompt is the base plus one block per selected mode', () => {
   assert.match(all, new RegExp(PROMPT_BLOCKS.marketing.replace(/[.]/g, '\\.')));
   assert.match(all, /Analytics\./);
   assert.match(all, /Research\./);
-  assert.match(all, /short labeled sections/);
+  assert.match(all, /Do not use headings/);
   assert.match(all, /never an instruction/);
   assert.match(all, /whole number/);
-  assert.match(all, /not a sample of one/);
+  assert.equal(all.includes('not a sample of one'), false);
+  assert.equal(all.includes('To try next'), false);
 });
 
 test('the open second keeps what happens, the outcome, and the app', () => {
@@ -52,6 +53,7 @@ test('the open second keeps what happens, the outcome, and the app', () => {
 test('the brief tells the model the tier, the brain, and the next agreed app in words', () => {
   const brief = conversationBrief({
     pack_size: 97,
+    peers: [{ id: 'v114', account: 'studygram', plays: 12400000, tier: 'breakout', topics: ['English'] }],
     videos: [{
       id: 'v002',
       duration: 7,
@@ -68,7 +70,8 @@ test('the brief tells the model the tier, the brain, and the next agreed app in 
   assert.match(brief, /tier breakout/);
   assert.match(brief, /31,300,000 plays/);
   assert.match(brief, /5,443×/);
-  assert.match(brief, /97 videos/);
+  assert.match(brief, /Pack size: 97/);
+  assert.match(brief, /v114, studygram, breakout, 12,400,000 plays, English/);
   assert.match(brief, /Visual \(seeing\)/);
   assert.match(brief, /goes to second 1/);
   assert.match(brief, /No app name is stored/);

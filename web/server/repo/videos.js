@@ -39,6 +39,18 @@ export async function clipsForChat(snapshotId, ids) {
   return result.rows;
 }
 
+export async function peerClips(snapshotId, excludeIds, limit = 5) {
+  const result = await query(
+    `SELECT video_id, account, plays, topics
+     FROM clip
+     WHERE snapshot_id = $1 AND NOT (video_id = ANY($2::text[]))
+     ORDER BY plays DESC NULLS LAST
+     LIMIT $3`,
+    [snapshotId, excludeIds.length ? excludeIds : [''], limit],
+  );
+  return result.rows;
+}
+
 export async function hookSlopes(snapshotId) {
   const result = await query(
     `SELECT hook_slope FROM clip WHERE snapshot_id = $1`,

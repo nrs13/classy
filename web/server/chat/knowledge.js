@@ -1,5 +1,5 @@
 import { currentSnapshot } from '../repo/snapshot.js';
-import { agreedAppMarks, clipsForChat, hookSlopes, secondsAt, VIDEO_ID } from '../repo/videos.js';
+import { agreedAppMarks, clipsForChat, hookSlopes, peerClips, secondsAt, VIDEO_ID } from '../repo/videos.js';
 import { secondText } from '../../src/lib/secondText.js';
 import { tierFor } from '../../api/catalog.js';
 
@@ -33,6 +33,18 @@ function hookPackStats(slopes, value) {
   };
 }
 
+function topicNames(raw) {
+  let value = raw;
+  if (typeof value === 'string') {
+    try { value = JSON.parse(value); } catch { return []; }
+  }
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => (typeof item === 'string' ? item : item?.name))
+    .filter((name) => typeof name === 'string' && name.trim())
+    .slice(0, 2);
+}
+
 function appEvidence(app) {
   const value = typeof app === 'string'
     ? (() => { try { return JSON.parse(app); } catch { return null; } })()
@@ -41,7 +53,7 @@ function appEvidence(app) {
   return String(evidence || 'Agreed app screen');
 }
 
-/** Only the open video(s), the open second, and the agreed app screen times reach the model. */
+/** The open clip, this second, and a few other high-play clips reach the model. */
 export async function openKnowledge(focus) {
   if (!focus.ids.length) return { error: 'Open a video first.' };
   const snapshot = await currentSnapshot();
@@ -55,6 +67,7 @@ export async function openKnowledge(focus) {
   const at = new Map(seconds.map((row) => [row.video_id, row]));
   let pack = null;
   let marks = [];
+  let peers = [];
   try {
     pack = await hookSlopes(snapshot.id);
   } catch {
@@ -65,12 +78,24 @@ export async function openKnowledge(focus) {
   } catch {
     marks = [];
   }
+  try {
+    peers = await peerClips(snapshot.id, ids, 5);
+  } catch {
+    peers = [];
+  }
   return {
     snapshotId: snapshot.id,
     pack,
     knowledge: {
       product: 'Classy',
       pack_size: pack?.n || null,
+      peers: peers.map((row) => ({
+        id: row.video_id,
+        account: row.account,
+        plays: row.plays,
+        tier: tierFor(row.plays),
+        topics: topicNames(row.topics),
+      })),
       videos: clips.map((clip) => {
         const second = at.get(clip.video_id);
         const events = [];
