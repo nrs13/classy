@@ -149,7 +149,11 @@ function shortClip(video, compared) {
     amplification(metrics.amplification) ? amplification(metrics.amplification) : '',
     compared ? String(video.open_second?.happens || '').replace(/\s+/g, ' ').trim().slice(0, 140) : '',
   ].filter(Boolean);
-  return `${bits.join(', ')}.`;
+  const timeline = compared && Array.isArray(video.timeline) ? video.timeline : [];
+  const every = timeline.length
+    ? ` Every second: ${timeline.map((row) => `${row.t_sec}: ${row.line}`).join(' | ')}`
+    : '';
+  return `${bits.join(', ')}.${every}`;
 }
 
 function clipLines(video, knowledge, focus) {

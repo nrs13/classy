@@ -41,3 +41,15 @@ test('a comparison tells the model the clips are one set', () => {
   assert.match(brief, /Compared: v002/);
   assert.equal(brief.includes('Also open'), false);
 });
+
+test('a compared reel keeps its own seconds inside the fence', () => {
+  const brief = conversationBrief({
+    videos: [
+      { id: 'v001', metrics: {}, features: {}, timeline: [{ t_sec: 0, line: 'First reel.' }] },
+      { id: 'v002', metrics: {}, features: {}, timeline: [{ t_sec: 0, line: 'Second reel.' }] },
+    ],
+  }, { view: 'compare', timeSec: 0 });
+  assert.match(brief, /Every second: 0: Second reel/);
+  assert.match(brief, /Compared: v002/);
+  assert.equal(brief.includes('Also open'), false);
+});

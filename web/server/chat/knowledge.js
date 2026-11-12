@@ -155,7 +155,7 @@ function appEvidence(app) {
   return String(evidence || 'Agreed app screen');
 }
 
-/** The open clip, a short window around the playhead, and a few other high-play clips reach the model. */
+/** Each open clip, its seconds, and a few other high-play clips reach the model. */
 export async function openKnowledge(focus, message = '') {
   if (!focus.ids.length) return { error: 'Open a video first.' };
   const snapshot = await snapshotOnce();
@@ -166,13 +166,13 @@ export async function openKnowledge(focus, message = '') {
   const extraIds = askedVideoIds(message, ids);
   const askedSeconds = askedSecondSet(message);
   const sec = firstAskedSecond(message);
-  const [clips, seconds, pack, marks, peers, timelineRows, extra, extraRows] = await Promise.all([
+  const [clips, seconds, pack, marks, peers, secondLists, extra, extraRows] = await Promise.all([
     clipsForChat(snapshot.id, ids),
     secondsAt(snapshot.id, ids, t),
     slopesOnce(snapshot.id),
     agreedAppMarks(snapshot.id, ids).catch(() => []),
     peerClips(snapshot.id, ids, 5).catch(() => []),
-    secondsFor(snapshot.id, ids[0]).catch(() => []),
+    Promise.all(ids.map((id) => secondsFor(snapshot.id, id).catch(() => []))),
     extraIds.length ? clipsForChat(snapshot.id, extraIds).catch(() => []) : Promise.resolve([]),
     extraIds.length ? secondsAt(snapshot.id, extraIds, sec).catch(() => []) : Promise.resolve([]),
   ]);
@@ -187,8 +187,7 @@ export async function openKnowledge(focus, message = '') {
     t_sec: sec,
     line: String(atExtra.get(clip.video_id)?.speech || atExtra.get(clip.video_id)?.happens || '').replace(/\s+/g, ' ').trim(),
   }));
-  const timeline = timelineLines(timelineRows, 220);
-  const windowed = timelineLines(windowTimeline(timelineRows, t, askedSeconds), 220);
+  const secondsById = new Map(ids.map((id, index) => [id, secondLists[index] || []]));
   return {
     snapshotId: snapshot.id,
     pack,
@@ -240,8 +239,10 @@ export async function openKnowledge(focus, message = '') {
           },
           hook_pack: hookPackStats(pack?.slopes, clip.hook_slope),
           networks: clip.networks || null,
-          timeline: clip.video_id === ids[0] ? timeline : [],
-          window: clip.video_id === ids[0] ? windowed : [],
+          timeline: timelineLines(secondsById.get(clip.video_id) || [], clip.video_id === ids[0] ? 220 : 140),
+          window: clip.video_id === ids[0]
+            ? timelineLines(windowTimeline(secondsById.get(clip.video_id) || [], t, askedSeconds), 220)
+            : [],
           story: second ? [{ t_sec: t, events }] : [],
           content_events: events,
           open_second: second || null,
