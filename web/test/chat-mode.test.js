@@ -267,7 +267,7 @@ test('a live exact suggested question is answered by the model with the stored f
   }
 });
 
-test('a stored suggested question is returned without calling the model', async () => {
+test('a stored suggested question is checked by the model and falls back when a number is missing', async () => {
   const prev = {
     mode: process.env.CHAT_MODE,
     provider: process.env.CHAT_PROVIDER,
@@ -293,8 +293,9 @@ test('a stored suggested question is returned without calling the model', async 
         focus: { ids: ['v002'], timeSec: 1, view: 'explore' },
       },
     }, res);
-    assert.equal(mockChat.mockStarts, 0);
+    assert.equal(mockChat.mockStarts, 1);
     assert.match(res.raw || '', /The pack is 97 videos/);
+    assert.equal((res.raw || '').includes('This is a mock answer'), false);
   } finally {
     if (prev.mode === undefined) delete process.env.CHAT_MODE;
     else process.env.CHAT_MODE = prev.mode;

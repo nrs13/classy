@@ -17,6 +17,18 @@ test('visitor limits and the daily cap stop a live request', () => {
   assert.equal(guard.take('203.0.113.8'), 1);
 });
 
+test('chips use their own minute and do not spend the typed minute', () => {
+  const guard = createChatGuard({ now: () => 1_000, dailyMax: 400, perMinute: 10, perHour: 60, chipPerMinute: 20 });
+  for (let i = 0; i < 20; i += 1) guard.take('203.0.113.50', 'chip');
+  assert.throws(() => guard.take('203.0.113.50', 'chip'), (err) => err.status === 429);
+  assert.equal(guard.take('203.0.113.50', 'typed'), 21);
+  assert.equal(guard.inspect('203.0.113.50').state, 'ok');
+  for (let i = 0; i < 9; i += 1) guard.take('203.0.113.51', 'typed');
+  assert.equal(guard.take('203.0.113.51', 'typed'), 31);
+  assert.throws(() => guard.take('203.0.113.51', 'typed'), (err) => err.status === 429);
+  assert.equal(guard.take('203.0.113.51', 'chip'), 32);
+});
+
 test('an identical question and clip is cached, and a short message is refused', () => {
   clearChatCache();
   const focus = { ids: ['v002'], timeSec: 3.8, modes: ['marketing'] };

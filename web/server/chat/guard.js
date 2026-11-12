@@ -1,8 +1,9 @@
 import { AppError } from '../obs/errors.js';
 import { nextPacificMidnight } from './resetAt.js';
 
-const VISITOR_PER_MINUTE = 4;
-const VISITOR_PER_HOUR = 20;
+const VISITOR_PER_MINUTE = 10;
+const VISITOR_PER_HOUR = 60;
+const CHIP_PER_MINUTE = 20;
 const DAILY_REQUEST_CAP = 400;
 export const CHAT_TIMEOUT_MS = 25_000;
 export const MAX_OUTPUT_TOKENS = 2048;
@@ -21,11 +22,12 @@ export function createChatGuard({
   dailyMax = DAILY_REQUEST_CAP,
   perMinute = VISITOR_PER_MINUTE,
   perHour = VISITOR_PER_HOUR,
+  chipPerMinute = CHIP_PER_MINUTE,
 } = {}) {
   const visitors = new Map();
   let day = { key: pacificDay(now()), count: 0 };
   return {
-    take(ip) {
+    take(ip, kind = 'typed') {
       const t = now();
       const key = pacificDay(t);
       if (key !== day.key) day = { key, count: 0 };
@@ -38,8 +40,23 @@ export function createChatGuard({
       const id = ip || 'local';
       let bucket = visitors.get(id);
       if (!bucket) {
-        bucket = { minuteStart: t, minute: 0, hourStart: t, hour: 0 };
+        bucket = { minuteStart: t, minute: 0, hourStart: t, hour: 0, chipMinuteStart: t, chipMinute: 0 };
         visitors.set(id, bucket);
+      }
+      if (kind === 'chip') {
+        if (t - bucket.chipMinuteStart >= 60_000) {
+          bucket.chipMinuteStart = t;
+          bucket.chipMinute = 0;
+        }
+        if (bucket.chipMinute >= chipPerMinute) {
+          const err = new AppError('visitor_rate', 429);
+          err.scope = 'visitor_rate';
+          err.retryAfterSeconds = Math.max(1, Math.ceil((60_000 - (t - bucket.chipMinuteStart)) / 1000));
+          throw err;
+        }
+        bucket.chipMinute += 1;
+        day.count += 1;
+        return day.count;
       }
       if (t - bucket.minuteStart >= 60_000) {
         bucket.minuteStart = t;

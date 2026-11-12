@@ -4,6 +4,7 @@ import {
 } from '../src/lib/prompt.js';
 import { buildSystemPrompt } from '../server/chat/promptBlocks.js';
 import { asksToFind, findHits } from '../server/chat/find.js';
+import { numbersKept } from '../server/chat/numbers.js';
 import { searchLibrary } from '../server/search/service.js';
 import { openKnowledge } from '../server/chat/knowledge.js';
 import { resolveChatConfig, streamProvider, ChatProviderError } from '../server/chat/provider.js';
@@ -172,14 +173,7 @@ export default async function handler(req, res) {
     }
     return;
   }
-  if (suggested === true) {
-    const stored = matchCanned(message, focusNorm);
-    if (stored) {
-      refuse(res, applyLenses(stored, focusNorm.modes));
-      return;
-    }
-  }
-  const storedFact = matchCanned(message, focusNorm);
+  let storedFact = matchCanned(message, focusNorm);
   if (!chatConfig.apiKey) {
     fail(res, 503, 'not_configured', requestId);
     return;
@@ -193,7 +187,7 @@ export default async function handler(req, res) {
     }
   }
   const threaded = Array.isArray(history) && history.some((item) => item && item.text);
-  const cached = threaded ? null : readChatCache(chatCacheKey(message, focusNorm));
+  const cached = suggested === true || threaded ? null : readChatCache(chatCacheKey(message, focusNorm));
   if (cached) {
     refuse(res, cached);
     return;
@@ -222,7 +216,7 @@ export default async function handler(req, res) {
   }
   const finish = (record) => chatSends.finish(idemKey, record);
   try {
-    chatGuardFor().take(clientIp(req));
+    chatGuardFor().take(clientIp(req), suggested === true ? 'chip' : 'typed');
   } catch (err) {
     if (!(err instanceof AppError)) throw err;
     const scope = err.scope || err.code;
@@ -299,6 +293,9 @@ export default async function handler(req, res) {
     }
     openedClip = opened.knowledge?.videos?.[0] || null;
     openedPack = opened.pack || null;
+    if (suggested === true && !storedFact) {
+      storedFact = computedAnswer(message, openedClip, openedPack) || null;
+    }
     system = buildSystemPrompt(delivered, focusNorm, storedFact);
   } catch (err) {
     logEvent({ level: 'error', requestId, route: 'chat', ...safeErrorFields(err), code: 'library_unavailable' });
@@ -312,6 +309,7 @@ export default async function handler(req, res) {
 
   let announced = false;
   let acc = '';
+  const checkNumbers = suggested === true && Boolean(storedFact);
   const started = Date.now();
   let firstTokenMs = null;
   let finishReason = '';
@@ -347,13 +345,15 @@ export default async function handler(req, res) {
       slowMs: mockSlowMs(req),
     })) {
       if (event.type === 'text') {
-        if (!announced) {
-          announced = true;
-          send(res, { type: 'meta', model: event.model });
-        }
         acc += event.text || '';
         if (event.text && firstTokenMs == null) firstTokenMs = Date.now() - started;
-        send(res, { type: 'text', text: event.text });
+        if (!checkNumbers) {
+          if (!announced) {
+            announced = true;
+            send(res, { type: 'meta', model: event.model });
+          }
+          send(res, { type: 'text', text: event.text });
+        }
       } else if (event.type === 'cut') {
         res.end();
         finish({ kind: 'sse', text: acc });
@@ -370,10 +370,18 @@ export default async function handler(req, res) {
         send(res, { type: 'error', code: 'refusal', message: 'the model declined to answer that.' });
       }
     }
-    if (!threaded && acc.trim()) writeChatCache(chatCacheKey(message, focusNorm), acc);
+    const reply = checkNumbers && !numbersKept(storedFact, acc) ? storedFact : acc;
+    if (checkNumbers) {
+      if (!announced) {
+        announced = true;
+        send(res, { type: 'meta', model: modelName });
+      }
+      if (reply) send(res, { type: 'text', text: reply });
+    }
+    if (!threaded && reply.trim()) writeChatCache(chatCacheKey(message, focusNorm), reply);
     send(res, { type: 'done' });
     res.end();
-    finish({ kind: 'sse', text: acc });
+    finish({ kind: 'sse', text: reply });
   } catch (err) {
     if (err?.name === 'AbortError' || err?.code === 'ABORTED') {
       finish({ kind: 'sse', text: acc });
