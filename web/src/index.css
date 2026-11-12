@@ -4476,6 +4476,12 @@ select {
   line-height: 1.45;
 }
 
+.app-error-id {
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
 .app-error button {
   align-self: flex-start;
   min-height: 44px;

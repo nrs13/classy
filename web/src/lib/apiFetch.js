@@ -1,3 +1,5 @@
+import { requestIdFromResponse } from './requestId.js';
+
 const DEFAULT_TIMEOUT_MS = 15_000;
 
 function wait(ms, signal) {
@@ -45,6 +47,7 @@ export async function apiFetch(url, options = {}) {
     signal?.addEventListener('abort', onAbort);
     try {
       const res = await fetch(url, { method: verb, headers, body, signal: ctrl.signal });
+      requestIdFromResponse(res);
       if (res.status >= 400 && res.status < 500) return res;
       if (res.ok || verb !== 'GET' || attempt === extra) return res;
       const retryAfter = Number(res.headers.get('retry-after'));

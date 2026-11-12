@@ -3,6 +3,7 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
 import { turboLUT } from '../lib/colormap';
+import { BRAIN_FALLBACK } from '../lib/boundary';
 import VideoId from './VideoId';
 
 const FIT_RADIUS = 2.4;
@@ -25,6 +26,15 @@ const LONG_PRESS_CANCEL_PX = 6;
 const SELECT_DEBOUNCE_MS = 60;
 const DRAG_GUARD_MS = 520;
 const PIN_SUPPRESS_MS = 520;
+
+function webglSupported() {
+  try {
+    const canvas = document.createElement('canvas');
+    return Boolean(canvas.getContext('webgl2') || canvas.getContext('webgl'));
+  } catch {
+    return false;
+  }
+}
 
 function tapSlopFor(pointerType) {
   return pointerType === 'touch' ? TOUCH_TAP_SLOP_PX : TAP_MOVE_PX;
@@ -466,6 +476,7 @@ export default function BrainViewer({
   const [touchUi, setTouchUi] = useState(false);
   const [viewCommand, setViewCommand] = useState(null);
   const [activePreset, setActivePreset] = useState(null);
+  const [glLost, setGlLost] = useState(() => !webglSupported());
   const controlsRef = useRef(null);
   const viewNonce = useRef(0);
   const canvasGesture = useRef({
@@ -718,6 +729,11 @@ export default function BrainViewer({
           canvasGesture.current.cancelTimers?.();
         }}
       >
+        {glLost ? (
+          <div className="brain-fallback" role="status">
+            {BRAIN_FALLBACK}
+          </div>
+        ) : (
         <Canvas
           camera={{ position: [0, 0.35, 5.8], fov: 38 }}
           dpr={[1, 2]}
@@ -731,6 +747,12 @@ export default function BrainViewer({
           }
           tabIndex={pickingEnabled ? 0 : -1}
           onPointerMissed={clearFromCanvas}
+          onCreated={({ gl }) => {
+            gl.domElement.addEventListener('webglcontextlost', (event) => {
+              event.preventDefault();
+              setGlLost(true);
+            });
+          }}
         >
           <color attach="background" args={['#F5F5F5']} />
           <ambientLight intensity={0.85} />
@@ -771,6 +793,7 @@ export default function BrainViewer({
             }}
           />
         </Canvas>
+        )}
 
         {pickingEnabled && touchUi && !activeNetworkName && (
           <div className="brain-gesture-hint" aria-hidden>

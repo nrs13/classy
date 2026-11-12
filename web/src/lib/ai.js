@@ -3,6 +3,7 @@ import { MAX_HISTORY_MESSAGES } from './chatLimits.js';
 import { isCooling, quotaMessage } from './quota.js';
 import { CUT_LABEL, readSseEvents } from './streamFrame.js';
 import { apiFetch } from './apiFetch.js';
+import { requestIdFromResponse } from './requestId.js';
 
 export async function checkChatBackend(signal) {
   try {
@@ -92,6 +93,7 @@ export async function* streamChatReply({ priorMessages = [], message, focus = nu
       body: JSON.stringify({ message, history, focus }),
       signal,
     });
+    requestIdFromResponse(response);
   } catch (err) {
     if (err?.name === 'AbortError' || signal?.aborted) throw aborted();
     const wrapped = new Error(`chat request failed: ${err?.message || err}`);

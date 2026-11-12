@@ -1,4 +1,4 @@
-export const APP_FALLBACK = 'Something went wrong. Reload the page to continue.';
+export const APP_FALLBACK = 'Something went wrong. Reload the page.';
 export const BRAIN_FALLBACK = 'The brain view is unavailable on this device.';
 
 /** A log line with the area and error name only. No message, stack, or path. */
