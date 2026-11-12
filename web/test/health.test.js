@@ -34,6 +34,18 @@ test('GET /api/health says the process is up and is not cached', async () => {
   assert.equal(JSON.stringify(res.body).includes('stack'), false);
 });
 
+test('an error log keeps the name and drops the message', async () => {
+  const { safeErrorFields } = await import('../server/obs/log.js');
+  const err = new Error('connection failed at the database host');
+  err.code = 'ECONNREFUSED';
+  const fields = safeErrorFields(err);
+  const packed = JSON.stringify(fields);
+  assert.equal(fields.name, 'Error');
+  assert.equal(fields.code, 'ECONNREFUSED');
+  assert.equal(packed.includes('database host'), false);
+  assert.equal(packed.includes('stack'), false);
+});
+
 test('other methods on /api/health are a clean rejection', async () => {
   const res = fakeRes();
   await handler({ method: 'POST', headers: {}, url: '/api/health' }, res);

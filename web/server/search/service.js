@@ -1,5 +1,5 @@
 import { AppError } from '../obs/errors.js';
-import { logEvent } from '../obs/log.js';
+import { logEvent, safeErrorFields } from '../obs/log.js';
 import { createTimer } from '../obs/timing.js';
 import { createQueryCache, getEmbeddingProvider } from '../providers/embedding/index.js';
 import { getReranker } from '../providers/rerank/index.js';
@@ -91,7 +91,7 @@ export async function searchLibrary(options, { requestId = '' } = {}) {
         vector = embedded.vector;
         caches[lane] = embedded.cache;
       } catch (err) {
-        embedErrors.push(String(err?.message || err));
+        embedErrors.push(safeErrorFields(err).name);
         return null;
       }
       const wantDocs = setting(options, 'videoDocs') !== false;

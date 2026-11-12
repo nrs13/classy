@@ -17,7 +17,7 @@ import { CHAT_TIMEOUT_MS, MAX_OUTPUT_TOKENS, chatGuardFor, clientIp } from '../s
 import { nextPacificMidnight } from '../server/chat/resetAt.js';
 import { failureBody } from '../server/chat/classify.js';
 import { AppError, errorBody } from '../server/obs/errors.js';
-import { logEvent, requestIdFrom } from '../server/obs/log.js';
+import { logEvent, requestIdFrom, safeErrorFields } from '../server/obs/log.js';
 
 export const maxDuration = 60;
 
@@ -232,7 +232,7 @@ export default async function handler(req, res) {
     openedPack = opened.pack || null;
     system = buildSystemPrompt(delivered, focusNorm);
   } catch (err) {
-    logEvent({ level: 'error', requestId, route: 'chat', code: 'library_unavailable', error: String(err?.message || err) });
+    logEvent({ level: 'error', requestId, route: 'chat', ...safeErrorFields(err), code: 'library_unavailable' });
     finish({ kind: 'json', status: 502, body: errorBody(requestId, 'library_unavailable') });
     res.status(502).json(errorBody(requestId, 'library_unavailable'));
     return;

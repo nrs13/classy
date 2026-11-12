@@ -1,4 +1,4 @@
-import { logEvent } from './log.js';
+import { logEvent, safeErrorFields } from './log.js';
 
 const USER_COPY = {
   bad_request: 'That request is not valid.',
@@ -6,7 +6,7 @@ const USER_COPY = {
   no_library: 'Your Library is not available right now.',
   method_not_allowed: 'That action is not allowed.',
   search_unavailable: 'Search is unavailable. Try again in a moment.',
-  library_unavailable: 'Your Library is unavailable. Try again in a moment.',
+  library_unavailable: 'Library is unavailable. Try again in a moment.',
   media_unavailable: "This video can't play right now.",
   queue_unavailable: 'The queue is unavailable. Try again in a moment.',
   rate_limited: 'Too many requests. Wait a moment and try again.',
@@ -50,7 +50,7 @@ export function sendError(res, { requestId, route, err, fallback }) {
     route,
     code,
     status,
-    ...(expected ? {} : { error: String(err?.stack || err?.message || err).slice(0, 2000) }),
+    ...(expected ? {} : safeErrorFields(err)),
   });
   res.status(status).json({ requestId, error: code, message: known ? err.userMessage : userMessage(code) });
 }
