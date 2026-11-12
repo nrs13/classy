@@ -84,9 +84,17 @@ python3 catalog/eval/run.py --set-baseline        # record the live numbers as t
 python3 -m unittest catalog.tests.test_pack catalog.tests.test_frames catalog.tests.test_gate catalog.tests.test_embedding
 ```
 
-Before a promote, golden queries must not drop below `catalog/eval/baseline.json`: recall@5 per query language, and the first-place rate overall. If query embedding fails during an evaluation, it stops instead of reporting exact-only numbers as hybrid, and `--validate` fails. `--options '{"videoDocs": true}'` runs an A/B against the same snapshot.
+Before a promote, golden queries must not drop below `catalog/eval/baseline.json`: recall@5 per query language, and the first-place rate overall. `--promote` runs that validate and moves the pointer only when the report is ok. There is no override that promotes past a failed validate. If query embedding fails during an evaluation, it stops instead of reporting exact-only numbers as hybrid, and `--validate` fails. `--options '{"videoDocs": true}'` runs an A/B against the same snapshot.
 
-On the 107-query set (8 query languages; quoted, verbatim, paraphrase, name, scene, on-screen, describe and intent queries), the live snapshot scores recall@5 1.0 in every language and top1 0.916. The latency budgets in the baseline are 150 ms for exact and cached searches, 1500 ms for a new hybrid search, and 2200 ms when understanding runs.
+On the 107-query set (8 query languages; quoted, verbatim, paraphrase, name, scene, on-screen, describe and intent queries), a control `--validate` of the current live snapshot scores first place 0.832, recall@5 0.972, German queries 0.917, and Spanish queries 0.875. The other query languages score 1.0. A pack of the same clips scores the same. The latency budgets in the baseline are 150 ms for exact and cached searches, 1500 ms for a new hybrid search, and 2200 ms when understanding runs.
+
+## Known issues
+
+Three golden queries miss the top 5 on the current live snapshot. In each case the expected clip is en-US. After the English rewrite, the exact-word search still ANDs every word, and that clip has no line containing them, so the keyword lane cannot place it. The clip that shares the query language and some of its words ranks first.
+
+- `x-08` ("¿cómo te fue en el examen de matemáticas?") expects `v027`. The rewrite is "how did you do on the math exam". The indexed line is "how was the math exam?". `v178` (es-ES, on-screen text "MATEMÁTICAS - SIMULACRO OFICIAL DE EXAMEN PAU") is first, and `v027` is 6th.
+- `x-13` ("Wie war die Mathearbeit?") expects `v027`. The rewrite is "how was the math test". The clip says "exam". The rewrite asks for "test", and the typed query asks for "Mathearbeit". `v070` (de-DE, evidence "an Mathe") is first, and `v027` is outside the top 10.
+- `d-22` ("tres chicos bailando con un texto sobre una app de estudio") expects `v026`. The rewrite is "three boys dancing with text about a study app". The scene line is "Three boys enter frame and dance energetically while a caption about Knowunity appears across the top." The on-screen text is "praying kase dumating na sa buhay namin si Knowunity." `v197` (es-ES, evidence "app de estudio") is first, and `v026` is outside the top 10.
 
 A pack that stops after writing chunks (for example during embedding) leaves an incomplete snapshot that is never served. `pack_snapshot.py --finish ID` embeds it from `embedding_cache` and marks it complete.
 
