@@ -45,7 +45,8 @@ test('provider failures stay inside the eight classes', () => {
   assert.equal(classifyProviderFailure(0, '', 'network').scope, 'network');
   assert.equal(parseRetryDelay('30s'), 30);
   const body = failureBody('abc', classifyProviderFailure(401, 'secret'));
-  assert.deepEqual(Object.keys(body).sort(), ['error', 'requestId', 'resetAt', 'retryAfterSeconds', 'scope']);
+  assert.deepEqual(Object.keys(body).sort(), ['error', 'message', 'requestId', 'resetAt', 'retryAfterSeconds', 'scope']);
   assert.equal(body.error, 'auth');
+  assert.equal(body.message, 'Chat is paused in this demo.');
   assert.equal(JSON.stringify(body).includes('secret'), false);
 });

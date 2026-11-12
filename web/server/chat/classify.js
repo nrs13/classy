@@ -72,12 +72,24 @@ export function classifyProviderFailure(status, raw, kind) {
   return { scope: 'server', retryAfterSeconds: null, status: status || 0 };
 }
 
+const FAILURE_MESSAGE = {
+  minute_quota: 'Too many requests. Wait a moment and try again.',
+  visitor_rate: 'Too many requests. Wait a moment and try again.',
+  day_quota: 'Chat is paused in this demo.',
+  own_daily_cap: 'Chat is paused in this demo.',
+  auth: 'Chat is paused in this demo.',
+  timeout: 'Chat is paused in this demo.',
+  network: 'Chat is paused in this demo.',
+  server: 'Chat is paused in this demo.',
+};
+
 export function failureBody(requestId, failure) {
   return {
+    requestId,
     error: failure.scope,
+    message: FAILURE_MESSAGE[failure.scope] || 'Chat is paused in this demo.',
     scope: failure.scope,
     retryAfterSeconds: failure.retryAfterSeconds ?? null,
     resetAt: failure.resetAt ?? null,
-    requestId,
   };
 }

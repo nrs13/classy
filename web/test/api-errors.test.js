@@ -50,6 +50,46 @@ test('chat rejects an empty message with the shared error shape', async () => {
   assert.ok(res.body.requestId.length >= 8);
 });
 
+test('an unknown API path is JSON 404', async () => {
+  const handler = (await import('../api/[...path].js')).default;
+  const res = jsonRes();
+  await handler({ method: 'GET', headers: {}, url: '/api/missing' }, res);
+  assert.equal(res.statusCode, 404);
+  assert.equal(res.body.error, 'unknown_route');
+  assert.equal(res.body.message, 'That request was not found.');
+  assert.equal(typeof res.body.requestId, 'string');
+  assert.equal(JSON.stringify(res.body).includes('stack'), false);
+});
+
+test('a byte range past the end is JSON, not an empty body', async () => {
+  const { mkdtempSync, writeFileSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const { signMedia } = await import('../server/media.js');
+  const dir = mkdtempSync(join(tmpdir(), 'classy-object-'));
+  writeFileSync(join(dir, 'clip.mp4'), Buffer.from('0123456789'));
+  const previous = process.env.CLASSY_OBJECT_ROOT;
+  process.env.CLASSY_OBJECT_ROOT = dir;
+  try {
+    const { token } = signMedia('v001', 'mp4', 'clip.mp4');
+    const handler = (await import('../api/object.js')).default;
+    const res = jsonRes();
+    await handler(
+      { method: 'GET', headers: { range: 'bytes=50-60' }, url: `/api/object?token=${encodeURIComponent(token)}` },
+      res,
+    );
+    assert.equal(res.statusCode, 416);
+    const body = JSON.parse(res.body);
+    assert.deepEqual(Object.keys(body).sort(), ['error', 'message', 'requestId']);
+    assert.equal(body.error, 'bad_request');
+    assert.equal(body.message, 'That request is not valid.');
+    assert.equal(body.message.includes(dir), false);
+  } finally {
+    if (previous == null) delete process.env.CLASSY_OBJECT_ROOT;
+    else process.env.CLASSY_OBJECT_ROOT = previous;
+  }
+});
+
 test('an object request without a token is a JSON refusal', async () => {
   const handler = (await import('../api/object.js')).default;
   const res = jsonRes();

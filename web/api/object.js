@@ -51,8 +51,7 @@ export default async function handler(req, res) {
     const start = match ? Number(match[1]) : 0;
     const end = match && match[2] ? Number(match[2]) : stat.size - 1;
     if (start >= stat.size || end < start) {
-      res.writeHead(416, { 'Content-Range': `bytes */${stat.size}` });
-      res.end();
+      deny(res, 416, 'bad_request', requestId);
       return;
     }
     res.writeHead(206, {
