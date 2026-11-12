@@ -71,7 +71,11 @@ export async function* streamGemini({
           role: message.role === 'assistant' ? 'model' : 'user',
           parts: [{ text: message.content }],
         })),
-        generationConfig: { maxOutputTokens },
+        generationConfig: {
+          maxOutputTokens,
+          // thinkingConfig.thinkingLevel: https://ai.google.dev/gemini-api/docs/thinking
+          thinkingConfig: { thinkingLevel: 'minimal' },
+        },
       }),
       signal: controller.signal,
     });

@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import notes from '../server/data/notes.json' with { type: 'json' };
 import { buildSystemPrompt, conversationBrief, SITE_BRIEF } from '../server/chat/promptBlocks.js';
 
 const knowledge = {
@@ -14,6 +15,10 @@ const knowledge = {
     features: { hook_slope: 0.0061, sustain_ratio: 1, peak_mean_abs: 0.071, peak_t_sec: 6 },
     hook_pack: { n: 97, min: -0.0207, median: 0.0009, max: 0.0164, rank: 24 },
     networks: { means: { Visual: 0.126, Limbic: 0.0297 } },
+    topics: ['study'],
+    keywords: ['desk'],
+    notes: { format: 'lesson', key_elements: 'a desk', relatability_hook: 'a student' },
+    cuts: [1, 3],
     timeline: [
       { t_sec: 0, line: 'A student sits at a desk.' },
       { t_sec: 1, line: 'An agreed app screen appears.' },
@@ -44,6 +49,14 @@ const QUESTIONS = [
   'what is v044 about',
 ];
 
+test('the note file is one entry per reel and only the three note fields', () => {
+  const ids = Object.keys(notes);
+  assert.equal(ids.length, 97);
+  for (const id of ids) {
+    assert.deepEqual(Object.keys(notes[id]).sort(), ['format', 'key_elements', 'relatability_hook']);
+  }
+});
+
 test('the frozen exam keeps the site, the clip, and the exact chip figures in the prompt', () => {
   const prompt = buildSystemPrompt(knowledge, { timeSec: 0, modes: ['marketing', 'analytics', 'research'] }, 'The pack is 97 videos.');
   assert.match(prompt, /library with search/);
@@ -58,6 +71,14 @@ test('the frozen exam keeps the site, the clip, and the exact chip figures in th
   assert.match(prompt, /5,443×/);
   assert.match(prompt, /peak mean activation 0.0710 at second 6/);
   assert.match(prompt, /The pack is 97 videos/);
+  assert.match(prompt, /Topics: study/);
+  assert.match(prompt, /Keywords: desk/);
+  assert.match(prompt, /Format: lesson/);
+  assert.match(prompt, /Key elements: a desk/);
+  assert.match(prompt, /Relatability hook: a student/);
+  assert.match(prompt, /Cuts at second 1, 3/);
+  assert.match(prompt, /<<<REEL>>>/);
+  assert.match(prompt, /<<<\/REEL>>>/);
   assert.equal(prompt.includes('not a sample of one'), false);
   assert.equal(prompt.includes('activation_timeline'), false);
   assert.equal(prompt.includes('To try next'), false);
@@ -73,4 +94,6 @@ test('the frozen exam keeps the site, the clip, and the exact chip figures in th
   const brief = conversationBrief(knowledge, { timeSec: 0 });
   assert.match(brief, /tier breakout/);
   assert.equal(brief.includes('activation_timeline'), false);
+  const banned = ['speech_score', 'face_count', 'music_score', 'sentiment', 'activation_timeline', 'mp4_object', 'sprite_object', 'embedding', 'scenes'];
+  for (const name of banned) assert.equal(prompt.includes(name), false, name);
 });

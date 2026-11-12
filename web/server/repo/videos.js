@@ -31,7 +31,7 @@ export async function clipsForChat(snapshotId, ids) {
   const result = await query(
     `SELECT video_id, duration, language, account, plays, likes, comments, followers,
             like_rate, amplification, hook_slope, peak_mean_abs, sustain_ratio,
-            timing_eligible, cuts, curve, networks
+            timing_eligible, cuts, curve, networks, topics, keywords
      FROM clip
      WHERE snapshot_id = $1 AND video_id = ANY($2::text[])`,
     [snapshotId, ids],

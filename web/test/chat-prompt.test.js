@@ -63,6 +63,10 @@ test('the brief tells the model the tier, the brain, and the next agreed app in 
       hook_pack: { n: 97, min: -0.0207, median: 0.0009, max: 0.0164, rank: 24 },
       activation_timeline: { series: [{ t_sec: 1, mean_abs: 0.01 }, { t_sec: 6, mean_abs: 0.071 }] },
       networks: { means: { Visual: 0.126, 'Dorsal Attention': 0.0697, Somatomotor: 0.0664, Limbic: 0.02 } },
+      topics: ['study'],
+      keywords: ['desk'],
+      notes: { format: 'lesson', key_elements: 'a desk', relatability_hook: 'a student' },
+      cuts: [1, 3],
       content_events: [{ type: 'happens', content: 'She studies at a desk.' }],
       agreed_app_screens: [{ t_sec: 1 }],
       next_agreed_app: { next_t_sec: 1, on_screen_now: false, names_the_app: false },
@@ -88,5 +92,13 @@ test('the brief tells the model the tier, the brain, and the next agreed app in 
   assert.match(brief, /Limbic \(feeling and memory\)/);
   assert.match(brief, /Every second: 0: She studies at a desk. \| 1: The app appears/);
   assert.match(brief, /Also open: v014/);
+  assert.match(brief, /Topics: study/);
+  assert.match(brief, /Keywords: desk/);
+  assert.match(brief, /Format: lesson/);
+  assert.match(brief, /Key elements: a desk/);
+  assert.match(brief, /Relatability hook: a student/);
+  assert.match(brief, /Cuts at second 1, 3/);
+  assert.match(brief, /<<<REEL>>>/);
+  assert.match(brief, /<<<\/REEL>>>/);
   assert.equal(brief.includes('activation_timeline'), false);
 });

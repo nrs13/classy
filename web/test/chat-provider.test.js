@@ -70,6 +70,8 @@ test('the gemini request keeps the key in a header and streams text', async () =
   assert.equal(seen[0].url.includes('test-gemini-key'), false);
   const sent = JSON.parse(seen[0].options.body);
   assert.equal(sent.contents[0].role, 'user');
+  assert.equal(sent.generationConfig.maxOutputTokens, 32);
+  assert.equal(sent.generationConfig.thinkingConfig.thinkingLevel, 'minimal');
 });
 
 test('a gemini 401 is an auth failure and does not keep the response body', async () => {

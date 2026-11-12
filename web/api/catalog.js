@@ -1,11 +1,7 @@
-import { existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { route } from '../server/http.js';
+import { notesFor } from '../server/data/clipNotes.js';
 import { currentSnapshot } from '../server/repo/snapshot.js';
 import { listVideos } from '../server/repo/videos.js';
-
-const REPO_ROOT = fileURLToPath(new URL('../..', import.meta.url));
 
 // Same Yeo-7 atlas the mesh pack writes to web/public/data/atlas_yeo7_labels.bin.
 const ATLAS = {
@@ -52,96 +48,8 @@ export function profileUrl(videoUrl, account) {
   return '';
 }
 
-function parseCsv(text) {
-  const rows = [];
-  let row = [];
-  let cell = '';
-  let quoted = false;
-  for (let i = 0; i < text.length; i += 1) {
-    const ch = text[i];
-    if (quoted) {
-      if (ch === '"') {
-        if (text[i + 1] === '"') {
-          cell += '"';
-          i += 1;
-        } else {
-          quoted = false;
-        }
-      } else {
-        cell += ch;
-      }
-    } else if (ch === '"') {
-      quoted = true;
-    } else if (ch === ',') {
-      row.push(cell);
-      cell = '';
-    } else if (ch === '\n') {
-      row.push(cell);
-      rows.push(row);
-      row = [];
-      cell = '';
-    } else if (ch !== '\r') {
-      cell += ch;
-    }
-  }
-  if (cell.length || row.length) {
-    row.push(cell);
-    rows.push(row);
-  }
-  return rows;
-}
-
-const NOTE_FIELDS = ['format', 'key_elements', 'relatability_hook'];
-
-let notesById;
-function notesTable() {
-  if (notesById) return notesById;
-  notesById = new Map();
-  const path = join(REPO_ROOT, 'metadata.csv');
-  if (!existsSync(path)) return notesById;
-  const rows = parseCsv(readFileSync(path, 'utf8'));
-  const header = rows.shift() || [];
-  const idCol = header.indexOf('video_id');
-  const cols = Object.fromEntries(NOTE_FIELDS.map((field) => [field, header.indexOf(field)]));
-  if (idCol < 0) return notesById;
-  for (const record of rows) {
-    const id = (record[idCol] || '').trim();
-    if (!id) continue;
-    const notes = {};
-    for (const field of NOTE_FIELDS) {
-      notes[field] = cols[field] >= 0 ? (record[cols[field]] || '').trim() : '';
-    }
-    notesById.set(id, notes);
-  }
-  return notesById;
-}
-
-const metaNotesCache = new Map();
-function metaNotes(videoId) {
-  if (metaNotesCache.has(videoId)) return metaNotesCache.get(videoId);
-  const path = join(REPO_ROOT, 'outputs', videoId, 'meta.json');
-  const notes = { format: '', key_elements: '', relatability_hook: '' };
-  if (existsSync(path)) {
-    try {
-      const body = JSON.parse(readFileSync(path, 'utf8'));
-      const annotations = body?.annotations || {};
-      for (const field of NOTE_FIELDS) notes[field] = String(annotations[field] || '').trim();
-    } catch {
-      /* keep the empty notes */
-    }
-  }
-  metaNotesCache.set(videoId, notes);
-  return notes;
-}
-
 function clipNotes(videoId) {
-  const row = notesTable().get(videoId) || {};
-  const meta = metaNotes(videoId);
-  return {
-    format: row.format || meta.format || '',
-    key_elements: row.key_elements || meta.key_elements || '',
-    relatability_hook: row.relatability_hook || meta.relatability_hook || '',
-  };
+  return notesFor(videoId);
 }
 
 export function tierFor(plays) {

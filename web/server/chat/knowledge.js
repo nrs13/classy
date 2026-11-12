@@ -1,6 +1,6 @@
+import { notesFor } from '../data/clipNotes.js';
 import { currentSnapshot } from '../repo/snapshot.js';
 import { agreedAppMarks, clipsForChat, hookSlopes, peerClips, secondsAt, secondsFor, VIDEO_ID } from '../repo/videos.js';
-import { secondText } from '../../src/lib/secondText.js';
 import { tierFor } from '../../api/catalog.js';
 
 const MEMORY_MS = 15000;
@@ -120,14 +120,30 @@ function peakFromCurve(curve) {
   return best;
 }
 
-function timelineLines(rows, asked) {
-  return (Array.isArray(rows) ? rows : []).slice(0, 90).map((row) => {
+function screenText(raw) {
+  const list = Array.isArray(raw) ? raw : [];
+  return list
+    .map((item) => (typeof item === 'string' ? item : item?.text || ''))
+    .filter(Boolean)
+    .join(' / ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+export function timelineLines(rows, cap = 220) {
+  const limit = cap === 140 ? 140 : 220;
+  return (Array.isArray(rows) ? rows : []).map((row) => {
     const t = Number(row?.t_sec);
-    const happens = secondText(row).replace(/\s+/g, ' ').trim();
+    const happens = String(row?.happens || '').replace(/\s+/g, ' ').trim();
     const speech = String(row?.speech || '').replace(/\s+/g, ' ').trim();
-    let line = (happens || speech).slice(0, 140);
-    if (asked.has(t) && speech) line = `${line} Said: ${speech.slice(0, 180)}`.trim().slice(0, 320);
-    return { t_sec: t, line };
+    const screen = screenText(row?.text_on_screen);
+    const speaker = String(row?.speaker || '').replace(/\s+/g, ' ').trim();
+    const bits = [];
+    if (happens) bits.push(happens);
+    if (speech) bits.push(`Said: ${speech}`);
+    if (screen) bits.push(`On screen: ${screen}`);
+    if (speaker) bits.push(`Speaker: ${speaker}`);
+    return { t_sec: t, line: bits.join(' ').slice(0, limit) };
   }).filter((row) => Number.isFinite(row.t_sec) && row.line);
 }
 
@@ -169,9 +185,10 @@ export async function openKnowledge(focus, message = '') {
     plays: clip.plays,
     tier: tierFor(clip.plays),
     t_sec: sec,
-    line: secondText(atExtra.get(clip.video_id)) || '',
+    line: String(atExtra.get(clip.video_id)?.speech || atExtra.get(clip.video_id)?.happens || '').replace(/\s+/g, ' ').trim(),
   }));
-  const timeline = timelineLines(windowTimeline(timelineRows, t, askedSeconds), askedSeconds);
+  const timeline = timelineLines(timelineRows, 220);
+  const windowed = timelineLines(windowTimeline(timelineRows, t, askedSeconds), 220);
   return {
     snapshotId: snapshot.id,
     pack,
@@ -189,7 +206,7 @@ export async function openKnowledge(focus, message = '') {
       videos: clips.map((clip) => {
         const second = at.get(clip.video_id);
         const events = [];
-        const happens = secondText(second);
+        const happens = String(second?.happens || '').replace(/\s+/g, ' ').trim();
         if (happens) events.push({ type: 'happens', content: happens, t_sec: t });
         if (second?.speech) events.push({ type: 'speech', content: second.speech, t_sec: t });
         for (const line of second?.text_on_screen || []) {
@@ -201,6 +218,9 @@ export async function openKnowledge(focus, message = '') {
           account: clip.account,
           language: clip.language,
           duration: clip.duration,
+          topics: clip.topics,
+          keywords: clip.keywords,
+          notes: notesFor(clip.video_id),
           timingEligible: clip.timing_eligible,
           cuts: clip.timing_eligible ? clip.cuts || [] : [],
           metrics: {
@@ -221,6 +241,7 @@ export async function openKnowledge(focus, message = '') {
           hook_pack: hookPackStats(pack?.slopes, clip.hook_slope),
           networks: clip.networks || null,
           timeline: clip.video_id === ids[0] ? timeline : [],
+          window: clip.video_id === ids[0] ? windowed : [],
           story: second ? [{ t_sec: t, events }] : [],
           content_events: events,
           open_second: second || null,
