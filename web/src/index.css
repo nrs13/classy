@@ -888,11 +888,11 @@ select {
 
 .btn-media-mute {
   position: absolute;
-  right: 12px;
-  bottom: 12px;
-  z-index: 2;
-  width: 32px;
-  height: 32px;
+  right: max(12px, env(safe-area-inset-right, 0px));
+  bottom: max(12px, env(safe-area-inset-bottom, 0px));
+  z-index: 3;
+  width: 44px;
+  height: 44px;
   padding: 0;
   border: none;
   border-radius: 0;
@@ -912,11 +912,35 @@ select {
   background: transparent !important;
 }
 
+.btn-media-mute:focus,
+.btn-media-mute:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+
+.stage-video-split,
+.stage-video-stack {
+  container-type: size;
+  container-name: video-frame;
+}
+
+.stage-video-frame {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  translate: -50% -50%;
+  aspect-ratio: 9 / 16;
+  width: min(100cqw, calc(100cqh * 9 / 16));
+  height: auto;
+}
+
 .stage-video-stack .btn-media-mute {
-  right: 8px;
-  bottom: 8px;
-  width: 28px;
-  height: 28px;
+  right: max(12px, env(safe-area-inset-right, 0px));
+  bottom: max(12px, env(safe-area-inset-bottom, 0px));
+  width: 44px;
+  height: 44px;
 }
 
 .stage-video-el {
@@ -3013,13 +3037,6 @@ select {
   .brain-view-toolbar,
   .stage-transport {
     padding-right: calc(var(--fab-size) + var(--fab-edge));
-  }
-
-  .btn-media-mute,
-  .stage-video-stack .btn-media-mute {
-    right: calc(12px + var(--fab-size) + var(--fab-edge));
-    width: 44px;
-    height: 44px;
   }
 
   .scrubber {

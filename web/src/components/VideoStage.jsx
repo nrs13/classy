@@ -492,6 +492,7 @@ export default function VideoStage({
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
+      <div className="stage-video-frame">
       <video
         ref={videoRef}
         src={mediaSrc || undefined}
@@ -581,10 +582,12 @@ export default function VideoStage({
         onClick={() => setMuted((v) => !v)}
         className={`btn-media btn-media-mute${showOverlay ? ' is-visible' : ''}`}
         aria-label={muted ? 'Unmute' : 'Mute'}
+        aria-pressed={muted}
         title={muted ? 'Unmute' : 'Mute'}
       >
         <MuteGlyph muted={muted} />
       </button>
+      </div>
     </div>
   );
 
