@@ -42,6 +42,28 @@ test('a comparison tells the model the clips are one set', () => {
   assert.equal(brief.includes('Also open'), false);
 });
 
+test('a non-compare brief lists every reel and drops the short peer list', () => {
+  const brief = conversationBrief({
+    directory: [{ id: 'v114', account: 'studygram', language: 'en', topics: ['English'], plays: 12400000, tier: 'breakout' }],
+    peers: [{ id: 'v114', account: 'studygram', plays: 12400000, tier: 'breakout', topics: ['English'] }],
+    videos: [{ id: 'v002', metrics: { plays: 1, tier: 'tail' }, features: {} }],
+  }, { timeSec: 0, view: 'explore' });
+  assert.match(brief, /Directory: v114, studygram, en, English, 12,400,000 plays, breakout/);
+  assert.equal(brief.includes('Other clips, most plays first'), false);
+});
+
+test('a compare brief does not add the directory', () => {
+  const brief = conversationBrief({
+    directory: [{ id: 'v114', account: 'studygram', language: 'en', topics: [], plays: 1, tier: 'tail' }],
+    videos: [
+      { id: 'v001', metrics: {}, features: {} },
+      { id: 'v002', metrics: {}, features: {} },
+    ],
+  }, { view: 'compare', timeSec: 0 });
+  assert.equal(brief.includes('Directory:'), false);
+  assert.equal(brief.includes('Also open'), false);
+});
+
 test('a compared reel keeps its own seconds inside the fence', () => {
   const brief = conversationBrief({
     videos: [

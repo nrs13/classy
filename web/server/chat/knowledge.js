@@ -1,6 +1,6 @@
 import { notesFor } from '../data/clipNotes.js';
 import { currentSnapshot } from '../repo/snapshot.js';
-import { agreedAppMarks, clipsForChat, hookSlopes, peerClips, secondsAt, secondsFor, VIDEO_ID } from '../repo/videos.js';
+import { agreedAppMarks, clipsForChat, hookSlopes, listVideos, peerClips, secondsAt, secondsFor, VIDEO_ID } from '../repo/videos.js';
 import { tierFor } from '../../api/catalog.js';
 
 const MEMORY_MS = 15000;
@@ -166,7 +166,7 @@ export async function openKnowledge(focus, message = '') {
   const extraIds = askedVideoIds(message, ids);
   const askedSeconds = askedSecondSet(message);
   const sec = firstAskedSecond(message);
-  const [clips, seconds, pack, marks, peers, secondLists, extra, extraRows] = await Promise.all([
+  const [clips, seconds, pack, marks, peers, secondLists, extra, extraRows, catalog] = await Promise.all([
     clipsForChat(snapshot.id, ids),
     secondsAt(snapshot.id, ids, t),
     slopesOnce(snapshot.id),
@@ -175,6 +175,7 @@ export async function openKnowledge(focus, message = '') {
     Promise.all(ids.map((id) => secondsFor(snapshot.id, id).catch(() => []))),
     extraIds.length ? clipsForChat(snapshot.id, extraIds).catch(() => []) : Promise.resolve([]),
     extraIds.length ? secondsAt(snapshot.id, extraIds, sec).catch(() => []) : Promise.resolve([]),
+    listVideos(snapshot.id).catch(() => []),
   ]);
   if (clips.length !== ids.length) return { error: 'That video is not in your Library.' };
   const at = new Map(seconds.map((row) => [row.video_id, row]));
@@ -200,6 +201,14 @@ export async function openKnowledge(focus, message = '') {
         plays: row.plays,
         tier: tierFor(row.plays),
         topics: topicNames(row.topics),
+      })),
+      directory: (catalog || []).map((row) => ({
+        id: row.video_id,
+        account: row.account || '',
+        language: row.language || '',
+        topics: row.topics,
+        plays: row.plays,
+        tier: tierFor(row.plays) || '',
       })),
       asked,
       videos: clips.map((clip) => {

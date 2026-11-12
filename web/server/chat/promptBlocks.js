@@ -13,7 +13,7 @@ export const PROMPT_BLOCKS = {
     'The open reel is context, not the subject of every question. A general question gets a general answer. Use the reel only as one example, and only if it helps. Do not drag the open reel into an answer that did not ask for it.',
     'A short follow-up is about the conversation so far. Ask a clarifying question only when two readings would give different answers.',
     'A comparison uses every compared reel. A comparison needs two or more reels. If they ask to compare and only one reel is open, say another reel is needed, then say what the open reel can still show.',
-    'A question that asks you to find reels uses the search hits and names reel ids. If none are listed, say so. Never invent a clip id.',
+    'A question that asks you to find reels names reel ids from the directory. If search hits are listed, use those. If none are listed, say so. Name another reel only when its id is in the directory. Never invent a clip id.',
     'A question about the site is answered from the page description. If they ask what you can help with, name a few things this demo can show and invite a question.',
     'End with at most one short, specific next step they could ask, and not on every answer.',
     'If the data lacks the answer, say what you do have and answer from that. Do not invent a score, an app name, a feature, a reel id, or how a reel was filmed.',
@@ -115,6 +115,10 @@ export function conversationBrief(knowledge, focus) {
   else lines.push('The open reel below is context. Use it when the question is about that reel. A general question is not about the reel.');
   const body = [...clipLines(video, knowledge, focus)];
   for (const other of videos.slice(1)) body.push(shortClip(other, compared));
+  if (!compared && Array.isArray(knowledge?.directory) && knowledge.directory.length) {
+    body.push('Directory of every reel. Name another reel only from this list.');
+    for (const row of knowledge.directory) body.push(directoryLine(row));
+  }
   for (const extra of knowledge?.asked || []) {
     const plays = commas(extra.plays);
     const bits = [extra.id, extra.account, extra.tier, plays ? `${plays} plays` : '', extra.line].filter(Boolean);
@@ -122,6 +126,13 @@ export function conversationBrief(knowledge, focus) {
   }
   lines.push(REEL_START, ...body, REEL_END);
   return lines.join(' ');
+}
+
+function directoryLine(row) {
+  const plays = commas(row?.plays);
+  const topics = nameList(row?.topics).join(', ');
+  const bits = [row?.id, row?.account, row?.language, topics, plays ? `${plays} plays` : '', row?.tier].filter(Boolean);
+  return `Directory: ${bits.join(', ')}.`;
 }
 
 function nameList(raw) {
@@ -187,7 +198,8 @@ function clipLines(video, knowledge, focus) {
   ].filter(Boolean);
   if (counts.length) lines.push(`${counts.join(', ')}.`);
   if (knowledge?.pack_size) lines.push(`Pack size: ${knowledge.pack_size}.`);
-  const peers = (Array.isArray(knowledge?.peers) ? knowledge.peers : []).slice(0, 5).map((peer) => {
+  const showDirectory = focus?.view !== 'compare' && Array.isArray(knowledge?.directory) && knowledge.directory.length > 0;
+  const peers = showDirectory ? [] : (Array.isArray(knowledge?.peers) ? knowledge.peers : []).slice(0, 5).map((peer) => {
     const plays = commas(peer?.plays);
     const topics = (Array.isArray(peer?.topics) ? peer.topics : []).slice(0, 2).join(', ');
     return [peer?.id, peer?.account, peer?.tier, plays ? `${plays} plays` : '', topics].filter(Boolean).join(', ');
