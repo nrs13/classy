@@ -59,6 +59,16 @@ test('the shell names JavaScript and shows a loading line', () => {
   assert.equal(/<noscript>[^]*style=/i.test(indexHtml), false);
 });
 
+test('robots allows crawlers and the page stays noindex', () => {
+  const robots = readFileSync(new URL('../public/robots.txt', import.meta.url), 'utf8');
+  assert.match(robots, /User-agent: \*/);
+  assert.match(robots, /Allow: \//);
+  assert.equal(/Disallow/.test(robots), false);
+  assert.equal(/sitemap/i.test(robots), false);
+  assert.match(indexHtml, /noindex, nofollow/);
+  assert.match(missingHtml, /noindex, nofollow/);
+});
+
 test('the crash copy and the brain fallback stay calm', () => {
   assert.equal(APP_FALLBACK, 'Something went wrong. Reload the page.');
   assert.equal(BRAIN_FALLBACK, 'The brain view is unavailable on this device.');
