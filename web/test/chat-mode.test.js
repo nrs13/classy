@@ -38,10 +38,10 @@ function sseCapture() {
   };
 }
 
-test('the live privacy note names a service provider and asks for no personal information', () => {
+test('the live privacy note says Classy can make mistakes and asks for no personal information', () => {
   assert.equal(
     CHAT_PRIVACY,
-    "Questions you type here are processed by a service provider to generate answers. Please don't enter personal information.",
+    "Classy can make mistakes, and please don't enter personal information.",
   );
   assert.equal(chatStatus({ CHAT_MODE: 'live', GEMINI_CHAT_API_KEY: 'present' }, 'US').privacy, true);
   assert.equal(chatStatus({ CHAT_MODE: 'live', GEMINI_CHAT_API_KEY: 'present' }, 'FR').privacy, false);

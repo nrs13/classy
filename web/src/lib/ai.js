@@ -36,7 +36,7 @@ class BothModelsQuotaError extends Error {
 export const CHAT_PAUSED = 'Chat is paused in this demo.';
 
 export const CHAT_PRIVACY =
-  "Questions you type here are processed by a service provider to generate answers. Please don't enter personal information.";
+  "Classy can make mistakes, and please don't enter personal information.";
 
 const PAUSED_STATUS = new Set([401, 402, 403, 429, 500, 502, 503, 504]);
 const PAUSED_CODE = new Set(['BOTH_MODELS_QUOTA', 'SPEND_CAP', 'NOT_CONFIGURED', 'API_ERROR']);
