@@ -4,6 +4,8 @@ import './index.css'
 import App from './App.jsx'
 import { ErrorBoundary } from './components/ErrorBoundary.jsx'
 
+document.title = 'Classy (Demo) - NRS'
+
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <ErrorBoundary scope="app">

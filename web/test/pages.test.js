@@ -51,6 +51,7 @@ test('the shell names JavaScript and shows a loading line', () => {
   assert.match(indexHtml, /Classy needs JavaScript to run\. This is a reduced demo of an internal project\./);
   assert.match(indexHtml, /href="https:\/\/nrsharan\.com"/);
   assert.match(indexHtml, /<div id="root">Loading\.<\/div>/);
+  assert.match(indexHtml, /<title>Classy \(Demo\) - NRS<\/title>/);
   assert.equal(/<noscript>[^]*style=/i.test(indexHtml), false);
 });
 
