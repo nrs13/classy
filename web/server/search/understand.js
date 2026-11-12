@@ -4,11 +4,11 @@ import { logEvent, safeErrorFields } from '../obs/log.js';
 import { createQueryCache } from '../providers/embedding/index.js';
 import { query } from '../repo/pool.js';
 
-export const UNDERSTAND_TIMEOUT_MS = 1200;
+const UNDERSTAND_TIMEOUT_MS = 1200;
 const BACKGROUND_TIMEOUT_MS = 8000;
 const KINDS = ['said', 'on_screen', 'scene', 'any'];
 
-export function understandModel(env = process.env) {
+function understandModel(env = process.env) {
   return env.CLASSY_UNDERSTAND_MODEL || 'claude-haiku-4-5';
 }
 

@@ -25,7 +25,7 @@ export async function checkChatBackend(signal) {
   }
 }
 
-export class BothModelsQuotaError extends Error {
+class BothModelsQuotaError extends Error {
   constructor(message = 'model quota reached, try again later') {
     super(message);
     this.name = 'BothModelsQuotaError';

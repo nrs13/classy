@@ -1,6 +1,6 @@
 import { ChatProviderError } from './providerError.js';
 
-export const MOCK_FAULTS = ['minute_quota', 'day_quota', 'auth', 'server', 'timeout', 'slow_stream', 'cut_stream'];
+const MOCK_FAULTS = ['minute_quota', 'day_quota', 'auth', 'server', 'timeout', 'slow_stream', 'cut_stream'];
 
 export function mockChatAllowed(env = process.env) {
   return env.NODE_ENV !== 'production' && !env.VERCEL_ENV;

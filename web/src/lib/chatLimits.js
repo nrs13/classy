@@ -1,5 +1,5 @@
 export const MAX_MESSAGE_CHARS = 4000;
-export const MIN_MESSAGE_CHARS = 8;
+const MIN_MESSAGE_CHARS = 8;
 export const MAX_HISTORY_MESSAGES = 40;
 export const MAX_CHAT_BODY_BYTES = 512 * 1024;
 export const CHAT_COOLDOWN_MS = 8000;

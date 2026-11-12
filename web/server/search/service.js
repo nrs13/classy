@@ -18,7 +18,7 @@ export const KEYWORD_NOTICE = 'Showing keyword matches only.';
 const RERANK_TOP = 20;
 
 /** Whole-video documents stay off because they did not beat moment-only scoring. */
-export const SEARCH_DEFAULTS = Object.freeze({
+const SEARCH_DEFAULTS = Object.freeze({
   understand: true,
   understandVector: true,
   boost: true,

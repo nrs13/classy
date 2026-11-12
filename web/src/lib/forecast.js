@@ -1,15 +1,15 @@
 /** Ranges are the shared overlaps, not a new fit. */
 
-export const WITHIN_CLIP =
+const WITHIN_CLIP =
   'This is a within-video change in the stored predicted curve.';
 
-export const VISUAL_LAG_1 =
+const VISUAL_LAG_1 =
   'On accounts the fit did not use, a cut goes with a higher absolute predicted visual curve one second later, shared range 0.01625 to 0.02857.';
 
-export const VISUAL_LAG_2 =
+const VISUAL_LAG_2 =
   'On accounts the fit did not use, a cut goes with a higher absolute predicted visual curve two seconds later, shared range 0.01543 to 0.02672.';
 
-export const DORSAL_LAG_2 =
+const DORSAL_LAG_2 =
   'On accounts the fit did not use, a cut goes with a higher absolute predicted dorsal-attention curve two seconds later, shared range 0.008955 to 0.01658.';
 
 export function timingSource(video, packed) {

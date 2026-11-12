@@ -1,5 +1,5 @@
 /** Next midnight in America/Los_Angeles, as an ISO UTC timestamp. */
-export function pacificParts(instant) {
+function pacificParts(instant) {
   const fmt = new Intl.DateTimeFormat('en-US', {
     timeZone: 'America/Los_Angeles',
     year: 'numeric',

@@ -1,6 +1,6 @@
 import { query, vectorQuery } from './pool.js';
 
-export const KIND_FIELDS = {
+const KIND_FIELDS = {
   said: ['segment', 'speech', 'ask'],
   on_screen: ['text_on_screen'],
   scene: ['scene', 'evidence', 'video'],

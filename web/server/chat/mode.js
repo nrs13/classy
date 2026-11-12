@@ -12,7 +12,7 @@ export const REGION_CANNED_NOTICE =
   'Live chat is not available in your region. Pick a question to see an example answer.';
 
 /** EU members, the other EEA countries, Switzerland, and the UK. Free-tier chat stays canned here. */
-export const RESTRICTED_CHAT_COUNTRIES = [
+const RESTRICTED_CHAT_COUNTRIES = [
   'AT', 'BE', 'BG', 'HR', 'CY', 'CZ', 'DK', 'EE', 'FI', 'FR', 'DE', 'GR', 'HU', 'IE', 'IT',
   'LV', 'LT', 'LU', 'MT', 'NL', 'PL', 'PT', 'RO', 'SK', 'SI', 'ES', 'SE',
   'IS', 'LI', 'NO',
@@ -35,7 +35,7 @@ export function visitorCountry(headers) {
   return /^[A-Z]{2}$/.test(code) ? code : '';
 }
 
-export function regionLimitsLive(country) {
+function regionLimitsLive(country) {
   return !country || RESTRICTED.has(country);
 }
 

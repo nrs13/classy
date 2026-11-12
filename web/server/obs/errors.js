@@ -34,7 +34,7 @@ export class AppError extends Error {
   }
 }
 
-export function userMessage(code) {
+function userMessage(code) {
   return USER_COPY[code] || USER_COPY.bad_request;
 }
 

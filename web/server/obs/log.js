@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-export function newRequestId() {
+function newRequestId() {
   return randomUUID().replace(/-/g, '').slice(0, 16);
 }
 

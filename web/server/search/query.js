@@ -3,7 +3,7 @@ import { AppError } from '../obs/errors.js';
 export const MAX_QUERY_CHARS = 300;
 const KINDS = new Set(['said', 'on_screen', 'scene']);
 
-export function normalizeText(text) {
+function normalizeText(text) {
   return String(text || '')
     .normalize('NFKC')
     .toLowerCase()

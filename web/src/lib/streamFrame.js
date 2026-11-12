@@ -1,4 +1,4 @@
-export const IDLE_MS = 20_000;
+const IDLE_MS = 20_000;
 export const CUT_LABEL = 'Connection lost. This answer may be incomplete.';
 export const OFFLINE_LABEL = "You're offline. Chat will work again when you reconnect.";
 

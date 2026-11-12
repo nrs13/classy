@@ -2,7 +2,7 @@ import { keywordCandidates, substringCandidates, vectorCandidates, videoDocCandi
 import { containsWholeWords, substringWorthy } from './query.js';
 import { markExact } from './rank.js';
 
-export const LANE_LIMIT = 50;
+const LANE_LIMIT = 50;
 /** Brain-network labels, tag lists and topic labels are not lines anyone said or saw. */
 const SKIP_FIELDS = new Set(['activation', 'keyword', 'topic']);
 

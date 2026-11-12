@@ -1,13 +1,13 @@
 import { AppError } from '../obs/errors.js';
 import { nextPacificMidnight } from './resetAt.js';
 
-export const VISITOR_PER_MINUTE = 4;
-export const VISITOR_PER_HOUR = 20;
-export const DAILY_REQUEST_CAP = 400;
+const VISITOR_PER_MINUTE = 4;
+const VISITOR_PER_HOUR = 20;
+const DAILY_REQUEST_CAP = 400;
 export const CHAT_TIMEOUT_MS = 25_000;
 export const MAX_OUTPUT_TOKENS = 800;
 
-export function pacificDay(now) {
+function pacificDay(now) {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles' }).format(new Date(now));
 }
 
