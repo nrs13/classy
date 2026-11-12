@@ -50,6 +50,17 @@ export async function hookSlopes(snapshotId) {
   };
 }
 
+export async function agreedAppMarks(snapshotId, ids) {
+  const result = await query(
+    `SELECT video_id, t_sec, app
+     FROM second
+     WHERE snapshot_id = $1 AND video_id = ANY($2::text[]) AND app IS NOT NULL
+     ORDER BY video_id, t_sec`,
+    [snapshotId, ids],
+  );
+  return result.rows;
+}
+
 export async function secondsAt(snapshotId, ids, tSec) {
   const result = await query(
     `SELECT video_id, t_sec, speech, speech_score, text_on_screen, speaker, scenes, outcomes, app, ask

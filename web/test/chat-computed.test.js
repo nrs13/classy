@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
-import { computedAnswer, questionsFor } from '../server/chat/computed.js';
+import { agreedAppAnswer, computedAnswer, questionsFor } from '../server/chat/computed.js';
 
 const canned = JSON.parse(readFileSync(new URL('../server/chat/canned.json', import.meta.url), 'utf8'));
 
@@ -43,4 +43,14 @@ test('a missing number omits that question', () => {
   assert.equal(computedAnswer("What's v003's peak mean cortical activation, and when does it occur?", clip, pack), null);
   assert.equal(questionsFor(clip, pack).some((q) => q.includes('peak')), false);
   assert.ok(questionsFor(clip, pack).some((q) => q.includes('amplification')));
+});
+
+test('the next agreed app is the later screen, and it is not named', () => {
+  const clip = { agreed_app_screens: [{ t_sec: 4, evidence: 'Agreed app screen' }, { t_sec: 6, evidence: 'Agreed app screen' }] };
+  assert.match(agreedAppAnswer('what is the next agreed app', clip, 1), /second 4/);
+  assert.match(agreedAppAnswer('what is the next agreed app', clip, 1), /does not name the app/);
+  assert.match(agreedAppAnswer('what is the next agreed app', clip, 5), /second 6/);
+  assert.match(agreedAppAnswer('what is the next agreed app', clip, 6), /no later agreed app screen/);
+  assert.match(agreedAppAnswer('what is the next agreed app', { agreed_app_screens: [] }, 0), /no agreed app screen/);
+  assert.equal(agreedAppAnswer('what is on screen right now', clip, 1), null);
 });

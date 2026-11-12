@@ -1,7 +1,15 @@
 import { currentSnapshot } from '../repo/snapshot.js';
-import { clipsForChat, hookSlopes, secondsAt, VIDEO_ID } from '../repo/videos.js';
+import { agreedAppMarks, clipsForChat, hookSlopes, secondsAt, VIDEO_ID } from '../repo/videos.js';
 
-/** Only the open video(s) and the open second reach the model. */
+function appEvidence(app) {
+  const value = typeof app === 'string'
+    ? (() => { try { return JSON.parse(app); } catch { return null; } })()
+    : app;
+  const evidence = value && typeof value === 'object' ? value.evidence : '';
+  return String(evidence || 'Agreed app screen');
+}
+
+/** Only the open video(s), the open second, and the agreed app screen times reach the model. */
 export async function openKnowledge(focus) {
   if (!focus.ids.length) return { error: 'Open a video first.' };
   const snapshot = await currentSnapshot();
@@ -14,10 +22,16 @@ export async function openKnowledge(focus) {
   const seconds = await secondsAt(snapshot.id, ids, t);
   const at = new Map(seconds.map((row) => [row.video_id, row]));
   let pack = null;
+  let marks = [];
   try {
     pack = await hookSlopes(snapshot.id);
   } catch {
     pack = null;
+  }
+  try {
+    marks = await agreedAppMarks(snapshot.id, ids);
+  } catch {
+    marks = [];
   }
   return {
     snapshotId: snapshot.id,
@@ -57,6 +71,12 @@ export async function openKnowledge(focus) {
           story: second ? [{ t_sec: t, events }] : [],
           content_events: events,
           open_second: second || null,
+          agreed_app_screens: marks
+            .filter((row) => row.video_id === clip.video_id)
+            .map((row) => ({
+              t_sec: Number(row.t_sec),
+              evidence: appEvidence(row.app),
+            })),
         };
       }),
     },

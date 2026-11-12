@@ -186,3 +186,46 @@ test('a canned question matches only its clip', () => {
   );
   assert.equal(matchCanned('How is amplification computed?', { ids: ['v014'] }, rows), null);
 });
+
+test('a live exact suggested question returns the stored answer and does not call the model', async () => {
+  const prev = {
+    mode: process.env.CHAT_MODE,
+    provider: process.env.CHAT_PROVIDER,
+    key: process.env.GEMINI_CHAT_API_KEY,
+  };
+  process.env.CHAT_MODE = 'live';
+  process.env.CHAT_PROVIDER = 'gemini';
+  delete process.env.GEMINI_CHAT_API_KEY;
+  const original = globalThis.fetch;
+  let calls = 0;
+  globalThis.fetch = async () => {
+    calls += 1;
+    throw new Error('model should not be called');
+  };
+  try {
+    const handler = (await import('../api/chat.js')).default;
+    const questions = [
+      ['What are the biggest caveats of this analysis at N=97?', /The pack is 97 videos/],
+      ["v002's Visual lead over Dorsal Attention is wide (0.1260 vs 0.0697). What do ranks 2 and 3 add beyond the baseline?", /Somatomotor at 0\.0664/],
+    ];
+    for (const [message, pattern] of questions) {
+      const res = sseCapture();
+      await handler({
+        method: 'POST',
+        url: '/api/chat',
+        headers: { 'x-vercel-ip-country': 'US' },
+        body: { message, focus: { ids: ['v002'], timeSec: 1 } },
+      }, res);
+      assert.match(res.raw || '', pattern);
+    }
+    assert.equal(calls, 0);
+  } finally {
+    globalThis.fetch = original;
+    if (prev.mode === undefined) delete process.env.CHAT_MODE;
+    else process.env.CHAT_MODE = prev.mode;
+    if (prev.provider === undefined) delete process.env.CHAT_PROVIDER;
+    else process.env.CHAT_PROVIDER = prev.provider;
+    if (prev.key === undefined) delete process.env.GEMINI_CHAT_API_KEY;
+    else process.env.GEMINI_CHAT_API_KEY = prev.key;
+  }
+});

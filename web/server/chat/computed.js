@@ -85,6 +85,24 @@ function playsFollowers(clip) {
   return { plays, followers, amp, tier: tierFor(plays) };
 }
 
+export function agreedAppAnswer(question, clip, timeSec) {
+  const q = String(question || '').toLowerCase();
+  if (!/\bapp\b/.test(q) || (!q.includes('agreed') && !q.includes('next'))) return null;
+  const times = (Array.isArray(clip?.agreed_app_screens) ? clip.agreed_app_screens : [])
+    .map((row) => Number(row?.t_sec))
+    .filter((t) => Number.isFinite(t))
+    .sort((a, b) => a - b);
+  if (!times.length) {
+    return 'This clip has no agreed app screen in the record, and the open second does not name an app.';
+  }
+  const now = Number(timeSec) || 0;
+  const upcoming = times.find((t) => t > now + 0.04);
+  if (upcoming == null) {
+    return `There is no later agreed app screen. The last one in this clip is at second ${times[times.length - 1]}. The record marks it as an agreed app screen and does not name the app.`;
+  }
+  return `The next agreed app screen is at second ${upcoming}. The record marks that moment as an agreed app screen and does not name the app.`;
+}
+
 export function computedAnswer(question, clip, pack) {
   const q = String(question || '').trim().toLowerCase();
   const id = clip?.id || clip?.video_id;
