@@ -2882,8 +2882,7 @@ select {
   max-width: none;
 }
 
-.confidentiality-note,
-.privacy-note {
+.confidentiality-note {
   margin: 0;
   max-width: none;
   font-family: var(--font-ui);
