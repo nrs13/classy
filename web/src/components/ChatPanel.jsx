@@ -607,7 +607,7 @@ export default function ChatPanel({
         )}
         <div className="composer-shell">
           <ReplyModeGroup value={replyModes} onChange={toggleMode} disabled={busy || inputPaused || Boolean(quota)} />
-          <p className="composer-lens-note" role="status" aria-live="polite">{lensNote}</p>
+          <p className="composer-lens-note sr-only" role="status" aria-live="polite">{lensNote}</p>
           <div className="composer-entry">
             <textarea
               ref={textareaRef}
