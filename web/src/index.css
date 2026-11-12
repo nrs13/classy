@@ -1663,7 +1663,7 @@ select {
 .layout-grid {
   --chat-w: 340px;
   display: grid;
-  grid-template-columns: minmax(180px, 220px) minmax(0, 1fr) minmax(0, var(--chat-w));
+  grid-template-columns: minmax(252px, 280px) minmax(0, 1fr) minmax(0, var(--chat-w));
   min-height: 0;
   flex: 1;
   width: 100%;
@@ -1686,7 +1686,7 @@ select {
 }
 
 .layout-grid-collapsed {
-  grid-template-columns: minmax(180px, 220px) minmax(0, 1fr) minmax(0, var(--chat-w));
+  grid-template-columns: minmax(252px, 280px) minmax(0, 1fr) minmax(0, var(--chat-w));
 }
 
 .layout-grid-mobile {
@@ -3433,6 +3433,7 @@ select {
 
 .sf-rail .sf-input {
   font-size: 13px;
+  text-overflow: ellipsis;
 }
 
 .sf-input::placeholder {
