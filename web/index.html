@@ -6,6 +6,9 @@
     <link rel="shortcut icon" href="/favicon.ico" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/site.webmanifest" />
+    <link rel="preload" href="/fonts/inter-700.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/inter-400.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="stylesheet" href="/shell.css" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="robots" content="noindex, nofollow" />
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
@@ -39,10 +42,13 @@
   </head>
   <body>
     <div id="root">
-      <p>Loading.</p>
-      <noscript>
-        <p>Classy needs JavaScript to run. This is a reduced demo of an internal project. <a href="https://nrsharan.com">nrsharan.com</a></p>
-      </noscript>
+      <div class="boot">
+        <p class="boot-mark">classy</p>
+        <p class="boot-status">loading…</p>
+        <noscript>
+          <p class="boot-noscript">Classy needs JavaScript to run. This is a reduced demo of an internal project. <a href="https://nrsharan.com">nrsharan.com</a></p>
+        </noscript>
+      </div>
     </div>
     <script type="module" src="/src/main.jsx"></script>
   </body>

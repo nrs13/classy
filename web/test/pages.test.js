@@ -59,7 +59,10 @@ test('unknown static paths answer 404 and real files stay 200', async () => {
 test('the shell names JavaScript and shows a loading line', () => {
   assert.match(indexHtml, /Classy needs JavaScript to run\. This is a reduced demo of an internal project\./);
   assert.match(indexHtml, /href="https:\/\/nrsharan\.com"/);
-  assert.match(indexHtml, /<p>Loading\.<\/p>[\s\S]*<noscript>/);
+  assert.match(indexHtml, /class="boot-mark">classy</);
+  assert.match(indexHtml, /class="boot-status">loading…</);
+  assert.match(indexHtml, /href="\/shell\.css"/);
+  assert.match(indexHtml, /<div class="boot">[\s\S]*<noscript>/);
   assert.match(indexHtml, /<title>Classy \(Demo\) - NRS<\/title>/);
   assert.match(indexHtml, /href="\/favicon-32\.png"/);
   assert.equal(indexHtml.includes('icon-192.png'), false);
