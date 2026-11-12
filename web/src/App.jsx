@@ -103,7 +103,7 @@ export default function App() {
   const [mobileChatOpen, setMobileChatOpen] = useState(false);
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(() =>
-    typeof window !== 'undefined' ? window.matchMedia('(max-width: 768px)').matches : false,
+    typeof window !== 'undefined' ? window.matchMedia('(max-width: 768px), (max-height: 500px)').matches : false,
   );
   const [resizing, setResizing] = useState(false);
   const dragRef = useRef(null);
@@ -211,7 +211,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const mq = window.matchMedia('(max-width: 768px)');
+    const mq = window.matchMedia('(max-width: 768px), (max-height: 500px)');
     const onChange = () => {
       const mobile = mq.matches;
       setIsMobile(mobile);

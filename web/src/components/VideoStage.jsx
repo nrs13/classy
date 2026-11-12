@@ -642,7 +642,7 @@ export default function VideoStage({
         </div>
       )}
 
-      <div className="flex items-center gap-2 min-w-0">
+      <div className="stage-transport flex items-center gap-2 min-w-0">
         <span
           ref={timeLabelRef}
           className="time-readout text-[11px] tabular-nums shrink-0 tracking-[0.04em]"
