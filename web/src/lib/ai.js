@@ -36,7 +36,7 @@ export class BothModelsQuotaError extends Error {
 export const CHAT_PAUSED = 'Chat is paused in this demo.';
 
 export const CHAT_PRIVACY =
-  "In this demo, chat messages and the open clip are sent to Google's Gemini API to generate answers. On the free tier, Google uses the content you submit to the Services and any generated responses to provide, improve, and develop Google products and services and machine learning technologies.";
+  "Questions you type here are processed by a service provider to generate answers. Please don't enter personal information.";
 
 const PAUSED_STATUS = new Set([401, 402, 403, 429, 500, 502, 503, 504]);
 const PAUSED_CODE = new Set(['BOTH_MODELS_QUOTA', 'SPEND_CAP', 'NOT_CONFIGURED', 'API_ERROR']);

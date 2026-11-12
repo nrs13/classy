@@ -19,7 +19,6 @@ export default function Receipt({ row, quoteFloor, searchNote }) {
   const screenText = screenLines.join(' ');
   const rawScreen = view.text.length > 0;
   const understanding = secondText(row);
-  const kept = view.ask?.phrase_en || view.ask?.phrase_original || (view.app ? 'the app screen' : '');
   const empty = !speech && !screenLines.length && !understanding && !rawScreen;
 
   return (
@@ -45,7 +44,6 @@ export default function Receipt({ row, quoteFloor, searchNote }) {
             <p className="playhead-extract-line is-full">{understanding}</p>
           </div>
         )}
-        {kept && <p className="playhead-extract-sub">Both models kept {kept}.</p>}
         {empty && <p className="playhead-extract-line is-empty">Nothing was extracted at this second.</p>}
         {searchNote && <p className="playhead-extract-sub">{searchNote}</p>}
       </div>
