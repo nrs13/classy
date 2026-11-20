@@ -15,7 +15,6 @@ function hasNumber(reply, number) {
   return new RegExp(`(?<!\\d)${body}(?!\\d)`).test(hay);
 }
 
-/** True when every number written in the stored fact still appears in the reply. */
 export function numbersKept(fact, reply) {
   return numericTokens(fact).every((number) => hasNumber(reply, number));
 }

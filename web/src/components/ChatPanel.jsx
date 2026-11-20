@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  CANNED_ONLY_REPLY,
   chatPaused,
   checkChatBackend,
   CHAT_PAUSED,
@@ -514,6 +515,11 @@ export default function ChatPanel({
   }
 
   const empty = messages.length === 0;
+  const regionCanned = Boolean(chatState?.notice);
+  const lastTurn = messages[messages.length - 1];
+  const lastCannedOnly =
+    lastTurn?.role === 'assistant' && lastTurn.text === CANNED_ONLY_REPLY;
+  const showSuggestAfterTurn = regionCanned || lastCannedOnly || showOfflineHints;
   const suggestList = (keyPrefix, labelled) => (
     <div className="chat-suggest-list">
       {labelled && (
@@ -680,7 +686,7 @@ export default function ChatPanel({
               </div>
             );
           })}
-          {showOfflineHints && suggestList('hint-', false)}
+          {showSuggestAfterTurn && !empty && suggestList('hint-', !showOfflineHints)}
         </div>
 
         {showJump && (

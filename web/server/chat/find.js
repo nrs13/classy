@@ -13,7 +13,6 @@ function hitLine(row) {
   };
 }
 
-/** Search hits for a find question. `search` is injectable so tests never call the library. */
 export async function findHits(message, search) {
   if (!asksToFind(message) || typeof search !== 'function') return [];
   const found = await search({ q: message, understand: false, limit: 5 });

@@ -202,14 +202,13 @@ export default function VideoStage({
   }, [video.id]);
 
   useEffect(() => {
-    if (!hasVideo) return undefined;
     const ctrl = new AbortController();
     setActivation(null);
     loadActivation(video, brain, { signal: ctrl.signal }).then((a) => {
       if (!ctrl.signal.aborted) setActivation(a);
     });
     return () => ctrl.abort();
-  }, [video.id, brain, hasVideo]);
+  }, [video.id, brain]);
 
   useEffect(() => {
     const ctrl = new AbortController();

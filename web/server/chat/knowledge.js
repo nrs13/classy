@@ -155,7 +155,6 @@ function appEvidence(app) {
   return String(evidence || 'Agreed app screen');
 }
 
-/** Each open clip, its seconds, and a few other high-play clips reach the model. */
 export async function openKnowledge(focus, message = '') {
   if (!focus.ids.length) return { error: 'Open a video first.' };
   const snapshot = await snapshotOnce();
@@ -166,19 +165,23 @@ export async function openKnowledge(focus, message = '') {
   const extraIds = askedVideoIds(message, ids);
   const askedSeconds = askedSecondSet(message);
   const sec = firstAskedSecond(message);
-  const [clips, seconds, pack, marks, peers, secondLists, extra, extraRows, catalog] = await Promise.all([
+  const compared = focus.view === 'compare';
+  const [clips, pack, marks, peers, secondLists, extra, extraRows, catalog] = await Promise.all([
     clipsForChat(snapshot.id, ids),
-    secondsAt(snapshot.id, ids, t),
     slopesOnce(snapshot.id),
     agreedAppMarks(snapshot.id, ids).catch(() => []),
-    peerClips(snapshot.id, ids, 5).catch(() => []),
+    compared ? peerClips(snapshot.id, ids, 5).catch(() => []) : Promise.resolve([]),
     Promise.all(ids.map((id) => secondsFor(snapshot.id, id).catch(() => []))),
     extraIds.length ? clipsForChat(snapshot.id, extraIds).catch(() => []) : Promise.resolve([]),
     extraIds.length ? secondsAt(snapshot.id, extraIds, sec).catch(() => []) : Promise.resolve([]),
-    listVideos(snapshot.id).catch(() => []),
+    compared ? Promise.resolve([]) : listVideos(snapshot.id).catch(() => []),
   ]);
   if (clips.length !== ids.length) return { error: 'That video is not in your Library.' };
-  const at = new Map(seconds.map((row) => [row.video_id, row]));
+  const at = new Map();
+  ids.forEach((id, index) => {
+    const row = (secondLists[index] || []).find((item) => Number(item?.t_sec) === t);
+    if (row) at.set(id, row);
+  });
   const atExtra = new Map((extraRows || []).map((row) => [row.video_id, row]));
   const asked = (extra || []).map((clip) => ({
     id: clip.video_id,

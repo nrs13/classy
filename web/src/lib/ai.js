@@ -36,6 +36,9 @@ class BothModelsQuotaError extends Error {
 
 export const CHAT_PAUSED = 'Chat is paused in this demo.';
 
+export const CANNED_ONLY_REPLY =
+  'Only the suggested questions are answered in this demo.';
+
 export const CHAT_PRIVACY =
   "Classy can make mistakes, and please don't enter personal information.";
 

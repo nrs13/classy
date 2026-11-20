@@ -135,9 +135,15 @@ export default function App() {
   useEffect(() => {
     const ctrl = new AbortController();
     setCatalogError(false);
+    loadBrain(null, { signal: ctrl.signal }).then(
+      (next) => {
+        if (!ctrl.signal.aborted) setBrain(next);
+      },
+      () => {},
+    );
     loadCatalog(ctrl.signal)
       .then((m) => {
-        if (ctrl.signal.aborted) return null;
+        if (ctrl.signal.aborted) return;
         setManifest(m);
         const first = m.videos[0]?.id || null;
         setSelId(first);
@@ -150,22 +156,12 @@ export default function App() {
             amplification: 'plays / followers',
           },
         });
-        return m;
-      })
-      .then((m) => {
-        if (!m || ctrl.signal.aborted) return;
-        return loadBrain(m).then((brain) => {
-          if (!ctrl.signal.aborted) setBrain(brain);
-        });
       })
       .catch((err) => {
         const plan = catalogFailurePlan(err, ctrl.signal.aborted);
         if (!plan) return;
         setCatalogError(plan.catalogError);
         setManifest(plan.manifest);
-        return loadBrain(plan.manifest).then((next) => {
-          if (!ctrl.signal.aborted) setBrain(next);
-        });
       });
     return () => ctrl.abort();
   }, [catalogAttempt]);

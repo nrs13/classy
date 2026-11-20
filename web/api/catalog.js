@@ -48,10 +48,6 @@ export function profileUrl(videoUrl, account) {
   return '';
 }
 
-function clipNotes(videoId) {
-  return notesFor(videoId);
-}
-
 export function tierFor(plays) {
   if (plays == null || plays === '') return null;
   const n = Number(plays);
@@ -89,7 +85,7 @@ export default route('catalog', {}, async (req, res, { requestId }) => {
       profileUrl: profileUrl(row.url, row.account) || undefined,
       tier: tierFor(row.plays) || undefined,
       annotations: (() => {
-        const notes = clipNotes(row.video_id);
+        const notes = notesFor(row.video_id);
         return {
           format: notes.format || undefined,
           key_elements: notes.key_elements || undefined,

@@ -2,6 +2,21 @@ import { apiFetch } from './apiFetch.js';
 
 const DATA = '/data';
 
+const YEO7 = {
+  name: 'Yeo-7',
+  scope: 'coarse 7-network cortical parcellation',
+  labels: 'atlas_yeo7_labels.bin',
+  networkNames: {
+    1: 'Visual',
+    2: 'Somatomotor',
+    3: 'Dorsal Attention',
+    4: 'Ventral Attention',
+    5: 'Limbic',
+    6: 'Frontoparietal',
+    7: 'Default Mode Network',
+  },
+};
+
 async function fetchArrayBuffer(url, signal) {
   const res = await apiFetch(url, { signal, retries: 0, timeoutMs: 60_000 });
   if (signal?.aborted) {
@@ -15,42 +30,33 @@ async function fetchArrayBuffer(url, signal) {
   return res.arrayBuffer();
 }
 
-async function loadAtlas(manifest, vertexCount) {
-  const atlas = manifest?.atlas;
-  if (
-    manifest?.synthetic ||
-    !atlas?.requiresRealMesh ||
-    atlas?.syntheticMeshCompatible !== false ||
-    !atlas?.labels
-  ) {
-    return null;
-  }
+export async function loadBrain(manifest, { signal } = {}) {
   try {
-    const labels = new Uint8Array(await fetchArrayBuffer(`${DATA}/${atlas.labels}`));
-    if (labels.length !== vertexCount || atlas.vertexCount !== vertexCount) return null;
-    return {
-      labels,
-      name: atlas.name,
-      scope: atlas.scope,
-      networkNames: atlas.networkNames || {},
-    };
-  } catch {
-    return null;
-  }
-}
-
-export async function loadBrain(manifest) {
-  try {
-    const [posBuf, idxBuf] = await Promise.all([
-      fetchArrayBuffer(`${DATA}/brain_pos.bin`),
-      fetchArrayBuffer(`${DATA}/brain_idx.bin`),
+    const [posBuf, idxBuf, labelsBuf] = await Promise.all([
+      fetchArrayBuffer(`${DATA}/brain_pos.bin`, signal),
+      fetchArrayBuffer(`${DATA}/brain_idx.bin`, signal),
+      fetchArrayBuffer(`${DATA}/${YEO7.labels}`, signal).catch(() => null),
     ]);
     const positions = new Float32Array(posBuf);
     const indices = new Uint32Array(idxBuf);
     const vertexCount = positions.length / 3;
-    const atlas = await loadAtlas(manifest, vertexCount);
+    const labels = labelsBuf ? new Uint8Array(labelsBuf) : null;
+    const atlas =
+      labels && labels.length === vertexCount
+        ? {
+            labels,
+            name: manifest?.atlas?.name || YEO7.name,
+            scope: manifest?.atlas?.scope || YEO7.scope,
+            networkNames: manifest?.atlas?.networkNames || YEO7.networkNames,
+          }
+        : null;
     return { positions, indices, vertexCount, atlas, synthetic: false };
-  } catch {
+  } catch (err) {
+    if (signal?.aborted || err?.name === 'AbortError') {
+      const aborted = new Error('aborted');
+      aborted.name = 'AbortError';
+      throw aborted;
+    }
     const { IcosahedronGeometry } = await import('three');
     const geo = new IcosahedronGeometry(1.25, 4);
     const positions = Float32Array.from(geo.attributes.position.array);

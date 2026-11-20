@@ -1,9 +1,6 @@
 import { classifyProviderFailure } from './classify.js';
 import { ChatProviderError } from './providerError.js';
 
-// GenerateContent usageMetadata: https://ai.google.dev/gemini-api/docs/tokens
-// Candidate.finishReason: https://ai.google.dev/api/generate-content#FinishReason
-
 function failureError(status, raw, kind) {
   const failure = classifyProviderFailure(status, raw, kind);
   return new ChatProviderError(failure.scope, failure.status, failure);
@@ -73,7 +70,6 @@ export async function* streamGemini({
         })),
         generationConfig: {
           maxOutputTokens,
-          // thinkingConfig.thinkingLevel: https://ai.google.dev/gemini-api/docs/thinking
           thinkingConfig: { thinkingLevel: 'minimal' },
         },
       }),

@@ -1,7 +1,6 @@
 import { normalizeReplyModes } from '../../src/lib/replyModes.js';
 import { amplificationLabel, fixed4, wholeCount } from '../../src/lib/figures.js';
 
-// How Classy talks, then one block per selected lens.
 export const REEL_START = '<<<REEL>>>';
 export const REEL_END = '<<</REEL>>>';
 
