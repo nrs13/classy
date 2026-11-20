@@ -131,7 +131,7 @@ export default async function handler(req, res) {
     fail(res, 400, 'message_too_long', requestId);
     return;
   }
-  if (messageTooShort(message)) {
+  if (messageTooShort(message, history)) {
     fail(res, 400, 'message_too_short', requestId);
     return;
   }

@@ -10,6 +10,9 @@ test('a second send is refused while one reply is in flight', () => {
   assert.equal(acceptSend(false, '   '), false);
   assert.equal(acceptSend(false, ''), false);
   assert.equal(acceptSend(false, 'short'), false);
+  assert.equal(acceptSend(false, 'why', 0, 0, [{ role: 'user', text: 'how many plays does this have?' }]), true);
+  assert.equal(acceptSend(false, 'why', 10_000, 9_000, [{ role: 'user', text: 'how many plays does this have?' }]), false);
+  assert.equal(composerHold({ text: 'why', history: [{ role: 'user', text: 'how many plays does this have?' }] }), '');
   assert.equal(acceptSend(false, 'hello there', 10_000, 9_000), false);
   assert.equal(acceptSend(false, 'hello there', 20_000, 9_000), true);
   assert.equal(composerHold({ text: 'hi' }), 'Type at least 8 characters.');
@@ -142,4 +145,69 @@ test('retry sends the last user turn and drops the failed reply', () => {
   assert.equal(turn.prior.length, 2);
   assert.equal(retryTurn([{ role: 'assistant', text: 'done' }]), null);
   assert.equal(retryTurn([]), null);
+});
+
+test('why is rejected with an empty history and accepted once the thread has one', async () => {
+  const prev = {
+    mode: process.env.CHAT_MODE,
+    provider: process.env.CHAT_PROVIDER,
+    node: process.env.NODE_ENV,
+    vercel: process.env.VERCEL_ENV,
+  };
+  process.env.CHAT_MODE = 'live';
+  process.env.CHAT_PROVIDER = 'mock';
+  process.env.NODE_ENV = 'test';
+  delete process.env.VERCEL_ENV;
+  const mockChat = await import('../server/chat/mock.js');
+  mockChat.resetMockStarts();
+  const handler = (await import('../api/chat.js')).default;
+  const capture = () => {
+    let raw = '';
+    return {
+      statusCode: 200,
+      headers: {},
+      setHeader() {},
+      writeHead() {},
+      write(chunk) { raw += chunk; this.raw = raw; },
+      end() { this.raw = raw; },
+      status(code) { this.statusCode = code; return this; },
+      json(payload) { this.body = payload; },
+    };
+  };
+  try {
+    const empty = capture();
+    await handler({
+      method: 'POST',
+      url: '/api/chat',
+      headers: { 'x-vercel-ip-country': 'US', 'x-forwarded-for': '203.0.113.70' },
+      body: { message: 'why', focus: { ids: ['v002'], timeSec: 0, view: 'explore' } },
+    }, empty);
+    assert.equal(empty.statusCode, 400);
+    assert.equal(empty.body.error, 'message_too_short');
+    assert.equal(mockChat.mockStarts, 0);
+
+    const followed = capture();
+    await handler({
+      method: 'POST',
+      url: '/api/chat',
+      headers: { 'x-vercel-ip-country': 'US', 'x-forwarded-for': '203.0.113.70' },
+      body: {
+        message: 'why',
+        history: [{ role: 'user', text: 'how many plays does this have?' }],
+        focus: { ids: ['v002'], timeSec: 0, view: 'explore' },
+      },
+    }, followed);
+    assert.notEqual(followed.body?.error, 'message_too_short');
+    assert.equal(mockChat.mockStarts, 1);
+    assert.match(followed.raw || '', /This is a mock answer/);
+  } finally {
+    if (prev.mode === undefined) delete process.env.CHAT_MODE;
+    else process.env.CHAT_MODE = prev.mode;
+    if (prev.provider === undefined) delete process.env.CHAT_PROVIDER;
+    else process.env.CHAT_PROVIDER = prev.provider;
+    if (prev.node === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = prev.node;
+    if (prev.vercel === undefined) delete process.env.VERCEL_ENV;
+    else process.env.VERCEL_ENV = prev.vercel;
+  }
 });

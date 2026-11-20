@@ -19,26 +19,35 @@ export function messageTooLong(text) {
   return messageLength(String(text ?? '').trim()) > MAX_MESSAGE_CHARS;
 }
 
-export function messageTooShort(text) {
+export function messageTooShort(text, history) {
   const q = String(text ?? '').trim();
-  return messageLength(q) > 0 && messageLength(q) < MIN_MESSAGE_CHARS;
+  if (messageLength(q) === 0 || messageLength(q) >= MIN_MESSAGE_CHARS) return false;
+  return !historyPresent(history);
+}
+
+export function historyPresent(history) {
+  return Array.isArray(history) && history.some((item) => {
+    if (!item || item.error) return false;
+    const text = item.text ?? item.content;
+    return typeof text === 'string' && text.trim().length > 0;
+  });
 }
 
 /** Why the composer will not send, or an empty string when it will. */
-export function composerHold({ text = '', cooldownLeft = 0, quotaText = '' } = {}) {
+export function composerHold({ text = '', cooldownLeft = 0, quotaText = '', history } = {}) {
   if (quotaText) return quotaText;
   const left = Math.ceil(Number(cooldownLeft) || 0);
   if (left > 0) return `You can send again in ${left} s`;
-  if (messageTooShort(text)) return 'Type at least 8 characters.';
+  if (messageTooShort(text, history)) return 'Type at least 8 characters.';
   return '';
 }
 
 /** True when a send may start. A second click, a short note, or a cooldown is refused. */
-export function acceptSend(inFlight, text, now = 0, lastSentAt = 0) {
+export function acceptSend(inFlight, text, now = 0, lastSentAt = 0, history) {
   if (inFlight) return false;
   if (lastSentAt && now - lastSentAt < CHAT_COOLDOWN_MS) return false;
   const q = String(text ?? '').trim();
-  return messageLength(q) >= MIN_MESSAGE_CHARS && !messageTooLong(q);
+  return messageLength(q) > 0 && !messageTooShort(q, history) && !messageTooLong(q);
 }
 
 /** Drop a reply that was cancelled before any text arrived. */

@@ -344,7 +344,7 @@ export default function ChatPanel({
   async function send(text, { prior, suggested } = {}) {
     const q = (text ?? input).trim();
     if (!canAsk(mode, reels, suggestionVideoIds, q).ready) return;
-    if (!acceptSend(busyRef.current, q, Date.now(), lastSentAt.current)) return;
+    if (!acceptSend(busyRef.current, q, Date.now(), lastSentAt.current, prior ?? messages)) return;
     lastSentAt.current = Date.now();
     setCooldownUntil(lastSentAt.current + CHAT_COOLDOWN_MS);
     busyRef.current = true;
@@ -736,7 +736,7 @@ export default function ChatPanel({
             <button
               type="button"
               onClick={busy ? stop : () => send()}
-              disabled={inputPaused || Boolean(quota) || (!busy && (!canAsk(mode, reels, suggestionVideoIds, input).ready || !acceptSend(false, input, Date.now(), cooldownUntil ? cooldownUntil - CHAT_COOLDOWN_MS : 0)))}
+              disabled={inputPaused || Boolean(quota) || (!busy && (!canAsk(mode, reels, suggestionVideoIds, input).ready || !acceptSend(false, input, Date.now(), cooldownUntil ? cooldownUntil - CHAT_COOLDOWN_MS : 0, messages)))}
               className="chat-send-btn btn-primary text-[13px]"
               aria-label={busy ? 'Stop reply' : 'Send'}
               title={busy ? 'Stop' : 'Send message'}
@@ -749,6 +749,7 @@ export default function ChatPanel({
               text: input,
               cooldownLeft,
               quotaText: quotaAnnouncement(quota, quotaLeft),
+              history: messages,
             })}
           </div>
         </div>
