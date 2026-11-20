@@ -4,7 +4,7 @@ import { ErrorBoundary } from './ErrorBoundary';
 import { BRAIN_FALLBACK } from '../lib/boundary';
 import Receipt from './Receipt';
 import VideoId from './VideoId';
-import { loadActivation, SECONDS_UNAVAILABLE, secondsFailed } from '../lib/data';
+import { curveBins, loadActivation, signedMedia, SECONDS_UNAVAILABLE, secondsFailed } from '../lib/data';
 import { apiFetch } from '../lib/apiFetch';
 import { cutMarks, sentencesAt, timingSource } from '../lib/forecast';
 import { whyLine } from '../lib/search';
@@ -240,10 +240,9 @@ export default function VideoStage({
   useEffect(() => {
     const ctrl = new AbortController();
     setMediaSrc('');
-    apiFetch(`/api/media?id=${encodeURIComponent(video.id)}&kind=mp4`, { signal: ctrl.signal })
-      .then((res) => (res.ok ? res.json() : null))
-      .then((body) => {
-        if (!ctrl.signal.aborted && body?.url) setMediaSrc(body.url);
+    signedMedia(video.id, 'mp4', { signal: ctrl.signal, fresh: mediaTry > 0 || stallNonce > 0 })
+      .then((url) => {
+        if (!ctrl.signal.aborted) setMediaSrc(url);
       })
       .catch(() => {
         if (!ctrl.signal.aborted) setMediaSrc('');
@@ -441,7 +440,10 @@ export default function VideoStage({
   }, [seekRequest, video.id]);
 
   const bins = stack ? 32 : 56;
-  const curve = useMemo(() => meanCurve(activation, bins), [activation, bins]);
+  const curve = useMemo(
+    () => meanCurve(activation, bins) || curveBins(video.curve, bins),
+    [activation, bins, video.curve],
+  );
   const barCurve = curve || loadingCurve(bins);
   const barsReady = Boolean(curve);
   const shownDuration = duration || video.duration || 0;

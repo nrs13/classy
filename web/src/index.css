@@ -2102,41 +2102,6 @@ select {
   50% { opacity: 0; }
 }
 
-.chat-context {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  min-width: 0;
-}
-
-.chat-subject {
-  margin: 0;
-  font-size: 12px;
-  line-height: 1.4;
-  color: var(--text-secondary);
-}
-
-.chat-reels {
-  display: flex;
-  gap: 6px;
-  overflow-x: auto;
-  padding-bottom: 2px;
-}
-
-.chat-reel {
-  flex: 0 0 auto;
-  min-height: 44px;
-  padding: 0 12px;
-  border: 1px solid var(--border);
-  background: transparent;
-  color: var(--text-primary);
-  font-size: 12px;
-}
-
-.chat-reel.is-on {
-  border-color: var(--text-primary);
-}
-
 .chat-jump-btn {
   position: absolute;
   left: 50%;

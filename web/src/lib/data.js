@@ -119,17 +119,76 @@ export async function loadCatalog(signal) {
   };
 }
 
+const SIGNED = new Map();
+const SIGNED_KINDS = new Set(['mp4', 'act']);
+
+export async function signedMedia(id, kind, { signal, fresh = false } = {}) {
+  const videoId = String(id || '');
+  if (!videoId || !SIGNED_KINDS.has(kind) || signal?.aborted) return '';
+  const key = `${videoId}:${kind}`;
+  if (fresh) SIGNED.delete(key);
+  const hit = SIGNED.get(key);
+  if (hit?.url && hit.exp > Date.now() + 5_000) return hit.url;
+  try {
+    const res = await apiFetch(`/api/media?id=${encodeURIComponent(videoId)}&kind=${kind}`, { signal });
+    if (signal?.aborted || !res.ok) return '';
+    const body = await res.json();
+    const url = typeof body?.url === 'string' ? body.url : '';
+    if (!url) return '';
+    SIGNED.set(key, { url, exp: Number(body.expiresAt) || Date.now() + 60_000 });
+    return url;
+  } catch (err) {
+    if (signal?.aborted || err?.name === 'AbortError') return '';
+    return '';
+  }
+}
+
+export function prefetchClip(id, { signal } = {}) {
+  if (!id || signal?.aborted) return;
+  for (const kind of SIGNED_KINDS) {
+    signedMedia(id, kind, { signal })
+      .then((url) => {
+        if (!url || signal?.aborted) return;
+        return fetch(url, { signal, mode: 'cors', credentials: 'omit' });
+      })
+      .catch(() => {});
+  }
+}
+
+export function curveBins(series, bins = 48) {
+  const count = Math.max(1, Number(bins) || 48);
+  const pts = [];
+  for (const point of Array.isArray(series) ? series : []) {
+    if (typeof point === 'number' && Number.isFinite(point)) {
+      pts.push(point);
+      continue;
+    }
+    const abs = Number(point?.mean_abs ?? point?.meanAbs);
+    if (Number.isFinite(abs)) pts.push(abs);
+  }
+  if (!pts.length) return null;
+  const peak = Math.max(...pts, 0);
+  if (peak < 1e-8) return null;
+  const out = new Array(count);
+  for (let i = 0; i < count; i += 1) {
+    const t = count === 1 ? 0 : i / (count - 1);
+    const fi = Math.min(pts.length - 1, Math.floor(t * (pts.length - 1)));
+    out[i] = pts[fi] / peak;
+  }
+  return out;
+}
+
+export function clearSignedMedia() {
+  SIGNED.clear();
+}
+
 export async function loadActivation(video, brain, { signal } = {}) {
   if (!video?.id || !brain || brain.synthetic || signal?.aborted) return null;
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
-      const meta = await apiFetch(`/api/media?id=${encodeURIComponent(video.id)}&kind=act`, {
-        signal,
-      });
-      if (signal?.aborted || !meta.ok) return null;
-      const body = await meta.json();
-      if (!body?.url) return null;
-      const data = new Uint8Array(await fetchArrayBuffer(body.url, signal));
+      const url = await signedMedia(video.id, 'act', { signal, fresh: attempt > 0 });
+      if (signal?.aborted || !url) return null;
+      const data = new Uint8Array(await fetchArrayBuffer(url, signal));
       const n = brain.vertexCount;
       const frames = n > 0 ? Math.round(data.length / n) : 0;
       if (frames > 0 && data.length === frames * n) {

@@ -22,7 +22,7 @@ import { acceptSend, capMessage, CHAT_COOLDOWN_MS, composerHold, dropUnfinishedR
 import { applyOnlineState } from '../lib/connection';
 import { coolingDeadline, isCooling, LIVE_REGION, onQuotaClock, quotaAnnouncement, startCountdown } from '../lib/quota';
 import { CUT_LABEL, OFFLINE_LABEL } from '../lib/streamFrame';
-import { answerSubject, canAsk, reelLabel } from '../lib/answerSubject';
+import { canAsk } from '../lib/answerSubject';
 
 function visitorModel(name) {
   const text = String(name || '').trim();
@@ -42,9 +42,7 @@ export default function ChatPanel({
   onToggleCollapse,
   onCloseMobile,
   mode = 'explore',
-  onMode,
   reels = [],
-  onPickReel,
 }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
@@ -75,10 +73,6 @@ export default function ChatPanel({
   const sendGen = useRef(0);
   const busyRef = useRef(false);
   const suggestionKey = suggestionVideoIds.join('|');
-  const subject = useMemo(
-    () => answerSubject(mode, reels, suggestionVideoIds),
-    [mode, reels, suggestionVideoIds],
-  );
   const clipSeen = useRef(suggestionKey);
 
   const toggleMode = useCallback((id) => {
@@ -591,43 +585,6 @@ export default function ChatPanel({
           </div>
         </div>
         </div>
-        {mobile && onMode && (
-          <div className="chat-context">
-            <div className="flex shrink-0 gap-1 mode-toggle p-1 text-[12px]" role="group" aria-label="Section">
-              {['explore', 'compare', 'search'].map((mo) => (
-                <button
-                  key={mo}
-                  type="button"
-                  onClick={() => onMode(mo)}
-                  className={`mode-tab px-3.5 py-1.5 capitalize ${mode === mo ? 'active' : ''}`}
-                  aria-pressed={mode === mo}
-                >
-                  {mo}
-                </button>
-              ))}
-            </div>
-            <p className="chat-subject">{subject.text}</p>
-            {reels.length > 0 && (
-              <div className="chat-reels" role="listbox" aria-label="Reels">
-                {reels.map((reel) => {
-                  const on = suggestionVideoIds.includes(reel.id);
-                  return (
-                    <button
-                      key={reel.id}
-                      type="button"
-                      role="option"
-                      aria-selected={on}
-                      className={`chat-reel${on ? ' is-on' : ''}`}
-                      onClick={() => onPickReel?.(reel.id)}
-                    >
-                      {reelLabel(reel, reels)}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        )}
       </div>
 
       <div className="relative flex-1 min-h-0">

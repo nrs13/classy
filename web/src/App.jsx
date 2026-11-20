@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { catalogFailurePlan, loadCatalog, loadBrain } from './lib/data';
+import { catalogFailurePlan, loadCatalog, loadBrain, prefetchClip } from './lib/data';
 import VideoStage from './components/VideoStage';
 import ChatPanel from './components/ChatPanel';
 import { CompareVerdictLayout } from './components/CompareVerdict';
@@ -148,6 +148,7 @@ export default function App() {
         const first = m.videos[0]?.id || null;
         setSelId(first);
         setCompareIds(first ? [first] : []);
+        prefetchClip(first, { signal: ctrl.signal });
         setKnowledge({
           product: 'Classy',
           videos: m.videos,
@@ -600,7 +601,7 @@ export default function App() {
     });
   }
 
-  if (!manifest || !brain) {
+  if (!manifest) {
     return (
       <div className="h-full grid place-items-center app-shell" style={{ color: 'var(--text-tertiary)' }}>
         <div className="text-center">
@@ -636,9 +637,7 @@ export default function App() {
     collapsed: chatCollapsed,
     onToggleCollapse: toggleCollapse,
     mode,
-    onMode: chooseMode,
     reels,
-    onPickReel: onVideoActivate,
   };
 
   const compareControls = (

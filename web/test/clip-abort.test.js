@@ -1,6 +1,14 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { catalogFailurePlan, loadActivation, loadCatalog, secondsFailed } from '../src/lib/data.js';
+import {
+  catalogFailurePlan,
+  clearSignedMedia,
+  curveBins,
+  loadActivation,
+  loadCatalog,
+  secondsFailed,
+  signedMedia,
+} from '../src/lib/data.js';
 
 test('loadActivation passes the abort signal and returns nothing when cancelled', async () => {
   const original = globalThis.fetch;
@@ -27,6 +35,7 @@ test('loadActivation passes the abort signal and returns nothing when cancelled'
   assert.equal(await pending, null);
   assert.equal(sawSignal, true);
   globalThis.fetch = original;
+  clearSignedMedia();
 });
 
 test('a failed seconds load is retryable unless the clip already changed', () => {
@@ -82,6 +91,7 @@ test('loadActivation asks for a fresh link once when the file request fails', as
     assert.equal(calls.filter((url) => url.includes('/api/media')).length, 2);
   } finally {
     globalThis.fetch = original;
+    clearSignedMedia();
   }
 });
 
@@ -100,4 +110,27 @@ test('loadActivation does not fetch when the signal is already aborted', async (
   );
   assert.equal(called, 0);
   globalThis.fetch = original;
+  clearSignedMedia();
+});
+
+test('curveBins paints a stored catalog curve before activation lands', () => {
+  assert.deepEqual(curveBins([{ t_sec: 0, mean_abs: 0.2 }, { t_sec: 1, mean_abs: 0.4 }], 2), [0.5, 1]);
+  assert.equal(curveBins([], 8), null);
+});
+
+test('signedMedia reuses a link that has not expired', async () => {
+  const original = globalThis.fetch;
+  let calls = 0;
+  globalThis.fetch = async () => {
+    calls += 1;
+    return { ok: true, json: async () => ({ url: 'https://example.test/v001.mp4', expiresAt: Date.now() + 60_000 }) };
+  };
+  try {
+    assert.equal(await signedMedia('v001', 'mp4'), 'https://example.test/v001.mp4');
+    assert.equal(await signedMedia('v001', 'mp4'), 'https://example.test/v001.mp4');
+    assert.equal(calls, 1);
+  } finally {
+    globalThis.fetch = original;
+    clearSignedMedia();
+  }
 });
