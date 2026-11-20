@@ -26,6 +26,9 @@ export function searchParams(req) {
   return new URL(req.url || '', 'http://localhost').searchParams;
 }
 
+/** Public Library reads. Snapshot id is in the ETag, so a promote drops the cache. */
+export const PUBLIC_READ_CACHE = 'public, max-age=30, s-maxage=60, stale-while-revalidate=600';
+
 /** Wraps a route: request id header, method check, safe errors, one log line on failure. */
 export function route(name, { methods = ['GET'], fallback = 'library_unavailable' }, handler) {
   return async function wrapped(req, res) {

@@ -1,15 +1,37 @@
 import { notesFor } from '../data/clipNotes.js';
 import { currentSnapshot } from '../repo/snapshot.js';
-import { agreedAppMarks, clipsForChat, hookSlopes, listVideos, peerClips, secondsAt, secondsFor, VIDEO_ID } from '../repo/videos.js';
+import { asksToFind } from './find.js';
+import { agreedAppMarks, clipsForChat, hookSlopes, listVideos, peerClips, secondsAt, secondsForChat, VIDEO_ID } from '../repo/videos.js';
 import { tierFor } from '../../api/catalog.js';
 
 const MEMORY_MS = 15000;
 let snapshotCache = { at: 0, value: null };
 const slopeCache = new Map();
+const directoryCache = new Map();
+const secondsCache = new Map();
+
+export function wantsDirectory(message, view) {
+  if (view === 'compare') return false;
+  const text = String(message || '');
+  if (asksToFind(text)) return false;
+  return /\b(library|other (reels?|clips?|videos?)|which (reels?|clips?|videos?)|suggest|inspo|pack|website|help me|learn from)\b/i.test(text);
+}
+
+export function wantsFullTimeline(message) {
+  const text = String(message || '');
+  if (asksToFind(text)) return false;
+  if (/\bhow many\b/i.test(text) && !/\b(why|explain|opening|happen|brain)\b/i.test(text)) return false;
+  if (/\b(why|explain|opening|happen|brain|cut|second|hook|sustain|earn|walk|peak)\b/i.test(text)) return true;
+  if (/\bhow\b/i.test(text)) return true;
+  if (/\b(plays?|amplification|followers?|like rate|website|help me|what is a |what is this)\b/i.test(text)) return false;
+  return true;
+}
 
 export function clearKnowledgeCache() {
   snapshotCache = { at: 0, value: null };
   slopeCache.clear();
+  directoryCache.clear();
+  secondsCache.clear();
 }
 
 async function snapshotOnce() {
@@ -31,6 +53,25 @@ async function slopesOnce(snapshotId) {
   } catch {
     return null;
   }
+}
+
+async function directoryOnce(snapshotId) {
+  const now = Date.now();
+  const hit = directoryCache.get(snapshotId);
+  if (hit && now - hit.at < MEMORY_MS) return hit.value;
+  const value = await listVideos(snapshotId).catch(() => []);
+  directoryCache.set(snapshotId, { at: now, value });
+  return value;
+}
+
+async function secondsOnce(snapshotId, id) {
+  const key = `${snapshotId}:${id}`;
+  const now = Date.now();
+  const hit = secondsCache.get(key);
+  if (hit && now - hit.at < MEMORY_MS) return hit.value;
+  const value = await secondsForChat(snapshotId, id).catch(() => []);
+  secondsCache.set(key, { at: now, value });
+  return value;
 }
 
 export function windowTimeline(rows, playhead, askedSeconds) {
@@ -166,15 +207,19 @@ export async function openKnowledge(focus, message = '') {
   const askedSeconds = askedSecondSet(message);
   const sec = firstAskedSecond(message);
   const compared = focus.view === 'compare';
+  const needDirectory = wantsDirectory(message, focus.view);
+  const needSeconds = wantsFullTimeline(message);
   const [clips, pack, marks, peers, secondLists, extra, extraRows, catalog] = await Promise.all([
     clipsForChat(snapshot.id, ids),
     slopesOnce(snapshot.id),
-    agreedAppMarks(snapshot.id, ids).catch(() => []),
+    needSeconds ? agreedAppMarks(snapshot.id, ids).catch(() => []) : Promise.resolve([]),
     compared ? peerClips(snapshot.id, ids, 5).catch(() => []) : Promise.resolve([]),
-    Promise.all(ids.map((id) => secondsFor(snapshot.id, id).catch(() => []))),
+    needSeconds
+      ? Promise.all(ids.map((id) => secondsOnce(snapshot.id, id)))
+      : Promise.resolve(ids.map(() => [])),
     extraIds.length ? clipsForChat(snapshot.id, extraIds).catch(() => []) : Promise.resolve([]),
     extraIds.length ? secondsAt(snapshot.id, extraIds, sec).catch(() => []) : Promise.resolve([]),
-    compared ? Promise.resolve([]) : listVideos(snapshot.id).catch(() => []),
+    needDirectory ? directoryOnce(snapshot.id) : Promise.resolve([]),
   ]);
   if (clips.length !== ids.length) return { error: 'That video is not in your Library.' };
   const at = new Map();

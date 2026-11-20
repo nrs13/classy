@@ -1,4 +1,4 @@
-import { route } from '../server/http.js';
+import { PUBLIC_READ_CACHE, route } from '../server/http.js';
 import { notesFor } from '../server/data/clipNotes.js';
 import { currentSnapshot } from '../server/repo/snapshot.js';
 import { listVideos } from '../server/repo/videos.js';
@@ -66,7 +66,7 @@ export default route('catalog', {}, async (req, res, { requestId }) => {
   }
   const etag = `"${snapshot.id}:about"`;
   res.setHeader('ETag', etag);
-  res.setHeader('Cache-Control', 'private, no-cache');
+  res.setHeader('Cache-Control', PUBLIC_READ_CACHE);
   if (req.headers?.['if-none-match'] === etag) {
     res.status(304).end();
     return;
@@ -105,6 +105,7 @@ export default route('catalog', {}, async (req, res, { requestId }) => {
         like_rate: row.like_rate,
         amplification: row.amplification,
       },
+      curve: Array.isArray(row.curve) ? row.curve : undefined,
       features: {
         hook_slope: row.hook_slope,
         peak_mean_abs: row.peak_mean_abs,

@@ -1,7 +1,22 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { asksToFind, findHits } from '../server/chat/find.js';
+import { wantsDirectory, wantsFullTimeline } from '../server/chat/knowledge.js';
 import { conversationBrief } from '../server/chat/promptBlocks.js';
+
+test('the 97-reel directory and full seconds load only when the question needs them', () => {
+  assert.equal(wantsDirectory('how many plays does this have?', 'explore'), false);
+  assert.equal(wantsFullTimeline('how many plays does this have?'), false);
+  assert.equal(wantsDirectory('what is amplification?', 'explore'), false);
+  assert.equal(wantsFullTimeline('what is amplification?'), false);
+  assert.equal(wantsDirectory('find reels about cooking', 'explore'), false);
+  assert.equal(wantsFullTimeline('find reels about cooking'), false);
+  assert.equal(wantsDirectory('why did this work?', 'explore'), false);
+  assert.equal(wantsFullTimeline('why did this work?'), true);
+  assert.equal(wantsFullTimeline('How does the opening earn the attention?'), true);
+  assert.equal(wantsDirectory('can you suggest videos to take inspo from', 'explore'), true);
+  assert.equal(wantsDirectory('how do these two differ?', 'compare'), false);
+});
 
 test('find wording is the only kind that may search', () => {
   assert.equal(asksToFind('find reels about cooking'), true);

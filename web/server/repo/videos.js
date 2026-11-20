@@ -6,7 +6,7 @@ export async function listVideos(snapshotId) {
   const result = await query(
     `SELECT c.video_id, c.duration, c.language, c.account, c.plays, c.likes, c.comments, c.followers,
             c.like_rate, c.amplification, c.hook_slope, c.peak_mean_abs, c.sustain_ratio,
-            c.timing_eligible, c.cuts, c.frames, c.networks, c.topics, c.keywords, i.url
+            c.timing_eligible, c.cuts, c.curve, c.frames, c.networks, c.topics, c.keywords, i.url
      FROM clip c
      LEFT JOIN ingest i ON i.video_id = c.video_id
      WHERE c.snapshot_id = $1
@@ -103,6 +103,30 @@ export async function clipDetail(snapshotId, id) {
 const SECOND_COLUMNS = `t_sec, speech, speech_score, text_on_screen, speaker, labels, face_count,
             music_score, sentiment, scenes, outcomes, app, ask`;
 
+export async function secondsForChat(snapshotId, id) {
+  const cols = 't_sec, speech, text_on_screen, speaker';
+  try {
+    const result = await query(
+      `SELECT ${cols}, happens
+       FROM second
+       WHERE snapshot_id = $1 AND video_id = $2
+       ORDER BY t_sec`,
+      [snapshotId, id],
+    );
+    return result.rows;
+  } catch (err) {
+    if (err?.code !== '42703') throw err;
+    const result = await query(
+      `SELECT ${cols}
+       FROM second
+       WHERE snapshot_id = $1 AND video_id = $2
+       ORDER BY t_sec`,
+      [snapshotId, id],
+    );
+    return result.rows.map((row) => ({ ...row, happens: null }));
+  }
+}
+
 export async function secondsFor(snapshotId, id) {
   try {
     const result = await query(
@@ -132,6 +156,70 @@ export async function mediaObjects(snapshotId, id) {
     [snapshotId, id],
   );
   return result.rows[0] || null;
+}
+
+export async function liveMediaObjects(id) {
+  const result = await query(
+    `SELECT c.mp4_object, c.act_object, c.sprite_object
+     FROM pointer p
+     JOIN snapshot s ON s.id = p.snapshot_id AND s.complete
+     JOIN clip c ON c.snapshot_id = s.id AND c.video_id = $1`,
+    [id],
+  );
+  return result.rows[0] || null;
+}
+
+function secondsFromLiveRows(rows) {
+  if (!rows.length) return null;
+  const first = rows[0];
+  return {
+    snapshotId: first.snapshot_id,
+    quoteFloor: first.quote_floor,
+    timingEligible: first.timing_eligible,
+    cuts: first.cuts || [],
+    language: first.language || '',
+    topics: first.topics || '',
+    keywords: first.keywords || '',
+    seconds: rows.filter((row) => row.t_sec != null).map((row) => ({
+      t_sec: row.t_sec,
+      speech: row.speech || '',
+      speech_score: row.speech_score,
+      speaker: row.speaker || '',
+      text_on_screen: row.text_on_screen || [],
+      labels: row.labels || [],
+      face_count: row.face_count,
+      music_score: row.music_score,
+      sentiment: row.sentiment,
+      scenes: row.scenes || [],
+      outcomes: row.outcomes || [],
+      app: row.app,
+      ask: row.ask,
+      happens: row.happens || '',
+    })),
+  };
+}
+
+export async function liveSeconds(id) {
+  const select = (happens) => `
+    SELECT snap.id AS snapshot_id, snap.quote_floor,
+           c.timing_eligible, c.cuts, c.language, c.topics, c.keywords,
+           sec.t_sec, sec.speech, sec.speech_score, sec.text_on_screen, sec.speaker,
+           sec.labels, sec.face_count, sec.music_score, sec.sentiment, sec.scenes,
+           sec.outcomes, sec.app, sec.ask${happens ? ', sec.happens' : ''}
+    FROM pointer p
+    JOIN snapshot snap ON snap.id = p.snapshot_id AND snap.complete
+    JOIN clip c ON c.snapshot_id = snap.id AND c.video_id = $1
+    LEFT JOIN second sec ON sec.snapshot_id = c.snapshot_id AND sec.video_id = c.video_id
+    ORDER BY sec.t_sec
+  `;
+  try {
+    const result = await query(select(true), [id]);
+    return secondsFromLiveRows(result.rows);
+  } catch (err) {
+    if (err?.code !== '42703') throw err;
+    const result = await query(select(false), [id]);
+    return secondsFromLiveRows(result.rows.map((row) => ({ ...row, happens: null })));
+  }
 }
 
 /** Speech and speaker around each moment, used for before/after context lines. */

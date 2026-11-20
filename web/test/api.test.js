@@ -134,6 +134,7 @@ test('catalog serves the pointer snapshot only, with an ETag', async () => {
     ['v001', 'v002'],
   );
   assert.ok(res.headers['x-request-id']);
+  assert.match(res.headers['cache-control'], /s-maxage=/);
   const again = await call(api.catalog, { url: '/api/catalog', headers: { 'if-none-match': res.headers.etag } });
   assert.equal(again.statusCode, 304);
 });
@@ -278,7 +279,7 @@ test('media: a sprite redirects to a signed object URL that can be cached briefl
   assert.match(res.headers['cache-control'], /^private, max-age=\d+$/);
   const mp4 = await call(api.media, { url: '/api/media?id=v001&kind=mp4' });
   assert.equal(mp4.statusCode, 200);
-  assert.equal(mp4.headers['cache-control'], 'private, no-store');
+  assert.match(mp4.headers['cache-control'], /^private, max-age=\d+$/);
 });
 
 test('a live 429 falls back to the paused line when nothing is stored', async () => {

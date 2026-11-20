@@ -1,6 +1,12 @@
 import { query } from './pool.js';
 
 const COLUMNS = `s.id, s.embedding_model, s.embedding_dim, s.embedding_profile, s.quote_floor, s.complete`;
+const MEMORY_MS = 15_000;
+let memo = { at: 0, value: undefined };
+
+export function clearSnapshotCache() {
+  memo = { at: 0, value: undefined };
+}
 
 function shape(row) {
   if (!row) return null;
@@ -15,13 +21,17 @@ function shape(row) {
 
 /** Read the pointer once per request; every later query in that request uses this id. */
 export async function currentSnapshot() {
+  const now = Date.now();
+  if (memo.value !== undefined && now - memo.at < MEMORY_MS) return memo.value;
   const result = await query(
     `SELECT ${COLUMNS}
      FROM pointer p
      JOIN snapshot s ON s.id = p.snapshot_id
      WHERE p.id = 1 AND s.complete`,
   );
-  return shape(result.rows[0]);
+  const value = shape(result.rows[0]);
+  if (value) memo = { at: now, value };
+  return value;
 }
 
 /** For evaluation and validation only: a complete snapshot that may not be live yet. */

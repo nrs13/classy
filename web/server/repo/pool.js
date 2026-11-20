@@ -14,7 +14,14 @@ function getPool() {
   const connectionString = databaseUrl();
   if (!connectionString) return null;
   if (!pool) {
-    pool = new Pool({ connectionString, max: 4, statement_timeout: 8000 });
+    const serverless = Boolean(process.env.VERCEL);
+    pool = new Pool({
+      connectionString,
+      max: serverless ? 1 : 4,
+      idleTimeoutMillis: serverless ? 10_000 : 30_000,
+      connectionTimeoutMillis: 8_000,
+      statement_timeout: 8000,
+    });
   }
   return pool;
 }

@@ -254,14 +254,13 @@ function clipLines(video, knowledge, focus) {
   if (screens.length) lines.push(`Agreed app screens at second ${screens.join(', ')}. No app name is stored.`);
   if (next && next.next_t_sec != null) lines.push(`Next agreed app control goes to second ${next.next_t_sec}.`);
   else if (next?.on_screen_now) lines.push('The playhead is already on an agreed app screen. There is no later one.');
-  const windowRows = Array.isArray(video.window) ? video.window : [];
-  if (windowRows.length) {
-    lines.push(`Near the playhead: ${windowRows.map((row) => `${row.t_sec}: ${row.line}`).join(' | ')}`);
-  }
   const timeline = Array.isArray(video.timeline) ? video.timeline : [];
+  const windowRows = Array.isArray(video.window) ? video.window : [];
   if (timeline.length) {
     const text = timeline.map((row) => `${row.t_sec}: ${row.line}`).join(' | ');
     lines.push(`Every second: ${text}`);
+  } else if (windowRows.length) {
+    lines.push(`Near the playhead: ${windowRows.map((row) => `${row.t_sec}: ${row.line}`).join(' | ')}`);
   }
   return lines;
 }
