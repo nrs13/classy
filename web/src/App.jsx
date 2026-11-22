@@ -86,9 +86,11 @@ export default function App() {
   const [offline, setOffline] = useState(() => typeof navigator !== 'undefined' && navigator.onLine === false);
   const [brain, setBrain] = useState(null);
   const [knowledge, setKnowledge] = useState(null);
-  const [mode, setMode] = useState(() => (initialSearch.view === 'search' ? 'search' : 'explore'));
+  const [mode, setMode] = useState(() => (
+    initialSearch.view === 'search' ? 'search' : initialSearch.view === 'compare' ? 'compare' : 'explore'
+  ));
   const [selId, setSelId] = useState(null);
-  const [compareIds, setCompareIds] = useState([]);
+  const [compareIds, setCompareIds] = useState(() => initialSearch.reels || []);
   const [compareCapMsg, setCompareCapMsg] = useState(false);
   const [syncPlayback, setSyncPlayback] = useState(false);
   const [syncedPlaying, setSyncedPlaying] = useState(false);
@@ -145,9 +147,11 @@ export default function App() {
       .then((m) => {
         if (ctrl.signal.aborted) return;
         setManifest(m);
-        const first = m.videos[0]?.id || null;
+        const known = new Set((m.videos || []).map((video) => video.id));
+        const fromUrl = (initialSearch.reels || []).filter((id) => known.has(id));
+        const first = fromUrl[0] || m.videos[0]?.id || null;
         setSelId(first);
-        setCompareIds(first ? [first] : []);
+        setCompareIds(fromUrl.length ? fromUrl : (first ? [first] : []));
         prefetchClip(first, { signal: ctrl.signal });
         setKnowledge({
           product: 'Classy',
@@ -458,16 +462,56 @@ export default function App() {
     setLibraryOpen(false);
   }, []);
 
+  const historyKind = useRef('');
+  const screenRef = useRef(mode);
+  const searchRef = useRef(search);
+  searchRef.current = search;
+
+  const goHome = useCallback((event) => {
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
+    event.preventDefault();
+    const filters = search.filters || {};
+    const home = mode === 'explore'
+      && window.location.pathname === '/'
+      && !window.location.search
+      && !search.query.trim()
+      && !filters.lang && !filters.field && !filters.account;
+    if (home) return;
+    setMode('explore');
+    search.clear();
+    search.clearFilters();
+    setLibraryOpen(false);
+  }, [mode, search]);
+
   useEffect(() => {
+    const onPop = () => {
+      const loc = searchFromUrl(window.location.href);
+      historyKind.current = 'skip';
+      setMode(loc.view === 'search' ? 'search' : loc.view === 'compare' ? 'compare' : 'explore');
+      if (loc.view === 'search') searchRef.current.restore({ q: loc.q, filters: loc.filters });
+      else searchRef.current.restore({ q: '', filters: {} });
+      if (loc.view === 'compare' && loc.reels.length) setCompareIds(loc.reels);
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
+
+  useEffect(() => {
+    const changed = screenRef.current !== mode;
+    screenRef.current = mode;
+    const skip = historyKind.current === 'skip';
+    historyKind.current = '';
     const next = searchToUrl(window.location.href, {
-      view: mode === 'search' ? 'search' : '',
+      view: mode === 'search' ? 'search' : mode === 'compare' ? 'compare' : '',
       q: mode === 'search' ? search.query : '',
       filters: mode === 'search' ? search.filters : {},
+      reels: mode === 'compare' ? compareIds : [],
     });
-    if (next !== `${window.location.pathname}${window.location.search}${window.location.hash}`) {
-      window.history.replaceState(window.history.state, '', next);
-    }
-  }, [mode, search.query, search.filters]);
+    const current = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+    if (next === current) return;
+    const method = !skip && changed ? 'pushState' : 'replaceState';
+    window.history[method](window.history.state, '', next);
+  }, [mode, search.query, search.filters, compareIds]);
 
   const onSharedSeek = useCallback((sec) => {
     const clock = sharedClockRef.current;
@@ -739,7 +783,7 @@ export default function App() {
         className="app-header px-6 py-4 border-b hairline"
         style={{ background: 'var(--bg-subtle)' }}
       >
-        <div className="brand-mark text-[28px] leading-none">classy</div>
+        <a href="/" className="brand-mark text-[28px] leading-none" aria-label="Classy home" onClick={goHome}>classy</a>
         <div className="header-notes">
           <p className="confidentiality-note">
             Reduced demo of an internal project at <a href="https://knowunity.com/" target="_blank" rel="noopener noreferrer">Knowunity</a>. Certain important features, data and details that I shipped are omitted due to a confidentiality agreement.

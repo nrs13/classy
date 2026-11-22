@@ -214,6 +214,13 @@ export function useLibrarySearch(initial = {}) {
     setLiteral(false);
   }, []);
 
+  const restore = useCallback((next = {}) => {
+    setQueryState(String(next.q || ''));
+    setLiteral(false);
+    setFilters({ ...EMPTY_FILTERS, ...(next.filters || {}) });
+    setSubmitNonce((n) => n + 1);
+  }, []);
+
   const rememberQuery = useCallback((value) => {
     setRecent((list) => addRecent(list, value));
   }, []);
@@ -260,6 +267,7 @@ export function useLibrarySearch(initial = {}) {
     setFilter,
     clearFilters,
     clear,
+    restore,
     submit,
     retry,
     literal,

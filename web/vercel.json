@@ -1,4 +1,8 @@
 {
+  "rewrites": [
+    { "source": "/search", "destination": "/index.html" },
+    { "source": "/compare", "destination": "/index.html" }
+  ],
   "functions": {
     "api/chat.js": {
       "maxDuration": 60

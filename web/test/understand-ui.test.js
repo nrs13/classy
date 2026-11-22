@@ -196,14 +196,21 @@ test('search URL state round-trips and drops unknown kinds', () => {
     q: '  chica bailando ',
     filters: { lang: 'es', field: 'scene', account: 'sssteffff_' },
   });
-  assert.equal(href, '/?video=v002&view=search&q=chica+bailando&lang=es&kind=scene&account=sssteffff_#top');
+  assert.equal(href, '/search?video=v002&q=chica+bailando&lang=es&kind=scene&account=sssteffff_#top');
   assert.deepEqual(searchFromUrl(href), {
     view: 'search',
     q: 'chica bailando',
     filters: { lang: 'es', field: 'scene', account: 'sssteffff_' },
+    reels: [],
   });
+  assert.equal(searchFromUrl('/?view=search&kind=on_screen').view, 'search');
   assert.equal(searchFromUrl('/?view=search&kind=activation').filters.field, '');
   assert.equal(searchToUrl('http://localhost/?view=search&q=x', { view: '', q: '', filters: {} }), '/');
+  assert.equal(
+    searchToUrl('http://localhost/search?q=exam', { view: 'compare', reels: ['v002', 'v014', 'nope'] }),
+    '/compare?reels=v002%2Cv014',
+  );
+  assert.deepEqual(searchFromUrl('/compare?reels=v002,v002,v014').reels, ['v002', 'v014']);
 });
 
 test('result copy: why lines and counts', () => {

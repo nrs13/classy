@@ -215,28 +215,58 @@ export function dropRecent(list, q) {
   return next;
 }
 
-/** Search state as URL parameters (view=search&q=&lang=&kind=&account=). */
+const REEL_ID = /^v\d+$/;
+
+function screenFromPath(pathname, legacyView) {
+  const path = String(pathname || '/').replace(/\/+$/, '') || '/';
+  if (path === '/search' || legacyView === 'search') return 'search';
+  if (path === '/compare' || legacyView === 'compare') return 'compare';
+  return '';
+}
+
+export function parseReels(raw) {
+  const ids = [];
+  for (const part of String(raw || '').split(',')) {
+    const id = part.trim();
+    if (!REEL_ID.test(id) || ids.includes(id)) continue;
+    ids.push(id);
+    if (ids.length === 4) break;
+  }
+  return ids;
+}
+
+/** Screen is the path (`/`, `/search`, `/compare`). Filters stay in the query. */
 export function searchFromUrl(href) {
-  const params = new URL(href, 'http://localhost').searchParams;
+  const url = new URL(href, 'http://localhost');
+  const view = screenFromPath(url.pathname, url.searchParams.get('view') || '');
+  const kind = url.searchParams.get('kind');
   return {
-    view: params.get('view') === 'search' ? 'search' : '',
-    q: (params.get('q') || '').slice(0, MAX_QUERY),
+    view,
+    q: (url.searchParams.get('q') || '').slice(0, MAX_QUERY),
     filters: {
-      lang: params.get('lang') || '',
-      field: KINDS.some((k) => k.id && k.id === params.get('kind')) ? params.get('kind') : '',
-      account: params.get('account') || '',
+      lang: url.searchParams.get('lang') || '',
+      field: KINDS.some((k) => k.id && k.id === kind) ? kind : '',
+      account: url.searchParams.get('account') || '',
     },
+    reels: parseReels(url.searchParams.get('reels')),
   };
 }
 
-export function searchToUrl(href, { view, q, filters }) {
+export function searchToUrl(href, { view, q = '', filters = {}, reels = [] } = {}) {
   const url = new URL(href, 'http://localhost');
-  for (const key of ['view', 'q', 'lang', 'kind', 'account']) url.searchParams.delete(key);
-  if (view === 'search') url.searchParams.set('view', 'search');
-  if (q.trim()) url.searchParams.set('q', q.trim());
-  if (filters.lang) url.searchParams.set('lang', filters.lang);
-  if (filters.field) url.searchParams.set('kind', filters.field);
-  if (filters.account) url.searchParams.set('account', filters.account);
+  const screen = view === 'search' || view === 'compare' ? view : '';
+  url.pathname = screen === 'search' ? '/search' : screen === 'compare' ? '/compare' : '/';
+  for (const key of ['view', 'q', 'lang', 'kind', 'account', 'reels']) url.searchParams.delete(key);
+  if (screen === 'search') {
+    if (String(q).trim()) url.searchParams.set('q', String(q).trim());
+    if (filters.lang) url.searchParams.set('lang', filters.lang);
+    if (filters.field) url.searchParams.set('kind', filters.field);
+    if (filters.account) url.searchParams.set('account', filters.account);
+  }
+  if (screen === 'compare') {
+    const ids = parseReels(reels.join(','));
+    if (ids.length) url.searchParams.set('reels', ids.join(','));
+  }
   const query = url.searchParams.toString();
   return `${url.pathname}${query ? `?${query}` : ''}${url.hash}`;
 }

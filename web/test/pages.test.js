@@ -23,8 +23,13 @@ test('the 404 page is a real page with no inline code', () => {
   const headers = JSON.parse(readFileSync(new URL('../vercel.json', import.meta.url), 'utf8')).headers;
   const fontCache = headers.find((group) => group.source === '/fonts/(.*)');
   const sheetCache = headers.find((group) => group.source === '/404.css');
+  const rewrites = JSON.parse(readFileSync(new URL('../vercel.json', import.meta.url), 'utf8')).rewrites;
   assert.equal(fontCache.headers[0].value, 'public, max-age=31536000, immutable');
   assert.equal(sheetCache.headers[0].value, 'public, max-age=31536000, immutable');
+  assert.deepEqual(
+    rewrites.map((rule) => rule.source),
+    ['/search', '/compare'],
+  );
 });
 
 test('unknown static paths answer 404 and real files stay 200', async () => {
